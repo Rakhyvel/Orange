@@ -1411,7 +1411,14 @@ pub const AST = union(enum) {
             .float => return create_float(self.token(), self.float.data, allocator),
             .string => return create_string(self.token(), self.string.data, allocator),
             .field => return create_field(self.token(), allocator),
-            .identifier => return create_identifier(self.token(), allocator),
+            .identifier => {
+                if (self.refers_to_type()) {
+                    if (substs.get(self.token().data)) |replacement| {
+                        return create_identifier(replacement.token(), allocator);
+                    }
+                }
+                return self;
+            },
             .@"unreachable" => return create_unreachable(self.token(), allocator),
             .true => return create_true(self.token(), allocator),
             .false => return create_false(self.token(), allocator),
@@ -2295,7 +2302,7 @@ pub const AST = union(enum) {
         return switch (self.*) {
             else => false,
 
-            .identifier, .access => self.symbol().?.is_type(),
+            .identifier, .access => if (self.symbol()) |sym| sym.is_type() else false,
 
             .index => self.lhs().refers_to_type(), // generic type
             .generic_apply => self.lhs().refers_to_type(),

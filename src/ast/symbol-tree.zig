@@ -324,14 +324,10 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             ast.set_scope(new_self.scope);
             new_self.scope.function_depth = new_self.scope.function_depth + 1;
 
-            if (ast.method_decl.init == null) {
-                // Trait method decl
-                ast.method_decl._decl_type = create_method_type(ast, self.allocator);
-            } else {
-                // Impl method decl
-                const symbol = try create_method_symbol(ast, self.errors, self.allocator);
-                try self.register_symbol(ast, symbol);
-            }
+            const symbol = try create_method_symbol(ast, self.errors, self.allocator);
+            try self.register_symbol(ast, symbol);
+
+            std.debug.assert(ast.symbol() != null);
 
             return new_self;
         },
@@ -763,14 +759,14 @@ fn create_method_symbol(
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
-    const receiver_base_type: *Type_AST = ast.method_decl.impl.?.impl._type;
+    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl| impl.impl._type else null;
 
     // Create the function type
     ast.method_decl._decl_type = create_method_type(ast, allocator);
 
-    if (ast.method_decl.receiver != null) {
+    if (ast.method_decl.receiver != null and receiver_base_type != null) {
         // addr-of receiver, prepend receiver to parameters as normal
-        const recv_type = create_receiver_addr(receiver_base_type, ast.method_decl.receiver.?, allocator);
+        const recv_type = create_receiver_addr(receiver_base_type.?, ast.method_decl.receiver.?, allocator);
         recv_type.addr_of.anytptr = true;
         // value receiver, prepend a void* self_ptr parameter
         const receiver_symbol = Symbol.init(

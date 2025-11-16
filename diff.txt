@@ -20,6 +20,9 @@ index 538eeef1..7a1d6caf 100644
          ../zig-out/bin/orng clean
          ../zig-out/bin/orng test
  
+diff --git a/diff.txt b/diff.txt
+new file mode 100644
+index 00000000..e69de29b
 diff --git a/examples/main.orng b/examples/main.orng
 index 0f426152..6be39131 100644
 --- a/examples/main.orng
@@ -860,11 +863,39 @@ index 426525a9..5dbfb422 100644
              params.append(param_ident) catch unreachable;
              if (self.accept(.comma) == null) {
                  break;
+diff --git a/src/semantic/symbol_validate.zig b/src/semantic/symbol_validate.zig
+index dc5483ae..afbc157e 100644
+--- a/src/semantic/symbol_validate.zig
++++ b/src/semantic/symbol_validate.zig
+@@ -56,6 +56,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
+ 
+     if (symbol.init_value()) |_init| {
+         // might be null for parameters
++        // Tree_Writer.print_tree(_init);
+         _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
+             error.CompileError => return error.CompileError,
+             error.OutOfMemory => return error.OutOfMemory,
+@@ -93,6 +94,15 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
+         try args_.validate_requested_contexts(symbol.type().function.contexts.items, &self.ctx.errors);
+     }
+ 
++    if (symbol.decl.?.* == .type_param_decl) {
++        if (symbol.decl.?.type_param_decl.constraint) |constraint| {
++            if (!constraint.refers_to_trait()) {
++                self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
++                return error.CompileError;
++            }
++        }
++    }
++
+     // Symbol's name must be capitalized iff its type is Type
+     if (symbol.is_type() or symbol.kind == .trait or symbol.kind == .context) {
+         if (!is_capitalized(symbol.name)) {
 diff --git a/src/semantic/typecheck.zig b/src/semantic/typecheck.zig
-index c61f5bc9..6c078eb9 100644
+index c61f5bc9..f06ab69f 100644
 --- a/src/semantic/typecheck.zig
 +++ b/src/semantic/typecheck.zig
-@@ -510,16 +510,32 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
+@@ -510,16 +510,41 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
              const expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
              try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
  
@@ -878,6 +909,7 @@ index c61f5bc9..6c078eb9 100644
 -                return error.CompileError;
 +            if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
 +                const type_param_decl = expr_type.symbol().?.decl.?;
++                // Check to see if the type parameter has the constraint type that we're looking for
 +                if (type_param_decl.type_param_decl.constraint) |constraint| {
 +                    const constraint_trait = constraint.symbol().?;
 +                    const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
@@ -889,6 +921,14 @@ index c61f5bc9..6c078eb9 100644
 +                        } });
 +                        return error.CompileError;
 +                    }
++                } else {
++                    // No constraints, so cannot be correct
++                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
++                        .span = ast.token().span,
++                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
++                        ._type = expr_type,
++                    } });
++                    return error.CompileError;
 +                }
 +            } else {
 +                const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
@@ -906,7 +946,7 @@ index c61f5bc9..6c078eb9 100644
  
              return ast.dyn_value.dyn_type;
          },
-@@ -637,6 +653,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
+@@ -637,6 +662,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                          self.ctx.allocator(),
                      ).*;
                      return self.typecheck_AST(ast, expected);
@@ -1116,6 +1156,103 @@ index 56620cc6..2c43cf1a 100644
  }
  
  fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
+diff --git a/src/symbol/symbol.zig b/src/symbol/symbol.zig
+index 0d673339..4aefa463 100644
+--- a/src/symbol/symbol.zig
++++ b/src/symbol/symbol.zig
+@@ -110,6 +110,10 @@ pub fn is_type(self: *const Self) bool {
+     return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.* == .type_param_decl;
+ }
+ 
++pub fn is_trait(self: *const Self) bool {
++    return self.kind == .trait;
++}
++
+ pub fn @"type"(self: *const Self) *Type_AST {
+     return self.decl.?.decl_type();
+ }
+@@ -236,7 +240,9 @@ pub fn monomorphize(
+     key: std.array_list.Managed(*Type_AST),
+     ctx: *Compiler_Context,
+ ) error{ OutOfMemory, CompileError }!*Self {
++    // std.debug.print("monomorphize {s}{f} ({*})\n", .{ self.name, fmt_.List_Printer(Type_AST){ .list = &key }, self });
+     if (self.monomorphs.get(key)) |retval| {
++        // std.debug.print("eat slop ({*})\n", .{retval});
+         return retval;
+     } else {
+         // Create a substitution map that subs the param names for the given arg types
+@@ -288,6 +294,8 @@ pub fn monomorphize(
+         try self.monomorphs.put(try key.clone(), clone);
+         clone.is_monomorphed = true;
+ 
++        // std.debug.print("brand new one for ya ({*})\n", .{clone});
++
+         return clone;
+     }
+ }
+diff --git a/src/types/type.zig b/src/types/type.zig
+index bbe810f4..515a0b9a 100644
+--- a/src/types/type.zig
++++ b/src/types/type.zig
+@@ -664,7 +664,9 @@ pub const Type_AST = union(enum) {
+                 new.set_unexpanded_type(res);
+                 res = new;
+             } else if (res.* == .generic_apply) {
+-                res = res.generic_apply._symbol.?.init_typedef().?;
++                const new = res.generic_apply._symbol.?.init_typedef().?;
++                new.set_unexpanded_type(res);
++                res = new;
+             } else if (res.* == .annotation) {
+                 res = res.child();
+             } else {
+@@ -1224,6 +1226,14 @@ pub const Type_AST = union(enum) {
+         };
+     }
+ 
++    pub fn refers_to_trait(self: *Type_AST) bool {
++        return switch (self.*) {
++            else => false,
++
++            .identifier, .access => self.symbol().?.is_trait(),
++        };
++    }
++
+     /// Determines if an expanded AST type can represent a floating-point number value
+     pub fn can_expanded_represent_int(self: *Type_AST) bool {
+         const info = prelude_.info_from_ast(self) orelse return false;
+diff --git a/src/util/errors.zig b/src/util/errors.zig
+index e586eeeb..f62af81f 100644
+--- a/src/util/errors.zig
++++ b/src/util/errors.zig
+@@ -271,6 +271,10 @@ pub const Error = union(enum) {
+         span: Span,
+         symbol_name: ?[]const u8,
+     },
++    not_constraint: struct {
++        span: Span,
++        got: *Type_AST,
++    },
+ 
+     // TODO: Add span() and get field like for AST
+     fn get_span(self: *const Error) ?Span {
+@@ -332,6 +336,7 @@ pub const Error = union(enum) {
+             .integer_out_of_bounds => return self.integer_out_of_bounds.span,
+             .invalid_type => return self.invalid_type.span,
+             .recursive_definition => return self.recursive_definition.span,
++            .not_constraint => return self.not_constraint.span,
+         }
+     }
+ 
+@@ -585,6 +590,9 @@ pub const Error = union(enum) {
+             } else {
+                 writer.print("error: recursive definition detected\n", .{}) catch unreachable;
+             },
++            .not_constraint => {
++                writer.print("error: expected a trait impl constraint, got {s}\n", .{@tagName(err.not_constraint.got.*)}) catch unreachable;
++            },
+         }
+     }
+ 
 diff --git a/std/fmt.orng b/std/fmt.orng
 index e22ccbb7..bf6ca99b 100644
 --- a/std/fmt.orng
@@ -1307,6 +1444,48 @@ index 00000000..321bfca1
 +    }
 +}
 \ No newline at end of file
+diff --git a/tests/integration/generics/nested_constraints.orng b/tests/integration/generics/nested_constraints.orng
+new file mode 100644
+index 00000000..c9aecd79
+--- /dev/null
++++ b/tests/integration/generics/nested_constraints.orng
+@@ -0,0 +1,35 @@
++// 370
++trait Eq {
++    fn eq(self, other: Self) -> Bool
++}
++
++impl Eq for Wrapper[Int] {
++    fn eq(self, other: Wrapper[Int]) -> Bool {
++        self.x == other.x
++    }
++}
++
++struct Equator[T: Eq] {
++    x: T
++}
++
++struct Wrapper[A] {
++    x: A
++}
++
++// since Equator takes a T that must be Eq, we have to declare that T here is Eq, too
++impl[T: Eq] for Equator[T] {
++    fn check_if_eq(&self, y: T) -> Bool {
++        self.x.>eq(y)
++    }
++}
++
++fn main() -> Int {
++    let wrapped = Wrapper[Int](300)
++    let equator = Equator[Wrapper[Int]](wrapped)
++    if equator.>check_if_eq(wrapped) {
++        370
++    } else {
++        unreachable
++    }
++}
+\ No newline at end of file
 diff --git a/tests/integration/generics/struct_trait_constraints.orng b/tests/integration/generics/struct_trait_constraints.orng
 new file mode 100644
 index 00000000..937f7956
@@ -1358,6 +1537,24 @@ index 00000000..39b0ce0e
 +    @print("Hello, World!")
 +}
 \ No newline at end of file
+diff --git a/tests/negative/generics/not_trait_constraint.orng b/tests/negative/generics/not_trait_constraint.orng
+new file mode 100644
+index 00000000..4e4655e3
+--- /dev/null
++++ b/tests/negative/generics/not_trait_constraint.orng
+@@ -0,0 +1,11 @@
++// not_trait_constraint.orng:9:16: error: error: expected a trait impl constraint, got identifier
++// fn wrong[T: Int]() -> Int {
++//               ^
++// 
++fn main() -> Int {
++    4
++}
++
++fn wrong[T: Int]() -> Int {
++    4
++}
+\ No newline at end of file
 diff --git a/tests/negative/generics/struct_trait_constraint_fail.orng b/tests/negative/generics/struct_trait_constraint_fail.orng
 new file mode 100644
 index 00000000..9d152c13
@@ -1381,6 +1578,23 @@ index 00000000..9d152c13
 +    equator.x
 +}
 \ No newline at end of file
+diff --git a/tests/negative/generics/type_param_dyn_value_not_impl.orng b/tests/negative/generics/type_param_dyn_value_not_impl.orng
+new file mode 100644
+index 00000000..2947f0ab
+--- /dev/null
++++ b/tests/negative/generics/type_param_dyn_value_not_impl.orng
+@@ -0,0 +1,11 @@
++// type_param_dyn_value_not_impl.orng:11:2: error: the type `T` does not implement the trait `Format`
++// t
++// ^
++// 
++fn main() -> ()!() with core::IO {
++    .ok
++}
++
++fn print_anything[T](t: T) -> ()!() with core::IO {
++    @print("{t}")
++}
 diff --git a/tests/negative/lexer/camelCase2.orng b/tests/negative/lexer/camelCase2.orng
 new file mode 100644
 index 00000000..5b9045f8
