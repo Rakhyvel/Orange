@@ -271,6 +271,10 @@ pub const Error = union(enum) {
         span: Span,
         symbol_name: ?[]const u8,
     },
+    not_constraint: struct {
+        span: Span,
+        got: *Type_AST,
+    },
 
     // TODO: Add span() and get field like for AST
     fn get_span(self: *const Error) ?Span {
@@ -332,6 +336,7 @@ pub const Error = union(enum) {
             .integer_out_of_bounds => return self.integer_out_of_bounds.span,
             .invalid_type => return self.invalid_type.span,
             .recursive_definition => return self.recursive_definition.span,
+            .not_constraint => return self.not_constraint.span,
         }
     }
 
@@ -584,6 +589,9 @@ pub const Error = union(enum) {
                 writer.print("error: recursive definition of symbol `{s}` detected\n", .{symbol_name}) catch unreachable;
             } else {
                 writer.print("error: recursive definition detected\n", .{}) catch unreachable;
+            },
+            .not_constraint => {
+                writer.print("error: expected a trait impl constraint, got {s}\n", .{@tagName(err.not_constraint.got.*)}) catch unreachable;
             },
         }
     }

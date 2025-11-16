@@ -1,0 +1,7 @@
+fn main() -> ()!() with core::IO {
+    .ok
+}
+
+fn print_anything[T](t: T) -> ()!() with core::IO {
+    @print("{t}")
+}

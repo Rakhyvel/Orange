@@ -664,7 +664,9 @@ pub const Type_AST = union(enum) {
                 new.set_unexpanded_type(res);
                 res = new;
             } else if (res.* == .generic_apply) {
-                res = res.generic_apply._symbol.?.init_typedef().?;
+                const new = res.generic_apply._symbol.?.init_typedef().?;
+                new.set_unexpanded_type(res);
+                res = new;
             } else if (res.* == .annotation) {
                 res = res.child();
             } else {
@@ -1221,6 +1223,14 @@ pub const Type_AST = union(enum) {
             },
             // I think everything above covers everything, but just in case, error out
             else => true,
+        };
+    }
+
+    pub fn refers_to_trait(self: *Type_AST) bool {
+        return switch (self.*) {
+            else => false,
+
+            .identifier, .access => self.symbol().?.is_trait(),
         };
     }
 

@@ -1,0 +1,11 @@
+// not_trait_constraint.orng:9:16: error: error: expected a trait impl constraint, got identifier
+// fn wrong[T: Int]() -> Int {
+//               ^
+// 
+fn main() -> Int {
+    4
+}
+
+fn wrong[T: Int]() -> Int {
+    4
+}

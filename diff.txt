@@ -1,0 +1,1475 @@
+diff --git a/.github/workflows/test_example.yml b/.github/workflows/test_example.yml
+index 538eeef1..7a1d6caf 100644
+--- a/.github/workflows/test_example.yml
++++ b/.github/workflows/test_example.yml
+@@ -43,7 +43,7 @@ jobs:
+         export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
+         zig build orng
+         cd examples
+-        ../zig-out/bin/orng run
++        printf 'joseph\nshimel\n' | ../zig-out/bin/orng run
+         ../zig-out/bin/orng clean
+         ../zig-out/bin/orng test
+     
+@@ -55,7 +55,7 @@ jobs:
+         export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
+         zig build orng
+         cd examples
+-        ../zig-out/bin/orng run
++        printf 'joseph\nshimel\n' | ../zig-out/bin/orng run
+         ../zig-out/bin/orng clean
+         ../zig-out/bin/orng test
+ 
+diff --git a/examples/main.orng b/examples/main.orng
+index 0f426152..6be39131 100644
+--- a/examples/main.orng
++++ b/examples/main.orng
+@@ -1,20 +1,21 @@
+-import std::debug
+-import std::ffi
+ import std::testing
+ import std::mem
+-import std::list
++import std::io
+ import std::string_buffer::String_Buffer
+ import externs
+ 
+ fn main() -> ()!() with (core::IO, core::Allocating) {
+-    let mut name_buf = String_Buffer::init()
+-    defer name_buf.>deinit()
+-
+-    try core::IO.writer.>write("What is your name?\n")
+-    try core::IO.reader.>read(&mut name_buf)
+-    try core::IO.writer.>write("Hello, ")
+-    try core::IO.writer.>write(name_buf.>str())
+-    try core::IO.writer.>write("!\n")
++    let mut first_name_buf = String_Buffer::init()
++    defer first_name_buf.>deinit()
++    let mut last_name_buf = String_Buffer::init()
++    defer last_name_buf.>deinit()
++
++    try @print("Enter your first name: ")
++    try io::read_until_delimeter(core::IO.reader, &first_name_buf, '\n')
++    try @print("Enter your last name: ")
++    try io::read_until_delimeter(core::IO.reader, &last_name_buf, '\n')
++    
++    try @println("Hello, {first_name_buf.>str()} {last_name_buf.>str()}!")
+ 
+     .ok
+ }
+diff --git a/src/ast/ast.zig b/src/ast/ast.zig
+index df11aec7..cdd65942 100644
+--- a/src/ast/ast.zig
++++ b/src/ast/ast.zig
+@@ -187,9 +187,9 @@ pub const AST = union(enum) {
+     },
+     invoke: struct {
+         common: AST_Common,
+-        _lhs: *AST,
+-        _rhs: *AST,
+-        _args: std.array_list.Managed(*AST),
++        _lhs: *AST, // The subject of the invoke
++        _rhs: *AST, // The method, usually a field AST
++        _args: std.array_list.Managed(*AST), // The args of the invoke
+         context_args: std.array_list.Managed(*Symbol),
+         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
+         method_decl: ?*AST = null,
+@@ -268,6 +268,18 @@ pub const AST = union(enum) {
+         common: AST_Common,
+         _type: *Type_AST,
+     },
++    /// Print a formatted string to a writer
++    write: struct {
++        common: AST_Common,
++        writer: *AST,
++        _children: std.array_list.Managed(*AST),
++    },
++    /// Print a formatted string to IO.writer
++    /// Both `@print` and `@println` use this node, with `@println` having a newline appended
++    print: struct {
++        common: AST_Common,
++        _children: std.array_list.Managed(*AST),
++    },
+ 
+     // Control-flow expressions
+     @"if": struct {
+@@ -391,6 +403,7 @@ pub const AST = union(enum) {
+     type_param_decl: struct {
+         common: AST_Common,
+         _symbol: ?*Symbol = null,
++        constraint: ?*Type_AST,
+     },
+     struct_decl: struct {
+         common: AST_Common,
+@@ -579,6 +592,21 @@ pub const AST = union(enum) {
+         } }, allocator);
+     }
+ 
++    pub fn create_write(_token: Token, writer: *AST, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
++        return AST.box(AST{ .write = .{
++            .common = AST_Common{ ._token = _token },
++            .writer = writer,
++            ._children = _children,
++        } }, allocator);
++    }
++
++    pub fn create_print(_token: Token, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
++        return AST.box(AST{ .print = .{
++            .common = AST_Common{ ._token = _token },
++            ._children = _children,
++        } }, allocator);
++    }
++
+     pub fn create_assign(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+         return AST.box(AST{ .assign = .{
+             .common = AST_Common{ ._token = _token },
+@@ -1223,9 +1251,10 @@ pub const AST = union(enum) {
+         } }, allocator);
+     }
+ 
+-    pub fn create_type_param_decl(_token: Token, allocator: std.mem.Allocator) *AST {
++    pub fn create_type_param_decl(_token: Token, constraint: ?*Type_AST, allocator: std.mem.Allocator) *AST {
+         return AST.box(AST{ .type_param_decl = .{
+             .common = AST_Common{ ._token = _token },
++            .constraint = constraint,
+         } }, allocator);
+     }
+ 
+@@ -1397,6 +1426,14 @@ pub const AST = union(enum) {
+             .@"try" => return create_try(self.token(), self.expr().clone(substs, allocator), allocator),
+             .default => return create_default(self.token(), self.default._type.clone(substs, allocator), allocator),
+             .size_of => return create_size_of(self.token(), self.size_of._type.clone(substs, allocator), allocator),
++            .write => {
++                const cloned_args = clone_children(self.children().*, substs, allocator);
++                return create_write(self.token(), self.write.writer.clone(substs, allocator), cloned_args, allocator);
++            },
++            .print => {
++                const cloned_args = clone_children(self.children().*, substs, allocator);
++                return create_print(self.token(), cloned_args, allocator);
++            },
+             .@"comptime" => return create_comptime(self.token(), self.expr().clone(substs, allocator), allocator),
+ 
+             .assign => return create_assign(
+@@ -1585,7 +1622,11 @@ pub const AST = union(enum) {
+                 retval.enum_value.init = if (self.enum_value.init) |init| init.clone(substs, allocator) else null;
+                 return retval;
+             },
+-            .type_param_decl => return create_type_param_decl(self.token(), allocator),
++            .type_param_decl => return create_type_param_decl(
++                self.token(),
++                if (self.type_param_decl.constraint) |constraint| constraint.clone(substs, allocator) else null,
++                allocator,
++            ),
+             .struct_value => {
+                 const cloned_terms = clone_children(self.children().*, substs, allocator);
+                 var retval = create_struct_value(
+@@ -1826,7 +1867,7 @@ pub const AST = union(enum) {
+                     allocator,
+                 );
+                 retval.method_decl.impl = self.method_decl.impl;
+-                retval.method_decl.domain = self.method_decl.domain;
++                retval.method_decl.domain = if (self.method_decl.domain) |domain| domain.clone(substs, allocator) else null;
+                 retval.method_decl._decl_type = if (self.method_decl._decl_type != null) self.method_decl._decl_type.?.clone(substs, allocator) else null;
+                 return retval;
+             },
+@@ -1930,6 +1971,8 @@ pub const AST = union(enum) {
+             .fn_decl => &self.fn_decl._params,
+             .method_decl => &self.method_decl._params,
+             .invoke => &self.invoke._args,
++            .write => &self.write._children,
++            .print => &self.print._children,
+             .bit_and => &self.bit_and._args,
+             .bit_or => &self.bit_or._args,
+             .bit_xor => &self.bit_xor._args,
+@@ -2280,7 +2323,7 @@ pub const AST = union(enum) {
+             .unit_value => try out.print("unit_value", .{}),
+             .int => try out.print("int({})", .{self.int.data}),
+             .float => try out.print("float()", .{}),
+-            .string => try out.print("string()", .{}),
++            .string => try out.print("string({s})", .{self.string.data}),
+             .field => try out.print("field(\"{s}\")", .{self.field.common._token.data}),
+             .identifier => try out.print("identifier(\"{s}\")", .{self.identifier.common._token.data}),
+             .@"unreachable" => try out.print("unreachable", .{}),
+@@ -2328,6 +2371,26 @@ pub const AST = union(enum) {
+                 }
+                 try out.print("])", .{});
+             },
++            .write => {
++                try out.print("write(", .{});
++                for (self.write._children.items, 0..) |item, i| {
++                    try out.print("{f}", .{item});
++                    if (i < self.write._children.items.len - 1) {
++                        try out.print(",", .{});
++                    }
++                }
++                try out.print(")", .{});
++            },
++            .print => {
++                try out.print("print(", .{});
++                for (self.print._children.items, 0..) |item, i| {
++                    try out.print("{f}", .{item});
++                    if (i < self.print._children.items.len - 1) {
++                        try out.print(",", .{});
++                    }
++                }
++                try out.print(")", .{});
++            },
+             .bit_and => {
+                 try out.print("@bit_and(", .{});
+                 for (self.bit_and._args.items, 0..) |item, i| {
+diff --git a/src/ast/decorate.zig b/src/ast/decorate.zig
+index 6b1f5fba..a14f0798 100644
+--- a/src/ast/decorate.zig
++++ b/src/ast/decorate.zig
+@@ -221,6 +221,35 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
+             }
+         },
+ 
++        .write => {
++            const format_all_call = try self.create_format_all_call(ast, ast.write.writer);
++            ast.* = format_all_call.*;
++        },
++
++        .print => {
++            const context_val_symbol = self.scope.parent.?.context_lookup(core_.io_context, self.ctx) orelse {
++                self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
++                    .span = ast.token().span,
++                    .context = Type_AST.create_type_identifier(core_.io_context.token(), self.ctx.allocator()),
++                } });
++                return error.CompileError;
++            };
++
++            // Append writer to the call args
++            var writer_token = ast.token();
++            writer_token.data = context_val_symbol.name;
++            const io_context = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
++            io_context.set_symbol(context_val_symbol);
++            var writer_field_token = ast.token();
++            writer_field_token.data = "writer";
++            const writer_field = ast_.AST.create_field(writer_field_token, self.ctx.allocator());
++            const writer = ast_.AST.create_select(writer_token, io_context, writer_field, self.ctx.allocator());
++
++            const format_all_call = try self.create_format_all_call(ast, writer);
++
++            ast.* = format_all_call.*;
++        },
++
+         .binding => {
+             for (ast.binding.decls.items) |decl| {
+                 if (decl.* == .decl) {
+@@ -311,8 +340,23 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
+         return error.CompileError;
+     }
+ 
+-    for (ast.generic_apply._children.items) |child| {
++    for (ast.generic_apply._children.items, 0..) |child, i| {
+         try self.ctx.validate_type.validate_type(child);
++
++        const param = params.items[i];
++        const constraint = param.type_param_decl.constraint;
++        if (constraint != null and constraint.?.symbol() != null) {
++            const trait = constraint.?.symbol().?;
++            const res = self.scope.impl_trait_lookup(child, trait);
++            if (res.count == 0) {
++                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
++                    .span = child.token().span,
++                    .trait_name = trait.name,
++                    ._type = child,
++                } });
++                return error.CompileError;
++            }
++        }
+     }
+ 
+     if (ast.generic_apply.state == .unmorphed) {
+@@ -442,3 +486,35 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
+         std.debug.panic("compiler error: unsupported access symbol resolution for decl-like AST: {s}", .{@tagName(decl.*)});
+     }
+ }
++
++fn create_format_all_call(self: Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {
++    var format_all = ast_.AST.create_identifier(ast.token(), self.ctx.allocator());
++    format_all.set_symbol(self.ctx.get_core_symbol("format_all"));
++    var args = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
++    try args.append(writer);
++
++    // Create and append slice to call args
++    var array_terms = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
++    var format_ident_token = ast.token();
++    format_ident_token.data = "Format";
++    var format_ident = Type_AST.create_type_identifier(format_ident_token, self.ctx.allocator());
++    format_ident.set_symbol(self.ctx.get_core_symbol("Format"));
++    const dyn_type = Type_AST.create_dyn_type(ast.token(), format_ident, false, self.ctx.allocator());
++    for (ast.children().items) |child| {
++        const dyn_value = ast_.AST.create_dyn_value(
++            child.token(),
++            dyn_type,
++            child,
++            self.scope,
++            false,
++            self.ctx.allocator(),
++        );
++        try array_terms.append(dyn_value);
++    }
++    const args_array = ast_.AST.create_array_value(ast.token(), array_terms, self.ctx.allocator());
++    const args_slice = ast_.AST.create_slice_of(ast.token(), args_array, false, self.ctx.allocator());
++    try args.append(args_slice);
++
++    const format_all_call = ast_.AST.create_call(ast.token(), format_all, args, self.ctx.allocator());
++    return format_all_call;
++}
+diff --git a/src/ast/symbol-tree.zig b/src/ast/symbol-tree.zig
+index 49b5f5f7..4efb2b6c 100644
+--- a/src/ast/symbol-tree.zig
++++ b/src/ast/symbol-tree.zig
+@@ -116,10 +116,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
+         },
+ 
+         .struct_decl, .enum_decl, .type_alias => {
+-            if (ast.symbol() != null) {
+-                // Do not re-do symbol if already declared
+-                return null;
+-            }
++            std.debug.assert(ast.symbol() == null);
+ 
+             var new_self = self;
+             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
+@@ -139,10 +136,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
+         },
+ 
+         .context_value_decl => {
+-            if (ast.symbol() != null) {
+-                // Do not re-do symbol if already declared
+-                return null;
+-            }
++            std.debug.assert(ast.symbol() == null);
+ 
+             const number = self.scope.num_visible_contexts();
+             var out = std.array_list.Managed(u8).init(self.allocator);
+@@ -163,10 +157,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
+         },
+ 
+         .context_decl => {
+-            if (ast.symbol() != null) {
+-                // Do not re-do symbol if already declared
+-                return null;
+-            }
++            std.debug.assert(ast.symbol() == null);
+ 
+             var new_self = self;
+             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
+@@ -232,10 +223,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
+ 
+         // Create new scope, create and walk trait symbols/decls
+         .trait => {
+-            if (ast.symbol() != null) {
+-                // Do not re-do symboo if already declared
+-                return null;
+-            }
++            std.debug.assert(ast.symbol() == null);
+             var new_self = self;
+             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
+             ast.set_scope(new_self.scope);
+diff --git a/src/ast/walker.zig b/src/ast/walker.zig
+index 4a82fa13..45a4574b 100644
+--- a/src/ast/walker.zig
++++ b/src/ast/walker.zig
+@@ -84,10 +84,11 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
+         .pattern_symbol,
+         .receiver,
+         .identifier,
+-        .type_param_decl,
+         .import,
+         => {},
+ 
++        .type_param_decl => try walk_type(ast.type_param_decl.constraint, new_context),
++
+         .context_value_decl => {
+             try walk_ast(ast.context_value_decl.init, new_context);
+             try walk_type(ast.context_value_decl.parent, new_context);
+@@ -169,10 +170,17 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
+         .struct_value,
+         .tuple_value,
+         .array_value,
++        .print,
+         .bit_and,
+         .bit_or,
+         .bit_xor,
+         => try walk_asts(ast.children(), new_context),
++
++        .write => {
++            try walk_ast(ast.write.writer, new_context);
++            try walk_asts(ast.children(), new_context);
++        },
++
+         .binding => {
+             try walk_asts(ast.children(), new_context);
+             try walk_ast(ast.binding.init, new_context);
+diff --git a/src/codegen/inc/io.inc b/src/codegen/inc/io.inc
+index 17a5a5bb..1618825b 100644
+--- a/src/codegen/inc/io.inc
++++ b/src/codegen/inc/io.inc
+@@ -6,6 +6,10 @@
+ 
+ #include <stdio.h>
+ 
++#ifndef MIN
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
++#endif
++
+ static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self, struct orange_type_73877515D86B0F5 bytes)
+ {
+     (void)self;
+@@ -26,14 +30,25 @@ static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self
+     return (struct orange_type_C53265BF4F923210){.tag = 0};
+ }
+ 
+-static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer)
++static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_CE26574889E9A595 maybe_limit)
+ {
+     (void)self;
+     unsigned char buffer[4096];
++    size_t total = 0;
++    size_t limit;
++
++    if (maybe_limit.tag == 0)
++    {
++        limit = (size_t)maybe_limit._0;
++    }
++    else
++    {
++        limit = SIZE_MAX;
++    }
+ 
+     while (1)
+     {
+-        size_t n = fread(buffer, 1, sizeof(buffer), stdin);
++        size_t n = fread(buffer, 1, MIN(sizeof(buffer), limit - total), stdin);
+         if (n == 0)
+         {
+             if (ferror(stdin))
+@@ -43,6 +58,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
+             }
+             break;
+         }
++        total += n;
+         struct orange_type_73877515D86B0F5 slice = {._0 = buffer, ._1 = n};
+ 
+         struct orange_type_C53265BF4F923210 write_result = writer.vtable->write(writer.data_ptr, slice);
+diff --git a/src/hierarchy/compiler.zig b/src/hierarchy/compiler.zig
+index 462dc316..52ae4f64 100644
+--- a/src/hierarchy/compiler.zig
++++ b/src/hierarchy/compiler.zig
+@@ -178,9 +178,13 @@ pub fn register_interned_string_set(self: *Self, module_uid: u32) void {
+     self.module_interned_strings.put(module_uid, interned_strings) catch unreachable;
+ }
+ 
+-pub fn get_core_type(self: *Self, name: []const u8) *Type_AST {
++pub fn get_core_symbol(self: *Self, name: []const u8) *Symbol {
+     const prelude_abs_path = self.core.?.module.?.absolute_path;
+-    return self.module_scope(prelude_abs_path).?.lookup(name, .{}).found.init_typedef().?;
++    return self.module_scope(prelude_abs_path).?.lookup(name, .{}).found;
++}
++
++pub fn get_core_type(self: *Self, name: []const u8) *Type_AST {
++    return self.get_core_symbol(name).init_typedef().?;
+ }
+ 
+ pub fn lookup_interned_string_set(self: *Self, module_uid: u32) ?*Interned_String_Set {
+diff --git a/src/hierarchy/core.orng b/src/hierarchy/core.orng
+index af70a9c7..a95efae0 100644
+--- a/src/hierarchy/core.orng
++++ b/src/hierarchy/core.orng
+@@ -134,14 +134,28 @@ trait Writer {
+     virtual fn write(&mut self, bytes: []Byte) -> ()!()
+ }
+ 
++fn format_all(writer: &mut dyn Writer, args: []&dyn Format) -> ()!() {
++    while let mut i = 0; i < args.length; i += 1 {
++        let arg = args[i]
++        try arg.>format(writer)
++    }
++    .ok
++}
++
+ trait Reader {
+-    virtual fn read(&mut self, writer: &mut dyn Writer) -> ()!()
++    virtual fn read(&mut self, writer: &mut dyn Writer, limit: ?Int) -> ()!()
+ }
+ 
+ trait Format {
+     virtual fn format(&self, writer: &mut dyn Writer) -> ()!()
+ }
+ 
++impl Format for String {
++    virtual fn format(&self, writer: &mut dyn Writer) -> ()!() {
++        writer.>write(self^)
++    }
++}
++
+ context Allocating {
+     alloc: &mut dyn Allocator
+ }
+diff --git a/src/hierarchy/module.zig b/src/hierarchy/module.zig
+index a76e9361..2c21c772 100644
+--- a/src/hierarchy/module.zig
++++ b/src/hierarchy/module.zig
+@@ -213,9 +213,9 @@ pub const Module = struct {
+         _ = try pipeline_.run(contents, .{
+             Hash.init(&module.hash),
+             Split_Lines.init(&compiler.errors, compiler.allocator()),
+-            Tokenize.init(in_name, &compiler.errors, fuzz_tokens, compiler.allocator()),
++            Tokenize.init(in_name, 0, 1, &compiler.errors, fuzz_tokens, compiler.allocator()),
+             Apply_Layout.init(),
+-            Parse.init(&compiler.errors, compiler.allocator()),
++            Parse.init(.top_level, &compiler.errors, compiler.allocator()),
+             Apply_Ast_Walk(Expand).init(Expand.new(&compiler.errors, compiler.allocator())),
+             Apply_Flat_Ast_Walk(Import).init(Import.new(compiler, module.get_package_abs_path(), &module.local_imported_modules)),
+             Apply_Flat_Ast_Walk(Cinclude).init(Cinclude.new(&module.cincludes)),
+diff --git a/src/interpretation/interpreter.zig b/src/interpretation/interpreter.zig
+index 8f99dae0..867cae04 100644
+--- a/src/interpretation/interpreter.zig
++++ b/src/interpretation/interpreter.zig
+@@ -22,7 +22,7 @@ const Self = @This();
+ const Error = error{CompileError};
+ 
+ /// Interpreter execution timeout in milliseconds
+-const timeout_ms = 1_000;
++const timeout_ms = 3_000;
+ /// Size of the stack. 32 KiB, or around 1024 stack frames.
+ const stack_limit = 0x8000; // 32 KiB
+ 
+diff --git a/src/lexer/tokenize.zig b/src/lexer/tokenize.zig
+index 447d9af8..e47541e3 100644
+--- a/src/lexer/tokenize.zig
++++ b/src/lexer/tokenize.zig
+@@ -58,6 +58,8 @@ state: Lex_State,
+ /// Will always end in an EOF on the first column of the next line
+ pub fn init(
+     filename: []const u8,
++    line_number: usize,
++    col: usize,
+     errors: *errs_.Errors,
+     fuzz_tokens: bool,
+     allocator: std.mem.Allocator,
+@@ -68,8 +70,8 @@ pub fn init(
+         .errors = errors,
+         .fuzz_tokens = fuzz_tokens,
+         .allocator = allocator,
+-        .line_number = 0,
+-        .col = 1,
++        .line_number = line_number,
++        .col = col,
+         .slice_start = 0,
+         .ix = 0,
+         .state = .none,
+diff --git a/src/main.zig b/src/main.zig
+index db649869..093e0690 100644
+--- a/src/main.zig
++++ b/src/main.zig
+@@ -335,22 +335,21 @@ pub fn init_project(name: []const u8, args: *std.process.ArgIterator, allocator:
+     defer main_orng.close();
+ 
+     const main_content =
+-        \\import std::debug
+-        \\
+-        \\fn main() {
+-        \\    debug::println("Hello, World!")
++        \\fn main() -> ()!() with core::IO {
++        \\    @println("Hello, World!")
+         \\}
+     ;
+-    var main_orng_writer = main_orng.writer(&.{}).interface;
+-    main_orng_writer.writeAll(main_content) catch return error.FileError;
++    main_orng.writeAll(main_content) catch return error.FileError;
+ 
+     var build_orng = std.fs.cwd().createFile(build_path, .{}) catch return error.FileError;
+     defer build_orng.close();
+ 
+     const build_content =
+-        \\fn build() -> Package {
+-        \\    let mut retval = Package::executable(.root="main.orng")
+-        \\    retval.>requires("std", Package::find("std"))
++        \\fn build() -> core::Package {
++        \\    let mut retval = core::Package::executable(.root="main.orng")
++        \\    retval.>requires("std", core::Package::find(
++        \\        .git(core::Git_Source(.url = "https://github.com/Rakhyvel/Orange", .subdir = "std")))
++        \\    )
+         \\    retval
+         \\}
+     ;
+diff --git a/src/parser/fmt_string.zig b/src/parser/fmt_string.zig
+new file mode 100644
+index 00000000..60e26ac5
+--- /dev/null
++++ b/src/parser/fmt_string.zig
+@@ -0,0 +1,108 @@
++const std = @import("std");
++const AST = @import("../ast/ast.zig").AST;
++const errs_ = @import("../util/errors.zig");
++const Span = @import("../util/span.zig");
++
++const pipeline_ = @import("../util/pipeline.zig");
++
++const Split_Lines = @import("../lexer/split_lines.zig");
++const Tokenize = @import("../lexer/tokenize.zig");
++const Apply_Layout = @import("../lexer/apply_layout.zig");
++const Parse = @import("../parser/parse.zig");
++
++/// Takes a format string and returns a list of things to print out
++pub fn parse_fmt_string(fmt_str: *AST, span: Span, errors: *errs_.Errors, allocator: std.mem.Allocator) !std.array_list.Managed(*AST) {
++    std.debug.assert(fmt_str.* == .string);
++
++    const data = fmt_str.string.data;
++
++    var retval = std.array_list.Managed(*AST).init(allocator);
++
++    var i: usize = 0;
++    var prev: usize = 0;
++    while (i < data.len) : (i += 1) {
++        if (data[i] == '{') {
++            if (i + 1 == data.len) {
++                var err_span = span;
++                err_span.col -= data.len;
++                err_span.col += i;
++                errors.add_error(errs_.Error{ .basic = .{
++                    .span = err_span,
++                    .msg = "unexpected end of format string",
++                } });
++                return error.ParseError;
++            } else if (data[i + 1] == '{') {
++                try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
++                i += 1;
++                prev = i;
++            } else {
++                var end = i;
++                while (end < data.len and data[end] != '}') : (end += 1) {}
++                if (end == data.len) {
++                    var err_span = span;
++                    err_span.col -= data.len;
++                    err_span.col += i;
++                    errors.add_error(errs_.Error{ .basic = .{
++                        .span = err_span,
++                        .msg = "unexpected end of format string",
++                    } });
++                    return error.ParseError;
++                }
++                if (end - i <= 1) {
++                    var err_span = span;
++                    err_span.col -= data.len;
++                    err_span.col += i;
++                    errors.add_error(errs_.Error{ .basic = .{
++                        .span = err_span,
++                        .msg = "empty format argument",
++                    } });
++                    return error.ParseError;
++                }
++                if (i > prev) {
++                    try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
++                    prev = i;
++                }
++
++                const asts = pipeline_.run(data[i + 1 .. end], .{
++                    Split_Lines.init(errors, allocator),
++                    Tokenize.init(span.filename, span.line_number, span.col, errors, false, allocator),
++                    Parse.init(.expr, errors, allocator),
++                }) catch return error.ParseError;
++
++                try retval.append(asts.items[0]);
++                i = end;
++                prev = i + 1;
++            }
++        } else if (data[i] == '}') {
++            if (i + 1 == data.len) {
++                var err_span = span;
++                err_span.col -= data.len;
++                err_span.col += i;
++                errors.add_error(errs_.Error{ .basic = .{
++                    .span = err_span,
++                    .msg = "unexpected end of format string",
++                } });
++                return error.ParseError;
++            } else if (data[i + 1] == '}') {
++                try retval.append(AST.create_string(fmt_str.token(), data[prev .. i - 1], allocator));
++                i += 1;
++                prev = i;
++            } else {
++                var err_span = span;
++                err_span.col -= data.len;
++                err_span.col += i;
++                errors.add_error(errs_.Error{ .basic = .{
++                    .span = err_span,
++                    .msg = "expected `}`",
++                } });
++                return error.ParseError;
++            }
++        }
++    }
++
++    if (i > prev) {
++        try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
++    }
++
++    return retval;
++}
+diff --git a/src/parser/parse.zig b/src/parser/parse.zig
+index 426525a9..5dbfb422 100644
+--- a/src/parser/parse.zig
++++ b/src/parser/parse.zig
+@@ -2,6 +2,7 @@ const std = @import("std");
+ const anon_name_ = @import("../util/anon_name.zig");
+ const ast_ = @import("../ast/ast.zig");
+ const errs_ = @import("../util/errors.zig");
++const fmt_string_ = @import("fmt_string.zig");
+ const Symbol = @import("../symbol/symbol.zig");
+ const Token = @import("../lexer/token.zig");
+ const Type_AST = @import("../types/type.zig").Type_AST;
+@@ -10,16 +11,23 @@ const Self: type = @This();
+ 
+ const Parser_Error_Enum = error{ ParseError, OutOfMemory };
+ 
++pub const Parse_Mode = enum {
++    top_level,
++    expr,
++};
++
+ tokens: *std.array_list.Managed(Token),
+ cursor: usize,
+ errors: *errs_.Errors,
++parse_mode: Parse_Mode,
+ allocator: std.mem.Allocator,
+ 
+-pub fn init(errors: *errs_.Errors, allocator: std.mem.Allocator) Self {
++pub fn init(parse_mode: Parse_Mode, errors: *errs_.Errors, allocator: std.mem.Allocator) Self {
+     return .{
+         .tokens = undefined,
+         .cursor = 0,
+         .allocator = allocator,
++        .parse_mode = parse_mode,
+         .errors = errors,
+     };
+ }
+@@ -120,12 +128,17 @@ pub fn run(self: *Self, tokens: *std.array_list.Managed(Token)) Parser_Error_Enu
+     self.tokens = tokens;
+     var decls = self.allocator.create(std.array_list.Managed(*ast_.AST)) catch unreachable;
+     decls.* = std.array_list.Managed(*ast_.AST).init(self.allocator);
+-    while (self.accept(.newline)) |_| {}
+-    while (!self.peek_kind(.EOF)) {
+-        decls.append(try self.top_level_declaration()) catch unreachable;
+-        while (self.accept(.newline)) |_| {}
++    switch (self.parse_mode) {
++        .top_level => {
++            while (self.accept(.newline)) |_| {}
++            while (!self.peek_kind(.EOF)) {
++                try decls.append(try self.top_level_declaration());
++                while (self.accept(.newline)) |_| {}
++            }
++            _ = try self.expect(.EOF);
++        },
++        .expr => try decls.append(try self.parse_expr()),
+     }
+-    _ = try self.expect(.EOF);
+     return decls;
+ }
+ 
+@@ -646,7 +659,7 @@ fn statement(self: *Self) Parser_Error_Enum!*ast_.AST {
+     }
+ }
+ 
+-fn parse_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
++pub fn parse_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+     return self.product_expr();
+ }
+ 
+@@ -809,6 +822,56 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+                 return error.ParseError;
+             }
+             return ast_.AST.create_size_of(token, args.items[0], self.allocator);
++        } else if (std.mem.eql(u8, token.data, "write")) {
++            const args = try self.call_args();
++            if (args.items.len != 2) {
++                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
++                    .span = token.span,
++                    .takes = 1,
++                    .given = args.items.len,
++                    .thing_name = "built-in function",
++                    .takes_name = "parameter",
++                    .given_name = "argument",
++                } });
++                return error.ParseError;
++            }
++            const writer = args.items[0];
++            const fmt_str = args.items[1];
++            const children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
++            return ast_.AST.create_write(token, writer, children, self.allocator);
++        } else if (std.mem.eql(u8, token.data, "print")) {
++            const args = try self.call_args();
++            if (args.items.len != 1) {
++                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
++                    .span = token.span,
++                    .takes = 1,
++                    .given = args.items.len,
++                    .thing_name = "built-in function",
++                    .takes_name = "parameter",
++                    .given_name = "argument",
++                } });
++                return error.ParseError;
++            }
++            const fmt_str = args.items[0];
++            const children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
++            return ast_.AST.create_print(token, children, self.allocator);
++        } else if (std.mem.eql(u8, token.data, "println")) {
++            const args = try self.call_args();
++            if (args.items.len != 1) {
++                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
++                    .span = token.span,
++                    .takes = 1,
++                    .given = args.items.len,
++                    .thing_name = "built-in function",
++                    .takes_name = "parameter",
++                    .given_name = "argument",
++                } });
++                return error.ParseError;
++            }
++            const fmt_str = args.items[0];
++            var children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
++            try children.append(ast_.AST.create_string(token, "\n", self.allocator));
++            return ast_.AST.create_print(token, children, self.allocator);
+         } else if (std.mem.eql(u8, token.data, "bit_and")) {
+             const args = try self.call_args();
+             if (args.items.len < 2) {
+@@ -928,7 +991,7 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+         _ = try self.expect(.right_square);
+         return ast_.AST.create_array_value(token, terms, self.allocator);
+     } else if (self.accept(.@"try")) |token| {
+-        return ast_.AST.create_try(token, try self.postfix_expr(), self.allocator);
++        return ast_.AST.create_try(token, try self.parse_expr(), self.allocator);
+     } else {
+         return try self.postfix_expr();
+     }
+@@ -1529,7 +1592,11 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
+     if (self.accept(.left_square) != null) {
+         while (!self.peek_kind(.right_square)) {
+             const param_token = try self.expect(.identifier);
+-            const param_ident = ast_.AST.create_type_param_decl(param_token, self.allocator);
++            var constraint: ?*Type_AST = null;
++            if (self.accept(.single_colon)) |_| {
++                constraint = try self.type_expr();
++            }
++            const param_ident = ast_.AST.create_type_param_decl(param_token, constraint, self.allocator);
+             params.append(param_ident) catch unreachable;
+             if (self.accept(.comma) == null) {
+                 break;
+diff --git a/src/semantic/typecheck.zig b/src/semantic/typecheck.zig
+index c61f5bc9..6c078eb9 100644
+--- a/src/semantic/typecheck.zig
++++ b/src/semantic/typecheck.zig
+@@ -510,16 +510,32 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
+             const expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
+ 
+-            const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
+-            if (impl.ast == null) {
+-                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+-                    .span = ast.token().span,
+-                    .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+-                    ._type = expr_type,
+-                } });
+-                return error.CompileError;
++            if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
++                const type_param_decl = expr_type.symbol().?.decl.?;
++                if (type_param_decl.type_param_decl.constraint) |constraint| {
++                    const constraint_trait = constraint.symbol().?;
++                    const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
++                    if (constraint_trait != dyn_trait) {
++                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
++                            .span = ast.token().span,
++                            .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
++                            ._type = expr_type,
++                        } });
++                        return error.CompileError;
++                    }
++                }
++            } else {
++                const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
++                if (impl.ast == null) {
++                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
++                        .span = ast.token().span,
++                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
++                        ._type = expr_type,
++                    } });
++                    return error.CompileError;
++                }
++                ast.dyn_value.impl = impl.ast;
+             }
+-            ast.dyn_value.impl = impl.ast;
+ 
+             return ast.dyn_value.dyn_type;
+         },
+@@ -637,6 +653,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
+                         self.ctx.allocator(),
+                     ).*;
+                     return self.typecheck_AST(ast, expected);
++                } else if (expanded_expected.* == .anyptr_type) {
++                    ast.addr_of.anytptr = true;
++                    return expanded_expected;
+                 } else if (expanded_expected.* != .addr_of) {
+                     // Didn't expect an address type. Validate expr and report error
+                     return typing_.throw_unexpected_type(ast.token().span, expected.?, poison_.poisoned_type, &self.ctx.errors);
+diff --git a/src/symbol/scope.zig b/src/symbol/scope.zig
+index 56620cc6..2c43cf1a 100644
+--- a/src/symbol/scope.zig
++++ b/src/symbol/scope.zig
+@@ -158,18 +158,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
+     for (self.symbols.keys()) |symbol_name| {
+         const symbol = self.symbols.get(symbol_name).?;
+         if (symbol.kind == .import) {
+-            var res_symbol: *Symbol = undefined;
+-            if (symbol.kind.import.real_symbol != null) {
+-                res_symbol = symbol.kind.import.real_symbol.?;
+-            } else {
+-                const res = self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true });
+-                switch (res) {
+-                    .found => {
+-                        res_symbol = res.found;
+-                    },
+-                    else => std.debug.panic("compiler error: import didn't resolve to a module: {s}", .{symbol.kind.import.real_name}),
+-                }
+-            }
++            var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
+ 
+             const module_scope = res_symbol.init_value().?.scope().?;
+             const parent_res = module_scope.impl_trait_lookup(for_type, trait);
+@@ -199,7 +188,29 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
+         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
+         self.pprint();
+     }
+-    // Go through the list of implementations, check to see if the types and traits match
++
++    if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
++        const type_param_decl = for_type.symbol().?.decl.?;
++        if (type_param_decl.type_param_decl.constraint) |constraint| {
++            const trait_decl = constraint.symbol().?.decl.?;
++            for (trait_decl.trait.method_decls.items) |method_decl| {
++                if (std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) {
++                    var subst = unification_.Substitutions.init(compiler.allocator());
++                    subst.put("Self", for_type) catch unreachable;
++                    const cloned = method_decl.clone(&subst, compiler.allocator());
++                    return cloned;
++                }
++            }
++        }
++    }
++
++    if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
++    if (try self.lookup_impl_member_imports(for_type, name, compiler)) |res| return res;
++    if (self.parent) |p| return p.lookup_impl_member(for_type, name, compiler);
++    return null;
++}
++
++fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+     for (self.impls.items) |impl| {
+         var subst = unification_.Substitutions.init(std.heap.page_allocator);
+         defer subst.deinit();
+@@ -210,72 +221,18 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
+ 
+         try compiler.validate_type.validate_type(impl.impl._type);
+         unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
+-        const subst_contains_generics = unification_.substitution_contains_generics(&subst);
+-
+-        var the_impl = impl;
+-        if (impl.impl._generic_params.items.len > 0 and !subst_contains_generics) {
+-            const with_list = unification_.type_param_list_from_subst_map(&subst, impl.impl._generic_params, std.heap.page_allocator);
+-            if (!subst_contains_generics and impl.impl.instantiations.get(with_list) == null) {
+-                const new_impl: *ast_.AST = impl.clone(&subst, std.heap.page_allocator);
+-                if (!subst_contains_generics) {
+-                    new_impl.impl._generic_params.clearRetainingCapacity();
+-                }
+-                const new_scope = init(self, self.uid_gen, std.heap.page_allocator);
+-
+-                try walker_.walk_ast(new_impl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+-
+-                new_impl.set_scope(new_scope);
+-
+-                if (new_impl.impl.trait == null or new_impl.impl.impls_anon_trait) {
+-                    // impl'd for an anon trait, create an anon trait for it
+-                    var token = new_impl.token();
+-                    token.kind = .identifier;
+-                    token.data = Symbol_Tree.next_anon_name("Trait", compiler.allocator());
+-                    const anon_trait = ast_.AST.create_trait(
+-                        token,
+-                        new_impl.impl.method_defs,
+-                        new_impl.impl.const_defs,
+-                        compiler.allocator(),
+-                    );
+-                    try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+-                    new_impl.impl.trait = ast_.AST.create_identifier(token, compiler.allocator());
+-                    new_impl.impl.impls_anon_trait = true;
+-                }
+ 
+-                // Decorate identifiers, validate
+-                const new_decorate_context = Decorate.new(new_scope, compiler);
+-                try walker_.walk_ast(new_impl, new_decorate_context); // this doesn't know about the anonymous trait
+-
+-                // Set all method_decls to be monomorphed
+-                for (new_impl.impl.method_defs.items) |method_def| {
+-                    method_def.symbol().?.is_monomorphed = true;
+-                }
+-
+-                try compiler.validate_scope.validate_scope(new_scope);
+-
+-                impl.impl.instantiations.put(with_list, new_impl) catch unreachable;
+-            }
+-            the_impl = impl.impl.instantiations.get(with_list).?; // TODO: substitutions need to be in the same order as withs
+-        }
+-        return search_impl(the_impl, name) orelse continue;
++        const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
++        return search_impl(instantiated_impl, name) orelse continue;
+     }
++    return null;
++}
+ 
+-    // Search for any imports
++fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) error{ OutOfMemory, CompileError }!?*ast_.AST {
+     for (self.symbols.keys()) |symbol_name| {
+         const symbol = self.symbols.get(symbol_name).?;
+         if (symbol.kind == .import) {
+-            var res_symbol: *Symbol = undefined;
+-            if (symbol.kind.import.real_symbol != null) {
+-                res_symbol = symbol.kind.import.real_symbol.?;
+-            } else {
+-                const res = self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true });
+-                switch (res) {
+-                    .found => {
+-                        res_symbol = res.found;
+-                    },
+-                    else => std.debug.panic("compiler error: import didn't resolve to a module: {s}", .{symbol.kind.import.real_name}),
+-                }
+-            }
++            var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
+ 
+             const module_scope = res_symbol.init_value().?.scope().?;
+             const module_scope_lookup = try module_scope.lookup_impl_member(for_type, name, compiler);
+@@ -284,14 +241,59 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
+             }
+         }
+     }
++    return null;
++}
+ 
+-    if (self.parent != null) {
+-        // Did not match in this scope. Try parent scope
+-        return self.parent.?.lookup_impl_member(for_type, name, compiler);
+-    } else {
+-        // Not found, parent scope is null
+-        return null;
++fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {
++    // Not even generic
++    if (impl.impl._generic_params.items.len == 0) return impl;
++
++    // Substitution still contains generics, return original impl
++    const subst_contains_generics = unification_.substitution_contains_generics(subst);
++    if (subst_contains_generics) return impl;
++
++    // Already instantiated, return the memoized impl
++    const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, std.heap.page_allocator);
++    if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
++
++    // Create a new impl
++    const new_impl: *ast_.AST = impl.clone(subst, std.heap.page_allocator);
++    if (!subst_contains_generics) {
++        new_impl.impl._generic_params.clearRetainingCapacity();
++    }
++    const new_scope = init(self, self.uid_gen, std.heap.page_allocator);
++    try walker_.walk_ast(new_impl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
++    new_impl.set_scope(new_scope);
++
++    if (new_impl.impl.trait == null or new_impl.impl.impls_anon_trait) {
++        // impl'd for an anon trait, create a new anon trait for it
++        var token = new_impl.token();
++        token.kind = .identifier;
++        token.data = Symbol_Tree.next_anon_name("Trait", compiler.allocator());
++        const anon_trait = ast_.AST.create_trait(
++            token,
++            new_impl.impl.method_defs,
++            new_impl.impl.const_defs,
++            compiler.allocator(),
++        );
++        try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
++        new_impl.impl.trait = ast_.AST.create_identifier(token, compiler.allocator());
++        new_impl.impl.impls_anon_trait = true;
+     }
++
++    // Decorate identifiers, validate
++    const new_decorate_context = Decorate.new(new_scope, compiler);
++    try walker_.walk_ast(new_impl, new_decorate_context); // this doesn't know about the anonymous trait
++    try compiler.validate_scope.validate_scope(new_scope);
++
++    // Set all method_decls to be monomorphed
++    for (new_impl.impl.method_defs.items) |method_def| {
++        method_def.symbol().?.is_monomorphed = true;
++    }
++
++    // Store in the memo
++    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
++    return impl.impl.instantiations.get(type_param_list).?; // TODO: substitutions need to be in the same order as withs
+ }
+ 
+ fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
+diff --git a/std/fmt.orng b/std/fmt.orng
+index e22ccbb7..bf6ca99b 100644
+--- a/std/fmt.orng
++++ b/std/fmt.orng
+@@ -13,12 +13,6 @@ impl core::Format for Bool {
+     }
+ }
+ 
+-impl core::Format for String {
+-    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+-        writer.>write(self^)
+-    }
+-}
+-
+ impl core::Format for Int {
+     virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+         let mut value = self^
+diff --git a/std/io.orng b/std/io.orng
+new file mode 100644
+index 00000000..90d056bd
+--- /dev/null
++++ b/std/io.orng
+@@ -0,0 +1,36 @@
++import mem
++
++struct Fixed_Buffer_Writer {
++    buf: [mut]Byte
++    cursor: Int
++}
++
++impl core::Writer for Fixed_Buffer_Writer {
++    virtual fn write(&mut self, bytes: String) -> ()!() {
++        if self.cursor + bytes.length > self.buf.length {
++            return .err
++        }
++        mem::copy[Byte](self.buf[self.cursor..], bytes)
++        self.cursor += bytes.length
++        .ok
++    }
++}
++
++fn read_until_delimeter(reader: &mut dyn core::Reader, writer: &mut dyn core::Writer, delimeter: Byte) -> ()!() {
++    while true {
++        let byte = try read_byte(reader)
++        if byte == delimeter {
++            return .ok
++        }
++        let byte_buf: [1]Byte = [byte]
++        try writer.>write([]byte_buf)
++    }
++    .ok
++}
++
++fn read_byte(reader: &mut dyn core::Reader) -> ()!Byte {
++    let mut byte_buf: [1]Byte
++    let writer = Fixed_Buffer_Writer([mut]byte_buf, 0)
++    try reader.>read(&mut writer, .some(1))
++    .ok(byte_buf[0])
++}
+diff --git a/std/lib.orng b/std/lib.orng
+index 4e389840..c5ae6cad 100644
+--- a/std/lib.orng
++++ b/std/lib.orng
+@@ -2,6 +2,7 @@ import ascii
+ import debug
+ import ffi
+ import fmt
++import io
+ import list
+ import math
+ import mem
+diff --git a/tests/integration/expressions/float32.orng b/tests/integration/expressions/float32.orng
+index dc45b21b..14ef5d5f 100644
+--- a/tests/integration/expressions/float32.orng
++++ b/tests/integration/expressions/float32.orng
+@@ -1,4 +1,4 @@
+ // 207.000000
+ fn main() -> Float32 {
+-    202.5 + 4.0 + 0.5
++    202.500_000 + 4.0 + 0.5
+ }
+\ No newline at end of file
+diff --git a/tests/integration/fmt/generic_print.orng b/tests/integration/fmt/generic_print.orng
+new file mode 100644
+index 00000000..d394218e
+--- /dev/null
++++ b/tests/integration/fmt/generic_print.orng
+@@ -0,0 +1,15 @@
++// 371
++impl core::Format for Int {
++    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
++        _ = self
++        writer.>write("371")
++    }
++}
++
++fn main() -> ()!() with core::IO {
++    print_something[Int](371)
++}
++
++fn print_something[T: core::Format](t: T) -> ()!() with core::IO {
++    @print("{t}")
++}
+\ No newline at end of file
+diff --git a/tests/integration/fmt/print.orng b/tests/integration/fmt/print.orng
+new file mode 100644
+index 00000000..6c331e83
+--- /dev/null
++++ b/tests/integration/fmt/print.orng
+@@ -0,0 +1,6 @@
++// Hello, World!
++
++fn main() -> ()!() with core::IO {
++    try @print("Hello, World!")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/integration/fmt/print_arg.orng b/tests/integration/fmt/print_arg.orng
+new file mode 100644
+index 00000000..3753bf17
+--- /dev/null
++++ b/tests/integration/fmt/print_arg.orng
+@@ -0,0 +1,7 @@
++// Hello, World!
++
++fn main() -> ()!() with core::IO {
++    let name = "World"
++    try @print("Hello, {name}!")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/integration/fmt/print_escape.orng b/tests/integration/fmt/print_escape.orng
+new file mode 100644
+index 00000000..00afe804
+--- /dev/null
++++ b/tests/integration/fmt/print_escape.orng
+@@ -0,0 +1,6 @@
++// Hello, {World}!
++
++fn main() -> ()!() with core::IO {
++    try @print("Hello, {{World!}}!")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/integration/fmt/write.orng b/tests/integration/fmt/write.orng
+new file mode 100644
+index 00000000..4a17e8da
+--- /dev/null
++++ b/tests/integration/fmt/write.orng
+@@ -0,0 +1,6 @@
++// Hello, World!
++
++fn main() -> ()!() with core::IO {
++    try @write(core::IO.writer, "Hello, World!")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/integration/generics/function_trait_constraint.orng b/tests/integration/generics/function_trait_constraint.orng
+new file mode 100644
+index 00000000..321bfca1
+--- /dev/null
++++ b/tests/integration/generics/function_trait_constraint.orng
+@@ -0,0 +1,27 @@
++// 371
++trait Eq {
++    fn eq(self, other: Self) -> Bool
++}
++
++impl Eq for Int {
++    fn eq(self, other: Int) -> Bool {
++        self == other
++    }
++}
++
++fn find[T: Eq](haystack: []T, needle: T) -> ?Int {
++    while let mut i = 0; i < haystack.length; i += 1 {
++        if haystack[i].>eq(needle) {
++            return .some(i)
++        }
++    }
++    .none
++}
++
++fn main() -> Int {
++    let items = [1, 2, 3, 4]
++    match find[Int]([]items, 3) {
++        .some(2) => 371
++        _ => unreachable
++    }
++}
+\ No newline at end of file
+diff --git a/tests/integration/generics/struct_trait_constraints.orng b/tests/integration/generics/struct_trait_constraints.orng
+new file mode 100644
+index 00000000..937f7956
+--- /dev/null
++++ b/tests/integration/generics/struct_trait_constraints.orng
+@@ -0,0 +1,30 @@
++// 370
++trait Eq {
++    fn eq(self, other: Self) -> Bool
++}
++
++impl Eq for Int {
++    fn eq(self, other: Int) -> Bool {
++        self == other
++    }
++}
++
++struct Equator[T: Eq] {
++    x: T
++}
++
++// since Equator takes a T that must be Eq, we have to declare that T here is Eq, too
++impl[T: Eq] for Equator[T] {
++    fn check_if_eq(&self, y: T) -> Bool {
++        self.x.>eq(y)
++    }
++}
++
++fn main() -> Int {
++    let equator = Equator[Int](300)
++    if equator.>check_if_eq(300) {
++        370
++    } else {
++        unreachable
++    }
++}
+\ No newline at end of file
+diff --git a/tests/negative/contexts/print_no_io.orng b/tests/negative/contexts/print_no_io.orng
+new file mode 100644
+index 00000000..39b0ce0e
+--- /dev/null
++++ b/tests/negative/contexts/print_no_io.orng
+@@ -0,0 +1,7 @@
++// print_no_io.orng:6:11: error: missing context `IO`
++//     @print("Hello, World!")
++//          ^
++// 
++fn main() -> ()!() {
++    @print("Hello, World!")
++}
+\ No newline at end of file
+diff --git a/tests/negative/generics/struct_trait_constraint_fail.orng b/tests/negative/generics/struct_trait_constraint_fail.orng
+new file mode 100644
+index 00000000..9d152c13
+--- /dev/null
++++ b/tests/negative/generics/struct_trait_constraint_fail.orng
+@@ -0,0 +1,16 @@
++// struct_trait_constraint_fail.orng:14:30: error: the type `Int` does not implement the trait `Eq`
++//     let equator = Equator[Int](300)
++//                             ^
++// 
++trait Eq {
++    fn eq(self, other: Self) -> Bool
++}
++
++struct Equator[T: Eq] {
++    x: T
++}
++
++fn main() -> Int {
++    let equator = Equator[Int](300)
++    equator.x
++}
+\ No newline at end of file
+diff --git a/tests/negative/lexer/camelCase2.orng b/tests/negative/lexer/camelCase2.orng
+new file mode 100644
+index 00000000..5b9045f8
+--- /dev/null
++++ b/tests/negative/lexer/camelCase2.orng
+@@ -0,0 +1,8 @@
++// camelCase2.orng:6:14: error: camelCase is not supported
++//     let camelCase = 0
++//             ^
++// 
++fn main() -> Int {
++    let camelCase = 0
++    camelCase
++}
+\ No newline at end of file
+diff --git a/tests/negative/parser/fmt/empty_arg.orng b/tests/negative/parser/fmt/empty_arg.orng
+new file mode 100644
+index 00000000..cd6dc02d
+--- /dev/null
++++ b/tests/negative/parser/fmt/empty_arg.orng
+@@ -0,0 +1,9 @@
++// empty_arg.orng:7:25: error: empty format argument
++//     try @print("Hello, {}")
++//                        ^
++// 
++fn main() -> ()!() with core::IO {
++    let name = "World"
++    try @print("Hello, {}")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/negative/parser/fmt/no_double_end_brace.orng b/tests/negative/parser/fmt/no_double_end_brace.orng
+new file mode 100644
+index 00000000..e723ae15
+--- /dev/null
++++ b/tests/negative/parser/fmt/no_double_end_brace.orng
+@@ -0,0 +1,8 @@
++// no_double_end_brace.orng:6:25: error: expected `}`
++//     try @print("Hello, } world!")
++//                        ^
++// 
++fn main() -> ()!() with core::IO {
++    try @print("Hello, } world!")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/negative/parser/fmt/unexpected_end.orng b/tests/negative/parser/fmt/unexpected_end.orng
+new file mode 100644
+index 00000000..fe13160d
+--- /dev/null
++++ b/tests/negative/parser/fmt/unexpected_end.orng
+@@ -0,0 +1,8 @@
++// unexpected_end.orng:6:25: error: unexpected end of format string
++//     try @print("Hello, }")
++//                        ^
++// 
++fn main() -> ()!() with core::IO {
++    try @print("Hello, }")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/negative/parser/fmt/unexpected_end_after_arg.orng b/tests/negative/parser/fmt/unexpected_end_after_arg.orng
+new file mode 100644
+index 00000000..2c41c72c
+--- /dev/null
++++ b/tests/negative/parser/fmt/unexpected_end_after_arg.orng
+@@ -0,0 +1,9 @@
++// unexpected_end_after_arg.orng:7:25: error: unexpected end of format string
++//     try @print("Hello, {name")
++//                        ^
++// 
++fn main() -> ()!() with core::IO {
++    let name = "World"
++    try @print("Hello, {name")
++    .ok
++}
+\ No newline at end of file
+diff --git a/tests/negative/parser/fmt/unexpected_end_close.orng b/tests/negative/parser/fmt/unexpected_end_close.orng
+new file mode 100644
+index 00000000..80628782
+--- /dev/null
++++ b/tests/negative/parser/fmt/unexpected_end_close.orng
+@@ -0,0 +1,8 @@
++// unexpected_end_close.orng:6:25: error: unexpected end of format string
++//     try @print("Hello, }")
++//                        ^
++// 
++fn main() -> ()!() with core::IO {
++    try @print("Hello, }")
++    .ok
++}
+\ No newline at end of file

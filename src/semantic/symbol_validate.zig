@@ -93,6 +93,15 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         try args_.validate_requested_contexts(symbol.type().function.contexts.items, &self.ctx.errors);
     }
 
+    if (symbol.decl.?.* == .type_param_decl) {
+        if (symbol.decl.?.type_param_decl.constraint) |constraint| {
+            if (!constraint.refers_to_trait()) {
+                self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
+                return error.CompileError;
+            }
+        }
+    }
+
     // Symbol's name must be capitalized iff its type is Type
     if (symbol.is_type() or symbol.kind == .trait or symbol.kind == .context) {
         if (!is_capitalized(symbol.name)) {
