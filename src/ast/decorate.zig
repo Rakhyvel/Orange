@@ -345,7 +345,7 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         const param = params.items[i];
         const constraint = param.type_param_decl.constraint;
-        if (constraint != null) {
+        if (constraint != null and constraint.?.symbol() != null) {
             const trait = constraint.?.symbol().?;
             const res = self.scope.impl_trait_lookup(child, trait);
             if (res.count == 0) {

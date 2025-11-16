@@ -1,0 +1,15 @@
+// 371
+impl core::Format for Int {
+    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+        _ = self
+        writer.>write("371")
+    }
+}
+
+fn main() -> ()!() with core::IO {
+    print_something[Int](371)
+}
+
+fn print_something[T: core::Format](t: T) -> ()!() with core::IO {
+    @print("{t}")
+}
