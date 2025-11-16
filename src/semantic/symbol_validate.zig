@@ -56,6 +56,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
+        // Tree_Writer.print_tree(_init);
         _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,
