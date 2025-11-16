@@ -1417,7 +1417,7 @@ pub const AST = union(enum) {
                         return create_identifier(replacement.token(), allocator);
                     }
                 }
-                return self;
+                return create_identifier(self.token(), allocator);
             },
             .@"unreachable" => return create_unreachable(self.token(), allocator),
             .true => return create_true(self.token(), allocator),

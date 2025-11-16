@@ -1,0 +1,11 @@
+// 374
+trait Transform { fn transform(self) -> Self }
+impl Transform for Int { fn transform(self) -> Int { self + 1 } }
+
+fn apply_twice[T: Transform](x: T) -> T {
+    x.>transform().>transform()
+}
+
+fn main() -> Int {
+    apply_twice[Int](372)
+}
