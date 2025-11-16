@@ -430,6 +430,9 @@ pub fn emplace_cfg(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*
         cfgs.append(self) catch unreachable;
 
         for (self.children.keys()) |child| {
+            // TODO: The cfgs list should be a struct that wraps the list, and likely has entries that abstract the cfg's and bb's offset
+            if (child.symbol.decl.?.num_generic_params() > 0) continue;
+            if (child.symbol.decl.?.* == .method_decl and child.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
             _ = child.emplace_cfg(module_uid, cfgs, instructions_list);
         }
     }

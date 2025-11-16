@@ -325,6 +325,7 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, ast: *ast_.AST, stripped_l
     }
 }
 
+// TODO: This has a lot of similarities to monomorphizing a generic_apply type in type_validate.zig
 fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
     const sym = ast.lhs().symbol().?;
     const params = sym.decl.?.generic_params();

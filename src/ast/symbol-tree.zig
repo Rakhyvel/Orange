@@ -792,14 +792,16 @@ fn create_method_symbol(
                 self_init,
                 allocator,
             );
-            if (ast.method_decl.init.?.* != .unit_value) {
-                const method_block_statements = ast.method_decl.init.?.children();
-                method_block_statements.insert(0, self_decl) catch unreachable;
-            } else {
-                // Technically, init COULD be `{ }`, and it would cause a not-used error later on, but we need to handle this properly here before then
-                var statements = std.array_list.Managed(*ast_.AST).init(allocator);
-                statements.append(self_decl) catch unreachable;
-                ast.method_decl.init = ast_.AST.create_block(ast.method_decl.init.?.token(), statements, null, allocator);
+            if (ast.method_decl.init != null) {
+                if (ast.method_decl.init.?.* != .unit_value) {
+                    const method_block_statements = ast.method_decl.init.?.children();
+                    method_block_statements.insert(0, self_decl) catch unreachable;
+                } else {
+                    // Technically, init COULD be `{ }`, and it would cause a not-used error later on, but we need to handle this properly here before then
+                    var statements = std.array_list.Managed(*ast_.AST).init(allocator);
+                    statements.append(self_decl) catch unreachable;
+                    ast.method_decl.init = ast_.AST.create_block(ast.method_decl.init.?.token(), statements, null, allocator);
+                }
             }
         }
     }

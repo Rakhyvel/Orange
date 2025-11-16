@@ -1,0 +1,9 @@
+// constrained_trait_not_exist.orng:5:25: error: use of undeclared identifier `Does_Not_Exist`
+// fn bad[T: Does_Not_Exist](x: T) -> Int {
+//                        ^
+// 
+fn bad[T: Does_Not_Exist](x: T) -> Int {
+    4
+}
+
+fn main() -> Int { 4 }

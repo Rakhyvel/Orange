@@ -1,0 +1,12 @@
+// 378
+trait Marker { }
+impl Marker for Int { }
+
+fn use_marker[T: Marker](x: T) -> Int {
+    _ = x
+    378 // can't call any methods, but constraint is satisfied
+}
+
+fn main() -> Int {
+    use_marker[Int](42)
+}

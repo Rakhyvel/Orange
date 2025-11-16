@@ -1,0 +1,14 @@
+// 670
+trait Value { fn get(&self) -> Int }
+impl Value for Int { fn get(&self) -> Int { self^ } }
+impl Value for Bool { fn get(&self) -> Int { if self^ { 1 } else { 0 } } }
+
+fn extract[T: Value](x: &T) -> Int {
+    x.>get()
+}
+
+fn main() -> Int {
+    let a = 300
+    let b = true
+    extract[Int](&a) + extract[Int](&300) + extract[Bool](&b) + extract[Bool](&true) + extract[Int](&68)
+}

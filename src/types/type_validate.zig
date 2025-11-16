@@ -21,6 +21,7 @@ pub fn init(ctx: *Compiler_Context) Self {
 pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
     switch (@"type".*) {
         .generic_apply => {
+            // TODO: This has a lot of similarities to monomorphizing a generic_apply in decorate.zig
             try self.validate_type(@"type".lhs());
 
             const sym = @"type".lhs().symbol().?;
@@ -37,8 +38,23 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 return error.CompileError;
             }
 
-            for (@"type".children().items) |child| {
-                try self.validate_type(child);
+            for (@"type".children().items, 0..) |child, i| {
+                try self.ctx.validate_type.validate_type(child);
+
+                const param = params.items[i];
+                const constraint = param.type_param_decl.constraint;
+                if (constraint != null and constraint.?.symbol() != null) {
+                    const trait = constraint.?.symbol().?;
+                    const res = constraint.?.symbol().?.scope.impl_trait_lookup(child, trait);
+                    if (res.count == 0) {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                            .span = child.token().span,
+                            .trait_name = trait.name,
+                            ._type = child,
+                        } });
+                        return error.CompileError;
+                    }
+                }
             }
 
             if (@"type".generic_apply.state == .unmorphed) {
