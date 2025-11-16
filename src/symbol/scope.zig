@@ -158,7 +158,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
         if (symbol.kind == .import) {
-            var res_symbol: *Symbol = symbol.kind.import.real_symbol.? orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
+            var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
             const parent_res = module_scope.impl_trait_lookup(for_type, trait);
