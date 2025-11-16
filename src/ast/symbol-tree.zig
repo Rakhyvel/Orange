@@ -116,10 +116,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .struct_decl, .enum_decl, .type_alias => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
@@ -139,10 +136,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .context_value_decl => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             const number = self.scope.num_visible_contexts();
             var out = std.array_list.Managed(u8).init(self.allocator);
@@ -163,10 +157,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .context_decl => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
@@ -232,10 +223,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         // Create new scope, create and walk trait symbols/decls
         .trait => {
-            if (ast.symbol() != null) {
-                // Do not re-do symboo if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
             ast.set_scope(new_self.scope);
