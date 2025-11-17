@@ -17,6 +17,9 @@ def parse_coverage(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
 
+    line_rate = float(root.get("line-rate"))
+    print(f"line_rate: {line_rate}")
+
     coverage_data = {}
 
     for package in root.findall(".//package"):
