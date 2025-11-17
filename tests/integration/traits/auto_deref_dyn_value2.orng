@@ -1,0 +1,14 @@
+// 383
+trait Value { virtual fn get(&self) -> Int }
+impl Value for Int { virtual fn get(&self) -> Int { self^ } }
+
+fn use_double_ref[T: Value](x: &&T) -> Int {
+    let dyn_val: &dyn Value = &x
+    dyn_val.>get()
+}
+
+fn main() -> Int {
+    let val = 383
+    let ref1 = &val
+    use_double_ref[Int](&ref1)
+}
