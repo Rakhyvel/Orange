@@ -153,7 +153,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
         if (type_param_decl.type_param_decl.constraint) |constraint| {
             const trait_symbol = constraint.symbol().?;
             if (trait_symbol == trait) {
-                retval.count += 1;
+                return .{ .count = 1, .ast = null };
             }
         }
     }

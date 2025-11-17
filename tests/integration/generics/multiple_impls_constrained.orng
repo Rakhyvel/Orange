@@ -1,0 +1,15 @@
+// 386
+trait A { virtual fn a(&self) -> Int }
+trait B { virtual fn b(&self) -> Int }
+
+impl A for Int { virtual fn a(&self) -> Int { self^ } }
+impl B for Int { virtual fn b(&self) -> Int { self^ + 1 } }
+
+fn use_both[T: A](x: &T) -> Int {
+    let dyn_a: &dyn A = &x
+    dyn_a.>a()
+}
+
+fn main() -> Int {
+    use_both[Int](&386)
+}
