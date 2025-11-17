@@ -451,7 +451,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 const trait = trait_symbol.decl.?;
                 method_decl = trait.trait.find_method(ast.rhs().token().data);
 
-                if (!method_decl.?.method_decl.is_virtual) {
+                if (method_decl != null and !method_decl.?.method_decl.is_virtual) {
                     self.ctx.errors.add_error(errs_.Error{
                         .invoke_not_virtual = .{
                             .span = ast.token().span,

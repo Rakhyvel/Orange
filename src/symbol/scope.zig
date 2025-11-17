@@ -142,7 +142,21 @@ const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_Trait_Lookup_Result {
+    if (false) {
+        std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
+        self.pprint();
+    }
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null };
+
+    if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
+        const type_param_decl = for_type.symbol().?.decl.?;
+        if (type_param_decl.type_param_decl.constraint) |constraint| {
+            const trait_symbol = constraint.symbol().?;
+            if (trait_symbol == trait) {
+                retval.count += 1;
+            }
+        }
+    }
 
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
