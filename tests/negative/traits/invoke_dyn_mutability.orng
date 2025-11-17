@@ -3,11 +3,11 @@
 //     ^
 // 
 trait Lol {
-    fn lmao(&mut self) -> ()
+    virtual fn lmao(&mut self) -> ()
 }
 
 impl Lol for Int {
-    fn lmao(&mut self) -> () {
+    virtual fn lmao(&mut self) -> () {
         self^ = 30
     }
 }

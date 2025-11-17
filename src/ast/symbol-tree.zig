@@ -116,10 +116,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .struct_decl, .enum_decl, .type_alias => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
@@ -139,10 +136,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .context_value_decl => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             const number = self.scope.num_visible_contexts();
             var out = std.array_list.Managed(u8).init(self.allocator);
@@ -163,10 +157,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
 
         .context_decl => {
-            if (ast.symbol() != null) {
-                // Do not re-do symbol if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
 
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
@@ -232,10 +223,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         // Create new scope, create and walk trait symbols/decls
         .trait => {
-            if (ast.symbol() != null) {
-                // Do not re-do symboo if already declared
-                return null;
-            }
+            std.debug.assert(ast.symbol() == null);
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
             ast.set_scope(new_self.scope);
@@ -336,14 +324,10 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             ast.set_scope(new_self.scope);
             new_self.scope.function_depth = new_self.scope.function_depth + 1;
 
-            if (ast.method_decl.init == null) {
-                // Trait method decl
-                ast.method_decl._decl_type = create_method_type(ast, self.allocator);
-            } else {
-                // Impl method decl
-                const symbol = try create_method_symbol(ast, self.errors, self.allocator);
-                try self.register_symbol(ast, symbol);
-            }
+            const symbol = try create_method_symbol(ast, self.errors, self.allocator);
+            try self.register_symbol(ast, symbol);
+
+            std.debug.assert(ast.symbol() != null);
 
             return new_self;
         },
@@ -775,14 +759,14 @@ fn create_method_symbol(
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
-    const receiver_base_type: *Type_AST = ast.method_decl.impl.?.impl._type;
+    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl| impl.impl._type else null;
 
     // Create the function type
     ast.method_decl._decl_type = create_method_type(ast, allocator);
 
-    if (ast.method_decl.receiver != null) {
+    if (ast.method_decl.receiver != null and receiver_base_type != null) {
         // addr-of receiver, prepend receiver to parameters as normal
-        const recv_type = create_receiver_addr(receiver_base_type, ast.method_decl.receiver.?, allocator);
+        const recv_type = create_receiver_addr(receiver_base_type.?, ast.method_decl.receiver.?, allocator);
         recv_type.addr_of.anytptr = true;
         // value receiver, prepend a void* self_ptr parameter
         const receiver_symbol = Symbol.init(
@@ -808,14 +792,16 @@ fn create_method_symbol(
                 self_init,
                 allocator,
             );
-            if (ast.method_decl.init.?.* != .unit_value) {
-                const method_block_statements = ast.method_decl.init.?.children();
-                method_block_statements.insert(0, self_decl) catch unreachable;
-            } else {
-                // Technically, init COULD be `{ }`, and it would cause a not-used error later on, but we need to handle this properly here before then
-                var statements = std.array_list.Managed(*ast_.AST).init(allocator);
-                statements.append(self_decl) catch unreachable;
-                ast.method_decl.init = ast_.AST.create_block(ast.method_decl.init.?.token(), statements, null, allocator);
+            if (ast.method_decl.init != null) {
+                if (ast.method_decl.init.?.* != .unit_value) {
+                    const method_block_statements = ast.method_decl.init.?.children();
+                    method_block_statements.insert(0, self_decl) catch unreachable;
+                } else {
+                    // Technically, init COULD be `{ }`, and it would cause a not-used error later on, but we need to handle this properly here before then
+                    var statements = std.array_list.Managed(*ast_.AST).init(allocator);
+                    statements.append(self_decl) catch unreachable;
+                    ast.method_decl.init = ast_.AST.create_block(ast.method_decl.init.?.token(), statements, null, allocator);
+                }
             }
         }
     }

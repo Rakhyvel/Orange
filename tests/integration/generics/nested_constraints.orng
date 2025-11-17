@@ -1,0 +1,35 @@
+// 370
+trait Eq {
+    fn eq(self, other: Self) -> Bool
+}
+
+impl Eq for Wrapper[Int] {
+    fn eq(self, other: Wrapper[Int]) -> Bool {
+        self.x == other.x
+    }
+}
+
+struct Equator[T: Eq] {
+    x: T
+}
+
+struct Wrapper[A] {
+    x: A
+}
+
+// since Equator takes a T that must be Eq, we have to declare that T here is Eq, too
+impl[T: Eq] for Equator[T] {
+    fn check_if_eq(&self, y: T) -> Bool {
+        self.x.>eq(y)
+    }
+}
+
+fn main() -> Int {
+    let wrapped = Wrapper[Int](300)
+    let equator = Equator[Wrapper[Int]](wrapped)
+    if equator.>check_if_eq(wrapped) {
+        370
+    } else {
+        unreachable
+    }
+}

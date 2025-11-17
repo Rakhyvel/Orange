@@ -447,8 +447,20 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             var method_decl: ?*ast_.AST = undefined;
             if (true_lhs_type.expand_identifier().* == .dyn_type) {
                 // The receiver is a dynamic type
-                const trait = true_lhs_type.expand_identifier().child().symbol().?.decl.?;
+                const trait_symbol = true_lhs_type.expand_identifier().child().symbol().?;
+                const trait = trait_symbol.decl.?;
                 method_decl = trait.trait.find_method(ast.rhs().token().data);
+
+                if (method_decl != null and !method_decl.?.method_decl.is_virtual) {
+                    self.ctx.errors.add_error(errs_.Error{
+                        .invoke_not_virtual = .{
+                            .span = ast.token().span,
+                            .method_name = ast.rhs().token().data,
+                            .trait_name = trait_symbol.name,
+                        },
+                    });
+                    return error.CompileError;
+                }
             } else {
                 // The receiver is a regular type. STRIP AWAY ADDRs!
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
@@ -507,19 +519,48 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
         .dyn_value => {
-            const expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            var expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            while (expr_type.* == .addr_of) {
+                ast.set_expr(ast_.AST.create_dereference(ast.token(), ast.expr(), self.ctx.allocator()));
+                expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            }
             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
 
-            const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
-            if (impl.ast == null) {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = ast.token().span,
-                    .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
-                    ._type = expr_type,
-                } });
-                return error.CompileError;
+            if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
+                const type_param_decl = expr_type.symbol().?.decl.?;
+                // Check to see if the type parameter has the constraint type that we're looking for
+                if (type_param_decl.type_param_decl.constraint) |constraint| {
+                    const constraint_trait = constraint.symbol().?;
+                    const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
+                    if (constraint_trait != dyn_trait) {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                            .span = ast.token().span,
+                            .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                            ._type = expr_type,
+                        } });
+                        return error.CompileError;
+                    }
+                } else {
+                    // No constraints, so cannot be correct
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                        ._type = expr_type,
+                    } });
+                    return error.CompileError;
+                }
+            } else {
+                const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
+                if (impl.ast == null) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                        ._type = expr_type,
+                    } });
+                    return error.CompileError;
+                }
+                ast.dyn_value.impl = impl.ast;
             }
-            ast.dyn_value.impl = impl.ast;
 
             return ast.dyn_value.dyn_type;
         },
@@ -627,7 +668,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 // Address value, expected must be an address, inner must match with expected's inner
                 const expanded_expected = expected.?.expand_identifier();
                 if (expanded_expected.* == .dyn_type) {
-                    // TODO: Need to re-write this as a dyn-value
                     ast.* = ast_.AST.create_dyn_value(
                         ast.token(),
                         expanded_expected,
@@ -637,6 +677,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                         self.ctx.allocator(),
                     ).*;
                     return self.typecheck_AST(ast, expected);
+                } else if (expanded_expected.* == .anyptr_type) {
+                    ast.addr_of.anytptr = true;
+                    return expanded_expected;
                 } else if (expanded_expected.* != .addr_of) {
                     // Didn't expect an address type. Validate expr and report error
                     return typing_.throw_unexpected_type(ast.token().span, expected.?, poison_.poisoned_type, &self.ctx.errors);

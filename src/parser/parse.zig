@@ -1592,7 +1592,11 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     if (self.accept(.left_square) != null) {
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
-            const param_ident = ast_.AST.create_type_param_decl(param_token, self.allocator);
+            var constraint: ?*Type_AST = null;
+            if (self.accept(.single_colon)) |_| {
+                constraint = try self.type_expr();
+            }
+            const param_ident = ast_.AST.create_type_param_decl(param_token, constraint, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
                 break;

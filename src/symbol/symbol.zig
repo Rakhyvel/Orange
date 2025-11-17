@@ -110,6 +110,10 @@ pub fn is_type(self: *const Self) bool {
     return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.* == .type_param_decl;
 }
 
+pub fn is_trait(self: *const Self) bool {
+    return self.kind == .trait;
+}
+
 pub fn @"type"(self: *const Self) *Type_AST {
     return self.decl.?.decl_type();
 }
@@ -236,7 +240,9 @@ pub fn monomorphize(
     key: std.array_list.Managed(*Type_AST),
     ctx: *Compiler_Context,
 ) error{ OutOfMemory, CompileError }!*Self {
+    // std.debug.print("monomorphize {s}{f} ({*})\n", .{ self.name, fmt_.List_Printer(Type_AST){ .list = &key }, self });
     if (self.monomorphs.get(key)) |retval| {
+        // std.debug.print("eat slop ({*})\n", .{retval});
         return retval;
     } else {
         // Create a substitution map that subs the param names for the given arg types
@@ -287,6 +293,8 @@ pub fn monomorphize(
         std.debug.assert(clone.cfg == null);
         try self.monomorphs.put(try key.clone(), clone);
         clone.is_monomorphed = true;
+
+        // std.debug.print("brand new one for ya ({*})\n", .{clone});
 
         return clone;
     }

@@ -325,6 +325,7 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, ast: *ast_.AST, stripped_l
     }
 }
 
+// TODO: This has a lot of similarities to monomorphizing a generic_apply type in type_validate.zig
 fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
     const sym = ast.lhs().symbol().?;
     const params = sym.decl.?.generic_params();
@@ -340,8 +341,23 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
         return error.CompileError;
     }
 
-    for (ast.generic_apply._children.items) |child| {
+    for (ast.generic_apply._children.items, 0..) |child, i| {
         try self.ctx.validate_type.validate_type(child);
+
+        const param = params.items[i];
+        const constraint = param.type_param_decl.constraint;
+        if (constraint != null and constraint.?.symbol() != null) {
+            const trait = constraint.?.symbol().?;
+            const res = self.scope.impl_trait_lookup(child, trait);
+            if (res.count == 0) {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = child.token().span,
+                    .trait_name = trait.name,
+                    ._type = child,
+                } });
+                return error.CompileError;
+            }
+        }
     }
 
     if (ast.generic_apply.state == .unmorphed) {

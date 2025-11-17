@@ -1,0 +1,18 @@
+// 379
+trait A { fn a(self) -> Int }
+trait B { fn b(self) -> Int }
+
+impl A for Int { fn a(self) -> Int { self } }
+impl B for Int { fn b(self) -> Int { self } }
+
+fn outer[T: A](x: T) -> Int {
+    fn inner[S: B](y: S) -> Int {
+        y.>b()
+    }
+    _ = x
+    inner[Int](379)
+}
+
+fn main() -> Int {
+    outer[Int](0)
+}

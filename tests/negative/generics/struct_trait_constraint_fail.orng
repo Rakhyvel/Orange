@@ -1,0 +1,16 @@
+// struct_trait_constraint_fail.orng:14:30: error: the type `Int` does not implement the trait `Eq`
+//     let equator = Equator[Int](300)
+//                             ^
+// 
+trait Eq {
+    fn eq(self, other: Self) -> Bool
+}
+
+struct Equator[T: Eq] {
+    x: T
+}
+
+fn main() -> Int {
+    let equator = Equator[Int](300)
+    equator.x
+}

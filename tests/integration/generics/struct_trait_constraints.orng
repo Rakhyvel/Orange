@@ -1,0 +1,30 @@
+// 370
+trait Eq {
+    fn eq(self, other: Self) -> Bool
+}
+
+impl Eq for Int {
+    fn eq(self, other: Int) -> Bool {
+        self == other
+    }
+}
+
+struct Equator[T: Eq] {
+    x: T
+}
+
+// since Equator takes a T that must be Eq, we have to declare that T here is Eq, too
+impl[T: Eq] for Equator[T] {
+    fn check_if_eq(&self, y: T) -> Bool {
+        self.x.>eq(y)
+    }
+}
+
+fn main() -> Int {
+    let equator = Equator[Int](300)
+    if equator.>check_if_eq(300) {
+        370
+    } else {
+        unreachable
+    }
+}

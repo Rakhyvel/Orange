@@ -56,6 +56,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
+        // Tree_Writer.print_tree(_init);
         _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,
@@ -91,6 +92,15 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     if (symbol.kind == .@"test") {
         const args_ = @import("args.zig");
         try args_.validate_requested_contexts(symbol.type().function.contexts.items, &self.ctx.errors);
+    }
+
+    if (symbol.decl.?.* == .type_param_decl) {
+        if (symbol.decl.?.type_param_decl.constraint) |constraint| {
+            if (!constraint.refers_to_trait()) {
+                self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
+                return error.CompileError;
+            }
+        }
     }
 
     // Symbol's name must be capitalized iff its type is Type

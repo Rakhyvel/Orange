@@ -403,6 +403,7 @@ pub const AST = union(enum) {
     type_param_decl: struct {
         common: AST_Common,
         _symbol: ?*Symbol = null,
+        constraint: ?*Type_AST,
     },
     struct_decl: struct {
         common: AST_Common,
@@ -1250,9 +1251,10 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_type_param_decl(_token: Token, allocator: std.mem.Allocator) *AST {
+    pub fn create_type_param_decl(_token: Token, constraint: ?*Type_AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .type_param_decl = .{
             .common = AST_Common{ ._token = _token },
+            .constraint = constraint,
         } }, allocator);
     }
 
@@ -1409,7 +1411,14 @@ pub const AST = union(enum) {
             .float => return create_float(self.token(), self.float.data, allocator),
             .string => return create_string(self.token(), self.string.data, allocator),
             .field => return create_field(self.token(), allocator),
-            .identifier => return create_identifier(self.token(), allocator),
+            .identifier => {
+                if (self.refers_to_type()) {
+                    if (substs.get(self.token().data)) |replacement| {
+                        return create_identifier(replacement.token(), allocator);
+                    }
+                }
+                return create_identifier(self.token(), allocator);
+            },
             .@"unreachable" => return create_unreachable(self.token(), allocator),
             .true => return create_true(self.token(), allocator),
             .false => return create_false(self.token(), allocator),
@@ -1620,7 +1629,11 @@ pub const AST = union(enum) {
                 retval.enum_value.init = if (self.enum_value.init) |init| init.clone(substs, allocator) else null;
                 return retval;
             },
-            .type_param_decl => return create_type_param_decl(self.token(), allocator),
+            .type_param_decl => return create_type_param_decl(
+                self.token(),
+                if (self.type_param_decl.constraint) |constraint| constraint.clone(substs, allocator) else null,
+                allocator,
+            ),
             .struct_value => {
                 const cloned_terms = clone_children(self.children().*, substs, allocator);
                 var retval = create_struct_value(
@@ -1861,7 +1874,7 @@ pub const AST = union(enum) {
                     allocator,
                 );
                 retval.method_decl.impl = self.method_decl.impl;
-                retval.method_decl.domain = self.method_decl.domain;
+                retval.method_decl.domain = if (self.method_decl.domain) |domain| domain.clone(substs, allocator) else null;
                 retval.method_decl._decl_type = if (self.method_decl._decl_type != null) self.method_decl._decl_type.?.clone(substs, allocator) else null;
                 return retval;
             },
@@ -2289,7 +2302,7 @@ pub const AST = union(enum) {
         return switch (self.*) {
             else => false,
 
-            .identifier, .access => self.symbol().?.is_type(),
+            .identifier, .access => if (self.symbol()) |sym| sym.is_type() else false,
 
             .index => self.lhs().refers_to_type(), // generic type
             .generic_apply => self.lhs().refers_to_type(),

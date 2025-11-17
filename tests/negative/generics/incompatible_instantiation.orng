@@ -1,0 +1,13 @@
+// incompatible_instantiation.orng:12:20: error: the type `Bool` does not implement the trait `Number`
+//     use_number[Bool](true)
+//                   ^
+// 
+trait Number { fn value(self) -> Int }
+impl Number for Int { fn value(self) -> Int { self } }
+
+fn use_number[T: Number](x: T) -> Int { x.>value() }
+
+fn main() -> Int {
+    use_number[Int](5)
+    use_number[Bool](true)
+}

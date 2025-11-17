@@ -1,0 +1,12 @@
+// 371
+trait Show { fn show(self) -> Int }
+impl Show for Int { fn show(self) -> Int { self } }
+
+fn mixed[T: Show, U](constrained: T, unconstrained: U) -> Int {
+    _ = unconstrained
+    constrained.>show()
+}
+
+fn main() -> Int {
+    mixed[Int, Bool](371, true)
+}

@@ -1,0 +1,18 @@
+// 382
+trait Processor {
+    fn process(&self) -> Int
+}
+
+impl Processor for Int {
+    fn process(&self) -> Int { self^ + 1 }
+}
+
+fn use_twice[T: Processor](a: &T, b: &T) -> Int {
+    a.>process() + b.>process()
+}
+
+fn main() -> Int {
+    let x = 190
+    let y = 190
+    use_twice[Int](&x, &y)
+}

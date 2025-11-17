@@ -1,0 +1,15 @@
+// constraint_mismatch.orng:11:25: error: the type `T` does not implement the trait `Show`
+// impl[T: Eq] for Holder[T] {
+//                        ^
+// 
+trait Show { fn show(self) -> Int }
+trait Eq { fn eq(self, other: Self) -> Bool }
+
+struct Holder[T: Show] { x: T }
+
+// Error: impl says T: Eq, but struct says T: Show
+impl[T: Eq] for Holder[T] {
+    fn check(&self) -> Bool { _ = self; true }
+}
+
+fn main() -> Int { 4 }

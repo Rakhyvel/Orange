@@ -1,0 +1,27 @@
+// 371
+trait Eq {
+    fn eq(self, other: Self) -> Bool
+}
+
+impl Eq for Int {
+    fn eq(self, other: Int) -> Bool {
+        self == other
+    }
+}
+
+fn find[T: Eq](haystack: []T, needle: T) -> ?Int {
+    while let mut i = 0; i < haystack.length; i += 1 {
+        if haystack[i].>eq(needle) {
+            return .some(i)
+        }
+    }
+    .none
+}
+
+fn main() -> Int {
+    let items = [1, 2, 3, 4]
+    match find[Int]([]items, 3) {
+        .some(2) => 371
+        _ => unreachable
+    }
+}

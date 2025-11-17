@@ -1,0 +1,11 @@
+// 372
+trait Default { fn default() -> Self }
+impl Default for Int { fn default() -> Int { 372 } }
+
+fn get_default[T: Default]() -> T {
+    T::default()
+}
+
+fn main() -> Int {
+    get_default[Int]()
+}

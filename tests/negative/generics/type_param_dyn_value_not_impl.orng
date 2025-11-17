@@ -1,0 +1,11 @@
+// type_param_dyn_value_not_impl.orng:11:2: error: the type `T` does not implement the trait `Format`
+// t
+// ^
+// 
+fn main() -> ()!() with core::IO {
+    .ok
+}
+
+fn print_anything[T](t: T) -> ()!() with core::IO {
+    @print("{t}")
+}

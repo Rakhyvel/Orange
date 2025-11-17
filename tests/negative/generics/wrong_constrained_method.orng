@@ -1,0 +1,14 @@
+// wrong_constrained_method.orng:11:8: error: the type `T` does not implement the method `show`
+//     x.>show()
+//       ^
+// 
+trait Eq { fn eq(self, other: Self) -> Bool }
+trait Show { fn show(self) -> Int }
+
+impl Eq for Int { fn eq(self, other: Int) -> Bool { self == other } }
+
+fn use_it[T: Eq](x: T) -> Int {
+    x.>show()
+}
+
+fn main() -> Int { 4 }

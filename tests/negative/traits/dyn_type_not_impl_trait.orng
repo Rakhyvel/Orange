@@ -3,7 +3,7 @@
 //       ^
 // 
 trait Lol {
-    fn lol() -> ()
+    virtual fn lol() -> ()
 }
 
 fn main() -> Int {

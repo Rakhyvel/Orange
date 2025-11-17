@@ -1,0 +1,18 @@
+// multiple_constraints_dont_care.orng:12:26: error: the type `T` does not implement the trait `B`
+//     let dyn_b: &dyn B = &x // even though technically `Int` will implement `B`, here we declared that `T` only implements `A`
+//                         ^
+// 
+trait A { virtual fn a(&self) -> Int }
+trait B { virtual fn b(&self) -> Int }
+
+impl A for Int { virtual fn a(&self) -> Int { self^ } }
+impl B for Int { virtual fn b(&self) -> Int { self^ + 1 } }
+
+fn use_both[T: A](x: &T) -> Int {
+    let dyn_b: &dyn B = &x // even though technically `Int` will implement `B`, here we declared that `T` only implements `A`
+    x.>b()
+}
+
+fn main() -> Int {
+    use_both[Int](&386)
+}
