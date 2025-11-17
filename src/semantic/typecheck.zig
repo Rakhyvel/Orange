@@ -507,7 +507,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
         .dyn_value => {
-            const expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            var expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            while (expr_type.* == .addr_of) {
+                ast.set_expr(ast_.AST.create_dereference(ast.token(), ast.expr(), self.ctx.allocator()));
+                expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            }
             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
 
             if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
@@ -652,7 +656,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 // Address value, expected must be an address, inner must match with expected's inner
                 const expanded_expected = expected.?.expand_identifier();
                 if (expanded_expected.* == .dyn_type) {
-                    // TODO: Need to re-write this as a dyn-value
                     ast.* = ast_.AST.create_dyn_value(
                         ast.token(),
                         expanded_expected,
