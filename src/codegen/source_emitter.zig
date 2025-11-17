@@ -486,7 +486,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
         .invoke => {
             // FIXME: High Cyclo
             try self.output_call_prefix(instr);
-            if (!instr.data.invoke.method_decl.method_decl.is_virtual) {
+            if (instr.data.invoke.method_decl.method_decl.init != null and !instr.data.invoke.method_decl.method_decl.is_virtual) {
                 // method is non-virtual
                 // { method name }({ args })
                 try self.output_rvalue(instr.data.invoke.method_decl_lval.?, 2);

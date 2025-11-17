@@ -158,6 +158,11 @@ pub const Error = union(enum) {
         method_name: []const u8,
         trait_name: []const u8,
     },
+    invoke_not_virtual: struct {
+        span: Span,
+        method_name: []const u8,
+        trait_name: []const u8,
+    },
 
     // Contexts
     missing_context: struct {
@@ -310,6 +315,7 @@ pub const Error = union(enum) {
             .mismatch_method_type => return self.mismatch_method_type.span,
             .mismatch_method_virtuality => return self.mismatch_method_virtuality.span,
             .trait_virtual_refers_to_self => return self.trait_virtual_refers_to_self.span,
+            .invoke_not_virtual => return self.invoke_not_virtual.span,
 
             .missing_context => return self.missing_context.span,
 
@@ -477,6 +483,12 @@ pub const Error = union(enum) {
                 writer.print("virtual method `{s}` of trait `{s}` refers to `Self` type\n", .{
                     err.trait_virtual_refers_to_self.method_name,
                     err.trait_virtual_refers_to_self.trait_name,
+                }) catch unreachable;
+            },
+            .invoke_not_virtual => {
+                writer.print("cannot invoke non-virtual method `{s}` of trait `{s}` through dyn value\n", .{
+                    err.invoke_not_virtual.method_name,
+                    err.invoke_not_virtual.trait_name,
                 }) catch unreachable;
             },
 
@@ -709,7 +721,7 @@ pub const Errors = struct {
 
     pub fn add_error(self: *Errors, err: Error) void {
         self.errors_list.append(err) catch unreachable;
-        std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
     }
 
     /// Prints out all errors in the Errors list

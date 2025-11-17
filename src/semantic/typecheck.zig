@@ -447,8 +447,20 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             var method_decl: ?*ast_.AST = undefined;
             if (true_lhs_type.expand_identifier().* == .dyn_type) {
                 // The receiver is a dynamic type
-                const trait = true_lhs_type.expand_identifier().child().symbol().?.decl.?;
+                const trait_symbol = true_lhs_type.expand_identifier().child().symbol().?;
+                const trait = trait_symbol.decl.?;
                 method_decl = trait.trait.find_method(ast.rhs().token().data);
+
+                if (!method_decl.?.method_decl.is_virtual) {
+                    self.ctx.errors.add_error(errs_.Error{
+                        .invoke_not_virtual = .{
+                            .span = ast.token().span,
+                            .method_name = ast.rhs().token().data,
+                            .trait_name = trait_symbol.name,
+                        },
+                    });
+                    return error.CompileError;
+                }
             } else {
                 // The receiver is a regular type. STRIP AWAY ADDRs!
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
