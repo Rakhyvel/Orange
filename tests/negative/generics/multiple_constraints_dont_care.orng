@@ -1,5 +1,5 @@
 // multiple_constraints_dont_care.orng:12:26: error: the type `T` does not implement the trait `B`
-//     let dyn_b: &dyn B = &x
+//     let dyn_b: &dyn B = &x // even though technically `Int` will implement `B`, here we declared that `T` only implements `A`
 //                         ^
 // 
 trait A { virtual fn a(&self) -> Int }
