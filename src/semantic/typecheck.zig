@@ -522,18 +522,23 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
 
             if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
                 const type_param_decl = expr_type.symbol().?.decl.?;
+                var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
                 for (type_param_decl.type_param_decl.constraints.items) |constraint| {
                     const constraint_trait = constraint.symbol().?;
                     const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
-                    if (constraint_trait != dyn_trait) {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                            .span = ast.token().span,
-                            .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
-                            ._type = expr_type,
-                        } });
-                        return error.CompileError;
+                    if (constraint_trait == dyn_trait) {
+                        found_constraint = true;
+                        break;
                     }
+                }
+                if (!found_constraint) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                        ._type = expr_type,
+                    } });
+                    return error.CompileError;
                 }
             } else {
                 const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
