@@ -334,7 +334,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const lhs_span = ast.lhs().token().span;
             var lhs_type = self.typecheck_AST(ast.lhs(), null) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
-            if (ast.lhs().* != .enum_value and expanded_lhs_type.* != .function) {
+            if (expanded_lhs_type.* != .function) {
                 return typing_.throw_wrong_from(
                     "function",
                     "call",
@@ -344,21 +344,15 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 );
             }
 
-            // since enum_values are always compiler constructed, and their type is always a sum-type, this should always hold
-            std.debug.assert(ast.lhs().* != .enum_value or expanded_lhs_type.* == .enum_type); // (an `implies` operator would be cool btw...)
+            try self.validate_context(expanded_lhs_type, ast);
 
-            // If lhs is function type and has context(s), try and find them. Error if you can't.
-            if (expanded_lhs_type.* == .function) {
-                try self.validate_context(expanded_lhs_type, ast);
-            }
-
-            const domain = if (expanded_lhs_type.* == .function) expanded_lhs_type.lhs() else ast.lhs().enum_value.domain.?;
-            const codomain = if (expanded_lhs_type.* == .function) expanded_lhs_type.rhs() else ast.lhs().enum_value.base.?;
-            const variadic = expanded_lhs_type.* == .function and expanded_lhs_type.function.variadic;
-            ast.set_children(try args_.default_args(.function, ast.children().*, ast.token().span, domain, &self.ctx.errors, self.ctx.allocator()));
-            args_.implicit_ref(ast.children(), domain, self.ctx.allocator());
-            try args_.validate_args_arity(.function, ast.children(), domain, variadic, ast.token().span, &self.ctx.errors);
-            _ = try self.validate_args_type(ast.children(), domain, variadic);
+            const domain = expanded_lhs_type.function.args;
+            const codomain = expanded_lhs_type.rhs();
+            const variadic = expanded_lhs_type.function.variadic;
+            ast.set_children(try args_.default_args(.function, ast.children().*, ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator()));
+            args_.implicit_ref(ast.children(), &domain, self.ctx.allocator());
+            try args_.validate_args_arity(.function, ast.children(), &domain, variadic, ast.token().span, &self.ctx.errors);
+            _ = try self.validate_args_type(ast.children(), &domain, variadic);
             return codomain;
         },
         .index => {
@@ -480,7 +474,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
             const method_decl_type = self.typecheck_AST(method_decl.?, null) catch return error.CompileError;
             ast.invoke.method_decl = method_decl.?;
-            const domain: *Type_AST = method_decl.?.method_decl.domain.?;
+            const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
             const expanded_true_lhs_type = true_lhs_type.expand_identifier();
             if (method_decl.?.method_decl.receiver != null and !ast.invoke.prepended) {
                 const receiver_kind: ?ast_.Receiver_Kind = method_decl.?.method_decl.receiver.?.receiver.kind;
@@ -512,9 +506,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
 
             try self.validate_context(method_decl_type, ast);
 
-            ast.set_children(try args_.default_args(.method, ast.children().*, ast.token().span, domain, &self.ctx.errors, self.ctx.allocator()));
-            try args_.validate_args_arity(.method, ast.children(), domain, false, ast.token().span, &self.ctx.errors);
-            _ = try self.validate_args_type(ast.children(), domain, false);
+            ast.set_children(try args_.default_args(.method, ast.children().*, ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator()));
+            try args_.validate_args_arity(.method, ast.children(), &domain, false, ast.token().span, &self.ctx.errors);
+            _ = try self.validate_args_type(ast.children(), &domain, false);
 
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
@@ -528,20 +522,17 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
 
             if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
                 const type_param_decl = expr_type.symbol().?.decl.?;
+                var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
-                if (type_param_decl.type_param_decl.constraint) |constraint| {
+                for (type_param_decl.type_param_decl.constraints.items) |constraint| {
                     const constraint_trait = constraint.symbol().?;
                     const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
-                    if (constraint_trait != dyn_trait) {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                            .span = ast.token().span,
-                            .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
-                            ._type = expr_type,
-                        } });
-                        return error.CompileError;
+                    if (constraint_trait == dyn_trait) {
+                        found_constraint = true;
+                        break;
                     }
-                } else {
-                    // No constraints, so cannot be correct
+                }
+                if (!found_constraint) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
                         .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
@@ -569,9 +560,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const expanded_expected: *Type_AST = if (expected == null) ast.context_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .context_type) {
                 // Expecting ast to be a product value of some product type
-                ast.set_children(try args_.default_args(.context, ast.children().*, ast.token().span, expanded_expected, &self.ctx.errors, self.ctx.allocator()));
-                try args_.validate_args_arity(.context, ast.children(), expanded_expected, false, ast.token().span, &self.ctx.errors);
-                _ = try self.validate_args_type(ast.children(), expanded_expected, false);
+                ast.set_children(try args_.default_args(.context, ast.children().*, ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator()));
+                try args_.validate_args_arity(.context, ast.children(), expanded_expected.children(), false, ast.token().span, &self.ctx.errors);
+                _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false);
                 return ast.context_value.parent;
             } else if (ast.context_value.parent.expand_identifier().* != .context_type) {
                 // Parent wasn't even a context type!
@@ -590,9 +581,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const expanded_expected: *Type_AST = if (expected == null) ast.struct_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
-                ast.set_children(try args_.default_args(.@"struct", ast.children().*, ast.token().span, expanded_expected, &self.ctx.errors, self.ctx.allocator()));
-                try args_.validate_args_arity(.@"struct", ast.children(), expanded_expected, false, ast.token().span, &self.ctx.errors);
-                _ = try self.validate_args_type(ast.children(), expanded_expected, false);
+                ast.set_children(try args_.default_args(.@"struct", ast.children().*, ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator()));
+                try args_.validate_args_arity(.@"struct", ast.children(), expanded_expected.children(), false, ast.token().span, &self.ctx.errors);
+                _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false);
                 return ast.struct_value.parent;
             } else if (ast.struct_value.parent.expand_identifier().* != .struct_type) {
                 // Parent wasn't even a struct type!
@@ -619,8 +610,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 }
             } else if (expanded_expected != null and expanded_expected.?.* == .tuple_type) {
                 // Expecting ast to be a product value of some product type
-                try args_.validate_args_arity(.tuple, ast.children(), expanded_expected.?, false, ast.token().span, &self.ctx.errors);
-                terms = try self.validate_args_type(ast.children(), expanded_expected.?, false);
+                try args_.validate_args_arity(.tuple, ast.children(), expanded_expected.?.children(), false, ast.token().span, &self.ctx.errors);
+                terms = try self.validate_args_type(ast.children(), expanded_expected.?.children(), false);
                 return expected.?;
             } else {
                 // It's ok to assign this to a unit type, something like `_ = (1, 2, 3)`
@@ -899,8 +890,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 // Not a trait-method
                 try self.ctx.validate_symbol.validate_symbol(ast.symbol().?);
             }
-            // ast.method_decl.domain = try self.typecheck_AST(ast.method_decl.domain.?, prelude_.type_type);
-            try self.ctx.validate_type.validate_type(ast.method_decl.domain.?);
             return ast.decl_type();
         },
         .decl => {
@@ -956,15 +945,15 @@ pub fn binary_operator_open(
 pub fn validate_args_type(
     self: *Self,
     args: *std.array_list.Managed(*ast_.AST),
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     variadic: bool,
 ) Validate_Error_Enum!std.array_list.Managed(*Type_AST) {
-    const expected_length = if (expected.* == .unit_type) 0 else if (expected.* == .struct_type or expected.* == .tuple_type or expected.* == .context_type) expected.children().items.len else 1;
+    const expected_length = expected.items.len;
 
     var terms = std.array_list.Managed(*Type_AST).init(self.ctx.allocator());
     errdefer terms.deinit();
     for (0..expected_length) |i| {
-        const param_type = if (expected.* == .struct_type or expected.* == .tuple_type or expected.* == .context_type) expected.children().items[i] else expected;
+        const param_type = expected.items[i];
         const term_type = self.typecheck_AST(args.items[i], param_type) catch return error.CompileError;
         terms.append(term_type) catch unreachable;
     }

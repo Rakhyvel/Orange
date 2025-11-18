@@ -1,0 +1,14 @@
+// multiple_constraints_neither.orng:13:17: error: the type `Int` does not implement the trait `A`
+//     use_both[Int](&386)
+//                ^
+// 
+trait A { virtual fn a(&self) -> Int }
+trait B { virtual fn b(&self) -> Int }
+
+fn use_both[T: A + B](x: &T) -> Int {
+    x.>a() + x.>b()
+}
+
+fn main() -> Int {
+    use_both[Int](&386)
+}

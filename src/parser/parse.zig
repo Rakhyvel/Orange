@@ -316,7 +316,16 @@ fn function_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             const context = try self.type_expr();
             try contexts.append(Type_AST.create_addr_of_type(context.token(), context, false, false, self.allocator));
         }
-        exp = Type_AST.create_function(token, exp, codomain, contexts, self.allocator);
+        if (exp.* == .tuple_type) {
+            exp = Type_AST.create_function(token, exp.tuple_type._terms, codomain, contexts, self.allocator);
+        } else if (exp.* == .unit_type) {
+            const args = std.array_list.Managed(*Type_AST).init(self.allocator);
+            exp = Type_AST.create_function(token, args, codomain, contexts, self.allocator);
+        } else {
+            var args = std.array_list.Managed(*Type_AST).init(self.allocator);
+            try args.append(exp);
+            exp = Type_AST.create_function(token, args, codomain, contexts, self.allocator);
+        }
         exp.function.variadic = variadic;
     }
     return exp;
@@ -1592,11 +1601,14 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     if (self.accept(.left_square) != null) {
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
-            var constraint: ?*Type_AST = null;
+            var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
             if (self.accept(.single_colon)) |_| {
-                constraint = try self.type_expr();
+                try constraints.append(try self.type_expr());
+                while (self.accept(.plus)) |_| {
+                    try constraints.append(try self.type_expr());
+                }
             }
-            const param_ident = ast_.AST.create_type_param_decl(param_token, constraint, self.allocator);
+            const param_ident = ast_.AST.create_type_param_decl(param_token, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
                 break;

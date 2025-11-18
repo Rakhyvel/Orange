@@ -43,11 +43,11 @@ pub fn default_args(
     thing: Validate_Args_Thing,
     asts: std.array_list.Managed(*ast_.AST), // The args for a call, or the terms for a struct
     call_span: Span,
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) Validate_Error_Enum!std.array_list.Managed(*ast_.AST) {
-    if (try args_are_named(asts, errors) and expected.* != .unit_type) {
+    if (try args_are_named(asts, errors) and expected.items.len > 0) {
         return named_args(thing, asts, call_span, expected, errors, allocator) catch |err| switch (err) {
             error.NoDefault => error.CompileError,
             error.CompileError => error.CompileError,
@@ -98,7 +98,7 @@ fn positional_args(
     thing: Validate_Args_Thing,
     asts: std.array_list.Managed(*ast_.AST),
     call_span: Span,
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) error{NoDefault}!std.array_list.Managed(*ast_.AST) {
@@ -106,64 +106,34 @@ fn positional_args(
     var filled_args = std.array_list.Managed(*ast_.AST).init(allocator);
     errdefer filled_args.deinit();
 
-    switch (expected.*) {
-        .annotation => {
-            if (asts.items.len == 0 and expected.annotation.init != null) {
-                // Use expected's init, asts are empty
-                filled_args.append(expected.annotation.init.?) catch unreachable;
-            } else if (asts.items.len > 0) {
-                // Copy asts over to filled_args
-                for (asts.items) |item| {
-                    filled_args.append(item) catch unreachable;
-                }
+    for (expected.items, 0..) |term, i| {
+        // ast is struct, append ast's corresponding term
+        if (asts.items.len > 1 and i < asts.items.len) {
+            filled_args.append(asts.items[i]) catch unreachable;
+        }
+        // ast is unit or ast isn't a struct and i > 0 or ast is a struct and off the edge of ast's terms
+        // try to fill with the default
+        else if (asts.items.len == 0 or (asts.items.len <= 1 and i > 0) or (asts.items.len > 1 and i >= asts.items.len)) {
+            if (term.* == .annotation and term.annotation.init != null) {
+                filled_args.append(term.annotation.init.?) catch unreachable;
             } else {
-                // empty args, no default init in parameter. No default possible!
                 errors.add_error(errs_.Error{ .mismatch_arity = .{
                     .span = call_span,
-                    .takes = 1,
-                    .given = 0,
+                    .takes = expected.items.len,
+                    .given = asts.items.len,
                     .thing_name = thing.thing_name(),
                     .takes_name = thing.takes_name(),
                     .given_name = thing.given_name(),
                 } });
                 return error.NoDefault;
             }
-        },
-
-        .struct_type, .tuple_type => {
-            for (expected.children().items, 0..) |term, i| {
-                // ast is struct, append ast's corresponding term
-                if (asts.items.len > 1 and i < asts.items.len) {
-                    filled_args.append(asts.items[i]) catch unreachable;
-                }
-                // ast is unit or ast isn't a struct and i > 0 or ast is a struct and off the edge of ast's terms
-                // try to fill with the default
-                else if (asts.items.len == 0 or (asts.items.len <= 1 and i > 0) or (asts.items.len > 1 and i >= asts.items.len)) {
-                    if (term.* == .annotation and term.annotation.init != null) {
-                        filled_args.append(term.annotation.init.?) catch unreachable;
-                    } else {
-                        errors.add_error(errs_.Error{ .mismatch_arity = .{
-                            .span = call_span,
-                            .takes = expected.children().items.len,
-                            .given = asts.items.len,
-                            .thing_name = thing.thing_name(),
-                            .takes_name = thing.takes_name(),
-                            .given_name = thing.given_name(),
-                        } });
-                        return error.NoDefault;
-                    }
-                }
-                // ast is not struct, i != 0, append ast as first term
-                else {
-                    filled_args.append(asts.items[0]) catch unreachable;
-                }
-            }
-        },
-
-        else => filled_args = asts,
-
-        // else => std.debug.panic("compiler error: positional_args(): unimplemented for {s}", .{@tagName(expected.*)}),
+        }
+        // ast is not struct, i != 0, append ast as first term
+        else {
+            filled_args.append(asts.items[0]) catch unreachable;
+        }
     }
+
     if (filled_args.items.len < asts.items.len) {
         // Add the rest, for extern variadic function calls
         for (filled_args.items.len..asts.items.len) |i| {
@@ -177,7 +147,7 @@ fn named_args(
     thing: Validate_Args_Thing,
     asts: std.array_list.Managed(*ast_.AST),
     call_span: Span,
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) (Validate_Error_Enum || error{NoDefault})!std.array_list.Managed(*ast_.AST) {
@@ -198,56 +168,51 @@ fn named_args(
     // Construct positional args in the order specified by `expected`
     var filled_args = std.array_list.Managed(*ast_.AST).init(allocator);
     errdefer filled_args.deinit();
-    switch (expected.*) {
-        .annotation => {
-            if (arg_name_to_val_map.keys().len > 1) { // Cannot be 0, since that is technically a positional arglist
+
+    var args_used: usize = 0;
+
+    for (expected.items) |term| {
+        if (term.* != .annotation) {
+            errors.add_error(errs_.Error{ .basic = .{
+                .span = asts.items[0].token().span,
+                .msg = "expected type does not accept named fields",
+            } });
+            return error.NoDefault;
+        }
+        const arg = arg_name_to_val_map.get(term.annotation.pattern.token().data);
+        if (arg == null) {
+            if (term.annotation.init != null) {
+                filled_args.append(term.annotation.init.?) catch unreachable;
+            } else {
+                // Value is not provided, and there is no default init, ERROR!
                 errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = asts.items[0].token().span,
-                    .takes = 1,
+                    .span = call_span,
+                    .takes = expected.items.len,
                     .given = arg_name_to_val_map.keys().len,
                     .thing_name = thing.thing_name(),
                     .takes_name = thing.takes_name(),
                     .given_name = thing.given_name(),
                 } });
                 return error.NoDefault;
-            } else {
-                filled_args.append(arg_name_to_val_map.values()[0]) catch unreachable;
             }
-        },
-
-        .struct_type, .tuple_type => {
-            for (expected.children().items) |term| {
-                if (term.* != .annotation) {
-                    errors.add_error(errs_.Error{ .basic = .{
-                        .span = asts.items[0].token().span,
-                        .msg = "expected type does not accept named fields",
-                    } });
-                    return error.NoDefault;
-                }
-                const arg = arg_name_to_val_map.get(term.annotation.pattern.token().data);
-                if (arg == null) {
-                    if (term.annotation.init != null) {
-                        filled_args.append(term.annotation.init.?) catch unreachable;
-                    } else {
-                        // Value is not provided, and there is no default init, ERROR!
-                        errors.add_error(errs_.Error{ .mismatch_arity = .{
-                            .span = call_span,
-                            .takes = expected.children().items.len,
-                            .given = arg_name_to_val_map.keys().len,
-                            .thing_name = thing.thing_name(),
-                            .takes_name = thing.takes_name(),
-                            .given_name = thing.given_name(),
-                        } });
-                        return error.NoDefault;
-                    }
-                } else {
-                    filled_args.append(arg.?) catch unreachable;
-                }
-            }
-        },
-
-        else => std.debug.panic("compiler error: unimplemented named_args() for `{f}`", .{expected.*}),
+        } else {
+            filled_args.append(arg.?) catch unreachable;
+        }
+        args_used += 1;
     }
+
+    if (args_used < arg_name_to_val_map.keys().len) {
+        errors.add_error(errs_.Error{ .mismatch_arity = .{
+            .span = call_span,
+            .takes = expected.items.len,
+            .given = arg_name_to_val_map.keys().len,
+            .thing_name = thing.thing_name(),
+            .takes_name = thing.takes_name(),
+            .given_name = thing.given_name(),
+        } });
+        return error.NoDefault;
+    }
+
     return filled_args;
 }
 
@@ -270,6 +235,7 @@ pub fn put_ast_map(
     if (map.get(name)) |_| {
         errors.add_error(errs_.Error{ .duplicate = .{
             .span = span,
+            .thing = "item",
             .identifier = name,
             .first = null,
         } });
@@ -282,10 +248,11 @@ pub fn put_ast_map(
 /// address of the argument.
 pub fn implicit_ref(
     args: *std.array_list.Managed(*ast_.AST),
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     allocator: std.mem.Allocator,
 ) void {
-    const param_type = if (expected.* == .struct_type or expected.* == .tuple_type or expected.* == .context_type) expected.children().items[0] else expected;
+    if (expected.items.len == 0) return;
+    const param_type = expected.items[0];
     if (param_type.* == .annotation and
         param_type.annotation.pattern.* == .receiver and
         param_type.child().* == .addr_of and
@@ -300,12 +267,12 @@ pub fn implicit_ref(
 pub fn validate_args_arity(
     thing: Validate_Args_Thing,
     args: *std.array_list.Managed(*ast_.AST),
-    expected: *Type_AST,
+    expected: *const std.array_list.Managed(*Type_AST),
     variadic: bool,
     span: Span,
     errors: *errs_.Errors,
 ) Validate_Error_Enum!void {
-    const expected_length = if (expected.* == .unit_type) 0 else if (expected.* == .struct_type or expected.* == .tuple_type) expected.children().items.len else 1;
+    const expected_length = expected.items.len;
     if (variadic) {
         if (args.items.len < expected_length) {
             errors.add_error(errs_.Error{ .mismatch_arity = .{

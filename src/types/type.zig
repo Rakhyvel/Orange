@@ -59,7 +59,7 @@ pub const Type_AST = union(enum) {
     },
     function: struct {
         common: Type_AST_Common,
-        _lhs: *Type_AST,
+        args: std.array_list.Managed(*Type_AST),
         _rhs: *Type_AST,
         contexts: std.array_list.Managed(*Type_AST),
         variadic: bool = false,
@@ -263,11 +263,11 @@ pub const Type_AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_function(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, contexts: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_function(_token: Token, args: std.array_list.Managed(*Type_AST), _rhs: *Type_AST, contexts: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .function = .{
             .common = _common,
-            ._lhs = _lhs,
+            .args = args,
             ._rhs = _rhs,
             .contexts = contexts,
         } }, allocator);
@@ -600,6 +600,7 @@ pub const Type_AST = union(enum) {
 
     pub fn children(self: *const Type_AST) *const std.array_list.Managed(*Type_AST) {
         return switch (self.*) {
+            .function => &self.function.args,
             .generic_apply => &self.generic_apply.args,
             .enum_type => &self.enum_type._terms,
             .untagged_sum_type => self.child().expand_identifier().children(),
@@ -723,7 +724,14 @@ pub const Type_AST = union(enum) {
                 try self.child().print_type(out);
             },
             .function => {
-                try self.lhs().print_type(out);
+                if (self.function.args.items.len != 1) try out.print("(", .{});
+                for (self.children().items, 0..) |term, i| {
+                    try term.print_type(out);
+                    if (i + 1 < self.children().items.len) {
+                        try out.print(", ", .{});
+                    }
+                }
+                if (self.function.args.items.len != 1) try out.print(")", .{});
                 try out.print("->", .{});
                 try self.rhs().print_type(out);
                 if (self.function.contexts.items.len > 0) {
@@ -1030,7 +1038,16 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
-            .function => return A.lhs().types_match(B.lhs()) and A.rhs().types_match(B.rhs()),
+            .function => {
+                if (B.children().items.len != A.children().items.len) {
+                    return false;
+                }
+                var retval = true;
+                for (A.children().items, B.children().items) |term, other_term| {
+                    retval = retval and term.types_match(other_term);
+                }
+                return retval and A.rhs().types_match(B.rhs());
+            },
             .dyn_type => {
                 return A.child().symbol() == B.child().symbol();
             },
@@ -1115,7 +1132,16 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
-            .function => return self.lhs().c_types_match(other.lhs()) and self.rhs().c_types_match(other.rhs()),
+            .function => {
+                if (other.children().items.len != self.children().items.len) {
+                    return false;
+                }
+                var retval = true;
+                for (self.children().items, other.children().items) |term, other_term| {
+                    retval = retval and term.c_types_match(other_term);
+                }
+                return retval and self.rhs().c_types_match(other.rhs());
+            },
             .array_of => return self.child().c_types_match(other.child()) and self.array_of.len.int.data == other.array_of.len.int.data,
             else => std.debug.panic("compiler error: c_types_match(): unimplemented for {s}", .{@tagName(self.*)}),
         }
@@ -1147,10 +1173,10 @@ pub const Type_AST = union(enum) {
                 return create_annotation(self.token(), self.annotation.pattern, _type, self.annotation.init, allocator);
             },
             .function => {
-                const _lhs = clone(self.lhs(), substs, allocator);
+                const args = clone_types(self.function.args, substs, allocator);
                 const _rhs = clone(self.rhs(), substs, allocator);
                 const contexts = clone_types(self.function.contexts, substs, allocator);
-                return create_function(self.token(), _lhs, _rhs, contexts, allocator);
+                return create_function(self.token(), args, _rhs, contexts, allocator);
             },
             .enum_type => {
                 var new_children = std.array_list.Managed(*Type_AST).init(allocator);
@@ -1212,7 +1238,14 @@ pub const Type_AST = union(enum) {
             .identifier => std.mem.eql(u8, _type.token().data, "Self"),
             .addr_of, .array_of => _type.child().refers_to_self(),
             .annotation => _type.child().refers_to_self(),
-            .function => _type.lhs().refers_to_self() or _type.rhs().refers_to_self(),
+            .function => {
+                for (_type.function.args.items) |arg| {
+                    if (arg.refers_to_self()) {
+                        return true;
+                    }
+                }
+                return _type.rhs().refers_to_self();
+            },
             .struct_type, .tuple_type, .enum_type => {
                 for (_type.children().items) |item| {
                     if (item.refers_to_self()) {

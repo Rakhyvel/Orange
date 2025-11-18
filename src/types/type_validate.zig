@@ -42,17 +42,18 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 try self.ctx.validate_type.validate_type(child);
 
                 const param = params.items[i];
-                const constraint = param.type_param_decl.constraint;
-                if (constraint != null and constraint.?.symbol() != null) {
-                    const trait = constraint.?.symbol().?;
-                    const res = constraint.?.symbol().?.scope.impl_trait_lookup(child, trait);
-                    if (res.count == 0) {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                            .span = child.token().span,
-                            .trait_name = trait.name,
-                            ._type = child,
-                        } });
-                        return error.CompileError;
+                for (param.type_param_decl.constraints.items) |constraint| {
+                    if (constraint.symbol() != null) {
+                        const trait = constraint.symbol().?;
+                        const res = constraint.symbol().?.scope.impl_trait_lookup(child, trait);
+                        if (res.count == 0) {
+                            self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                                .span = child.token().span,
+                                .trait_name = trait.name,
+                                ._type = child,
+                            } });
+                            return error.CompileError;
+                        }
                     }
                 }
             }
@@ -115,7 +116,9 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
         },
 
         .function => {
-            try self.validate_type(@"type".lhs());
+            for (@"type".function.args.items) |arg| {
+                try self.validate_type(arg);
+            }
             try self.validate_type(@"type".rhs());
         },
 

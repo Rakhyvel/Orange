@@ -1,0 +1,11 @@
+// duplicate_constraint.orng:9:17: error: duplicate constraint `A`
+// fn func[T: A + A](t: T) {}
+//                ^
+// 
+trait A { }
+
+impl A for Int { }
+
+fn func[T: A + A](t: T) {}
+
+fn main() {}

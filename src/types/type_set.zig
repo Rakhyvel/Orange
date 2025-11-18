@@ -4,6 +4,7 @@
 const std = @import("std");
 const Dependency_Node = @import("dependency_node.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");
 
 const Self = @This();
 
@@ -25,11 +26,14 @@ pub fn add_type(self: *Self, oldast_: *Type_AST) ?*Dependency_Node {
 
 fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependency_Node {
     const ast = oldast_.expand_identifier();
-    // std.debug.print("{f}\n", .{ast});
-    std.debug.assert(ast.* != .identifier or ast.symbol().?.decl.?.* != .type_param_decl);
+    // var str = Canonical_Type_Fmt.canonical_rep(ast) catch unreachable;
+    // defer str.deinit();
+    // std.debug.print("{f}: {s}\n", .{ ast, str.str() });
+    // std.debug.assert(ast.* != .identifier or ast.symbol().?.decl.?.* != .type_param_decl);
 
     if (self.get_node(ast)) |dag| {
         // Type is already in the set, return Dependency_Node entry for it
+        // std.debug.print("already in dag: {f}\n", .{dag.base});
         return dag;
     }
 
@@ -55,14 +59,8 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
 /// Adds a function type to the type set
 fn add_function(self: *Self, function_type_ast: *Type_AST) ?*Dependency_Node {
     var dag = self.add_dependency_node(function_type_ast);
-    if (function_type_ast.lhs().* == .tuple_type) {
-        for (function_type_ast.lhs().children().items) |c| {
-            if (self.add_internal(c, true)) |domain| {
-                dag.add_dependency(domain);
-            }
-        }
-    } else {
-        if (self.add_internal(function_type_ast.lhs(), true)) |domain| {
+    for (function_type_ast.function.args.items) |arg| {
+        if (self.add_internal(arg, true)) |domain| {
             dag.add_dependency(domain);
         }
     }

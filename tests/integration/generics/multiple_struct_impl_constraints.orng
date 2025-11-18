@@ -1,0 +1,17 @@
+// 395
+trait A {}
+trait B {}
+
+impl A for Int {}
+impl B for Int {}
+
+struct Pair[T: A + B] { first: T, second: T }
+
+impl[T: A + B] for Pair[T] {
+    fn get() -> Int { 300 }
+}
+
+fn main() -> Int {
+    let pair = Pair[Int]( 90, 5 )
+    pair.>get() + pair.first + pair.second
+}

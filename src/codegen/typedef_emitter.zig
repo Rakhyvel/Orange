@@ -70,28 +70,19 @@ fn output_include_guard_end(self: *Self) CodeGen_Error!void {
 fn output_typedef(self: *Self) CodeGen_Error!void {
     if (self.dep.base.* == .function) {
         const has_contexts = self.dep.base.function.contexts.items.len > 0;
-        const has_params = self.dep.base.lhs().* != .unit_type;
+        const has_params = self.dep.base.function.args.items.len > 0;
 
         try self.writer.print("typedef ", .{});
         try self.emitter.output_type(self.dep.base.rhs());
         try self.writer.print("(*{f})(", .{Canonical_Type_Fmt{ .type = self.dep.base }});
 
-        if (self.dep.base.lhs().* == .tuple_type) {
-            // Function pointer takes more than one argument
-            const product = self.dep.base.lhs();
-            for (product.children().items, 0..) |term, i| {
-                if (!term.is_c_void_type()) {
-                    // Do not output `void` parameters
-                    try self.emitter.output_type(term);
-                    if (i + 1 < product.children().items.len and !product.children().items[i + 1].is_c_void_type()) {
-                        try self.writer.print(", ", .{});
-                    }
+        for (self.dep.base.function.args.items, 0..) |arg, i| {
+            if (!arg.is_c_void_type()) {
+                // Do not output `void` parameters
+                try self.emitter.output_type(arg);
+                if (i + 1 < self.dep.base.function.args.items.len and !self.dep.base.function.args.items[i + 1].is_c_void_type()) {
+                    try self.writer.print(", ", .{});
                 }
-            }
-        } else {
-            // Function pointer takes one argument
-            if (!has_contexts or has_params) {
-                try self.emitter.output_type(self.dep.base.lhs());
             }
         }
 

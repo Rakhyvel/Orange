@@ -345,17 +345,18 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
         try self.ctx.validate_type.validate_type(child);
 
         const param = params.items[i];
-        const constraint = param.type_param_decl.constraint;
-        if (constraint != null and constraint.?.symbol() != null) {
-            const trait = constraint.?.symbol().?;
-            const res = self.scope.impl_trait_lookup(child, trait);
-            if (res.count == 0) {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = child.token().span,
-                    .trait_name = trait.name,
-                    ._type = child,
-                } });
-                return error.CompileError;
+        for (param.type_param_decl.constraints.items) |constraint| {
+            if (constraint.symbol() != null) {
+                const trait = constraint.symbol().?;
+                const res = self.scope.impl_trait_lookup(child, trait);
+                if (res.count == 0) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = child.token().span,
+                        .trait_name = trait.name,
+                        ._type = child,
+                    } });
+                    return error.CompileError;
+                }
             }
         }
     }

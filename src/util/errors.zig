@@ -192,6 +192,7 @@ pub const Error = union(enum) {
     },
     duplicate: struct {
         span: Span,
+        thing: []const u8,
         identifier: []const u8,
         first: ?Span, // printed writer as extra information
     },
@@ -530,7 +531,7 @@ pub const Error = union(enum) {
                 err.expected_builtin_typeclass.got.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
             },
-            .duplicate => writer.print("duplicate item `{s}`\n", .{err.duplicate.identifier}) catch unreachable,
+            .duplicate => writer.print("duplicate {s} `{s}`\n", .{ err.duplicate.thing, err.duplicate.identifier }) catch unreachable,
             .member_not_in_type => {
                 writer.print("member `{s}` not in {s} `{f}`\n", .{ err.member_not_in_type.identifier, err.member_not_in_type.name, err.member_not_in_type.type }) catch unreachable;
             },

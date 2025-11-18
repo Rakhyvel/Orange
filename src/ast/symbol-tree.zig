@@ -557,9 +557,10 @@ pub fn create_test_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) Error!*S
         contexts.append(ctx.context_value_decl.parent) catch unreachable;
     }
 
+    const args = std.array_list.Managed(*Type_AST).init(allocator);
     const _type = Type_AST.create_function(
         ast.token(),
-        prelude_.unit_type,
+        args,
         core_.test_result_type,
         contexts,
         allocator,
@@ -590,38 +591,8 @@ pub fn next_anon_name(class: []const u8, allocator: std.mem.Allocator) []const u
     return out.toOwnedSlice() catch unreachable;
 }
 
-pub fn extract_domain(params: std.array_list.Managed(*ast_.AST), allocator: std.mem.Allocator) *Type_AST {
-    if (params.items.len == 0) {
-        return prelude_.unit_type;
-    } else if (params.items.len <= 1) {
-        return Type_AST.create_annotation(
-            params.items[0].token(),
-            params.items[0].binding.pattern,
-            params.items[0].binding.type,
-            params.items[0].binding.init,
-            allocator,
-        );
-    } else {
-        std.debug.assert(params.items.len >= 2);
-        var param_types = std.array_list.Managed(*Type_AST).init(allocator);
-        return build_paramlist(params, &param_types, allocator);
-    }
-}
-
-fn extract_domain_with_receiver(impl_type: *Type_AST, receiver: *ast_.AST, params: std.array_list.Managed(*ast_.AST), allocator: std.mem.Allocator) *Type_AST {
-    const receiver_addr_type = create_receiver_addr(impl_type, receiver, allocator);
-    receiver.receiver._type = receiver_addr_type;
-    const _receiver_type = create_receiver_annot(receiver_addr_type, receiver, allocator);
-    if (params.items.len == 0) {
-        return _receiver_type;
-    } else {
-        var param_types = std.array_list.Managed(*Type_AST).init(allocator);
-        param_types.append(_receiver_type) catch unreachable;
-        return build_paramlist(params, &param_types, allocator);
-    }
-}
-
-fn build_paramlist(params: std.array_list.Managed(*ast_.AST), param_types: *std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
+pub fn extract_domain(params: std.array_list.Managed(*ast_.AST), allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+    var param_types = std.array_list.Managed(*Type_AST).init(allocator);
     for (0..params.items.len) |i| {
         param_types.append(Type_AST.create_annotation(
             params.items[i].token(),
@@ -631,8 +602,25 @@ fn build_paramlist(params: std.array_list.Managed(*ast_.AST), param_types: *std.
             allocator,
         )) catch unreachable;
     }
-    const retval = Type_AST.create_tuple_type(params.items[0].token(), param_types.*, allocator);
-    return retval;
+    return param_types;
+}
+
+fn extract_domain_with_receiver(impl_type: *Type_AST, receiver: *ast_.AST, params: std.array_list.Managed(*ast_.AST), allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+    const receiver_addr_type = create_receiver_addr(impl_type, receiver, allocator);
+    receiver.receiver._type = receiver_addr_type;
+    const _receiver_type = create_receiver_annot(receiver_addr_type, receiver, allocator);
+    var param_types = std.array_list.Managed(*Type_AST).init(allocator);
+    param_types.append(_receiver_type) catch unreachable;
+    for (0..params.items.len) |i| {
+        param_types.append(Type_AST.create_annotation(
+            params.items[i].token(),
+            params.items[i].binding.pattern,
+            params.items[i].binding.type,
+            params.items[i].binding.init,
+            allocator,
+        )) catch unreachable;
+    }
+    return param_types;
 }
 
 fn create_receiver_addr(impl_type: *Type_AST, receiver: *ast_.AST, allocator: std.mem.Allocator) *Type_AST {
@@ -661,11 +649,11 @@ pub fn create_temp_comptime_symbol(
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
     // Create the function type. The rhs is a typeof node, since type expansion is done in a later time
-    const lhs = prelude_.unit_type;
+    const args = std.array_list.Managed(*Type_AST).init(allocator);
     const rhs = Type_AST.create_type_of(ast.token(), ast, allocator);
     const _type = Type_AST.create_function(
         ast.token(),
-        lhs,
+        args,
         rhs_type_hint orelse rhs,
         std.array_list.Managed(*Type_AST).init(allocator),
         allocator,
@@ -733,7 +721,7 @@ fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) *Type_AST {
         Type_AST.create_anyptr_type(ast.token(), allocator);
 
     // Calculate the domain type from the function paramter types
-    ast.method_decl.domain = if (ast.method_decl.receiver) |receiver|
+    const args = if (ast.method_decl.receiver) |receiver|
         extract_domain_with_receiver(receiver_base_type, receiver, ast.children().*, allocator)
     else
         extract_domain(ast.children().*, allocator);
@@ -746,7 +734,7 @@ fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) *Type_AST {
     // Create the function type
     const _type = Type_AST.create_function(
         ast.method_decl.ret_type.token(),
-        ast.method_decl.domain.?,
+        args,
         ast.method_decl.ret_type,
         contexts,
         allocator,
