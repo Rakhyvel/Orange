@@ -144,6 +144,13 @@ const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_Trait_Lookup_Result {
     if (false) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
+        std.debug.print("is identifier: {}\n", .{for_type.* == .identifier});
+        if (for_type.* == .identifier) {
+            std.debug.print("symbol isnt null: {}\n", .{for_type.symbol() != null});
+            if (for_type.symbol() != null) {
+                std.debug.print("symbol kind: {t}\n", .{for_type.symbol().?.kind});
+            }
+        }
         self.pprint();
     }
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null };

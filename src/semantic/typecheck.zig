@@ -534,14 +534,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                         } });
                         return error.CompileError;
                     }
-                } else {
-                    // No constraints, so cannot be correct
-                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                        .span = ast.token().span,
-                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
-                        ._type = expr_type,
-                    } });
-                    return error.CompileError;
                 }
             } else {
                 const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
