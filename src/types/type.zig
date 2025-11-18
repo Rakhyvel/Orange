@@ -1038,7 +1038,16 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
-            .function => return A.lhs().types_match(B.lhs()) and A.rhs().types_match(B.rhs()),
+            .function => {
+                if (B.children().items.len != A.children().items.len) {
+                    return false;
+                }
+                var retval = true;
+                for (A.children().items, B.children().items) |term, other_term| {
+                    retval = retval and term.types_match(other_term);
+                }
+                return retval and A.rhs().c_types_match(B.rhs());
+            },
             .dyn_type => {
                 return A.child().symbol() == B.child().symbol();
             },
