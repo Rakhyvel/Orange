@@ -169,17 +169,7 @@ fn named_args(
     var filled_args = std.array_list.Managed(*ast_.AST).init(allocator);
     errdefer filled_args.deinit();
 
-    if (arg_name_to_val_map.keys().len != expected.items.len) {
-        errors.add_error(errs_.Error{ .mismatch_arity = .{
-            .span = call_span,
-            .takes = expected.items.len,
-            .given = arg_name_to_val_map.keys().len,
-            .thing_name = thing.thing_name(),
-            .takes_name = thing.takes_name(),
-            .given_name = thing.given_name(),
-        } });
-        return error.NoDefault;
-    }
+    var args_used: usize = 0;
 
     for (expected.items) |term| {
         if (term.* != .annotation) {
@@ -208,6 +198,19 @@ fn named_args(
         } else {
             filled_args.append(arg.?) catch unreachable;
         }
+        args_used += 1;
+    }
+
+    if (args_used < arg_name_to_val_map.keys().len) {
+        errors.add_error(errs_.Error{ .mismatch_arity = .{
+            .span = call_span,
+            .takes = expected.items.len,
+            .given = arg_name_to_val_map.keys().len,
+            .thing_name = thing.thing_name(),
+            .takes_name = thing.takes_name(),
+            .given_name = thing.given_name(),
+        } });
+        return error.NoDefault;
     }
 
     return filled_args;
