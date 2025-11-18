@@ -235,6 +235,7 @@ pub fn put_ast_map(
     if (map.get(name)) |_| {
         errors.add_error(errs_.Error{ .duplicate = .{
             .span = span,
+            .thing = "item",
             .identifier = name,
             .first = null,
         } });

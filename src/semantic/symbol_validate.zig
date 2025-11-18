@@ -95,11 +95,19 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     }
 
     if (symbol.decl.?.* == .type_param_decl) {
+        var traits_used = std.array_hash_map.AutoArrayHashMap(*Symbol, void).init(self.ctx.allocator());
+        defer traits_used.deinit();
+
         for (symbol.decl.?.type_param_decl.constraints.items) |constraint| {
             if (!constraint.refers_to_trait()) {
                 self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
                 return error.CompileError;
             }
+            if (traits_used.contains(constraint.symbol().?)) {
+                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = constraint.symbol().?.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
+                return error.CompileError;
+            }
+            try traits_used.put(constraint.symbol().?, void{});
         }
     }
 
@@ -155,6 +163,7 @@ fn validate_trait(self: *Self, trait: *Symbol) Validate_Error_Enum!void {
         if (names.get(decl.method_decl.name.token().data)) |other| {
             self.ctx.errors.add_error(errs_.Error{ .duplicate = .{
                 .span = decl.token().span,
+                .thing = "method",
                 .identifier = decl.method_decl.name.token().data,
                 .first = other.token().span,
             } });

@@ -1,3 +1,7 @@
+// multiple_constraints_only_one.orng:15:17: error: the type `Int` does not implement the trait `A`
+//     use_both[Int](&386)
+//                ^
+// 
 trait A { virtual fn a(&self) -> Int }
 trait B { virtual fn b(&self) -> Int }
 
