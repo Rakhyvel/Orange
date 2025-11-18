@@ -1,0 +1,12 @@
+trait A { virtual fn a(&self) -> Int }
+trait B { virtual fn b(&self) -> Int }
+
+impl B for Int { virtual fn b(&self) -> Int { self^ + 1 } }
+
+fn use_both[T: A + B](x: &T) -> Int {
+    x.>a() + x.>b()
+}
+
+fn main() -> Int {
+    use_both[Int](&386)
+}
