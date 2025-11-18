@@ -83,8 +83,7 @@ fn create_core(compiler: *Compiler_Context) !void {
     package_type = module_scope.lookup("Package", .{}).found.init_typedef().?;
     package_source_type = module_scope.lookup("Package_Source", .{}).found.init_typedef().?;
     test_result_type = module_scope.lookup("Test_Result", .{}).found.init_typedef().?;
-    var args = std.array_list.Managed(*Type_AST).init(compiler.allocator());
-    try args.append(prelude_.unit_type);
+    const args = std.array_list.Managed(*Type_AST).init(compiler.allocator());
     test_type = Type_AST.create_function(
         test_result_type.token(),
         args,

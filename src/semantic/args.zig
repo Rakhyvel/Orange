@@ -169,6 +169,18 @@ fn named_args(
     var filled_args = std.array_list.Managed(*ast_.AST).init(allocator);
     errdefer filled_args.deinit();
 
+    if (arg_name_to_val_map.keys().len != expected.items.len) {
+        errors.add_error(errs_.Error{ .mismatch_arity = .{
+            .span = call_span,
+            .takes = expected.items.len,
+            .given = arg_name_to_val_map.keys().len,
+            .thing_name = thing.thing_name(),
+            .takes_name = thing.takes_name(),
+            .given_name = thing.given_name(),
+        } });
+        return error.NoDefault;
+    }
+
     for (expected.items) |term| {
         if (term.* != .annotation) {
             errors.add_error(errs_.Error{ .basic = .{

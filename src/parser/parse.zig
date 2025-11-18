@@ -318,6 +318,9 @@ fn function_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
         }
         if (exp.* == .tuple_type) {
             exp = Type_AST.create_function(token, exp.tuple_type._terms, codomain, contexts, self.allocator);
+        } else if (exp.* == .unit_type) {
+            const args = std.array_list.Managed(*Type_AST).init(self.allocator);
+            exp = Type_AST.create_function(token, args, codomain, contexts, self.allocator);
         } else {
             var args = std.array_list.Managed(*Type_AST).init(self.allocator);
             try args.append(exp);

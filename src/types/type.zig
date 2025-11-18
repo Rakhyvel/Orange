@@ -1046,7 +1046,7 @@ pub const Type_AST = union(enum) {
                 for (A.children().items, B.children().items) |term, other_term| {
                     retval = retval and term.types_match(other_term);
                 }
-                return retval and A.rhs().c_types_match(B.rhs());
+                return retval and A.rhs().types_match(B.rhs());
             },
             .dyn_type => {
                 return A.child().symbol() == B.child().symbol();

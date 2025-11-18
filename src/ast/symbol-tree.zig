@@ -557,8 +557,7 @@ pub fn create_test_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) Error!*S
         contexts.append(ctx.context_value_decl.parent) catch unreachable;
     }
 
-    var args = std.array_list.Managed(*Type_AST).init(allocator);
-    try args.append(prelude_.unit_type);
+    const args = std.array_list.Managed(*Type_AST).init(allocator);
     const _type = Type_AST.create_function(
         ast.token(),
         args,
@@ -650,8 +649,7 @@ pub fn create_temp_comptime_symbol(
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
     // Create the function type. The rhs is a typeof node, since type expansion is done in a later time
-    var args = std.array_list.Managed(*Type_AST).init(allocator);
-    try args.append(prelude_.unit_type);
+    const args = std.array_list.Managed(*Type_AST).init(allocator);
     const rhs = Type_AST.create_type_of(ast.token(), ast, allocator);
     const _type = Type_AST.create_function(
         ast.token(),
