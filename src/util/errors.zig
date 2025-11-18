@@ -721,7 +721,7 @@ pub const Errors = struct {
 
     pub fn add_error(self: *Errors, err: Error) void {
         self.errors_list.append(err) catch unreachable;
-        std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
     }
 
     /// Prints out all errors in the Errors list
