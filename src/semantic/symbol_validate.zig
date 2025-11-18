@@ -95,7 +95,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     }
 
     if (symbol.decl.?.* == .type_param_decl) {
-        if (symbol.decl.?.type_param_decl.constraint) |constraint| {
+        for (symbol.decl.?.type_param_decl.constraints.items) |constraint| {
             if (!constraint.refers_to_trait()) {
                 self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
                 return error.CompileError;

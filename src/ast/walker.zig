@@ -87,7 +87,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .import,
         => {},
 
-        .type_param_decl => try walk_type(ast.type_param_decl.constraint, new_context),
+        .type_param_decl => try walk_types(&ast.type_param_decl.constraints, new_context),
 
         .context_value_decl => {
             try walk_ast(ast.context_value_decl.init, new_context);
@@ -347,7 +347,7 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
         },
 
         .function => {
-            try walk_type(_type.lhs(), new_context);
+            try walk_types(&_type.function.args, new_context);
             try walk_type(_type.rhs(), new_context);
             try walk_types(&_type.function.contexts, new_context);
         },

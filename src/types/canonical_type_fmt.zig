@@ -119,8 +119,8 @@ fn hash_type_internal(
             try writer.print("dyn_{s}", .{real_type.child().symbol().?.name});
         },
         .function => {
-            try writer.print("function_", .{});
-            try hash_type_internal(real_type.lhs(), seen_map, next_id, writer);
+            try writer.print("function{}", .{non_unit_len(real_type)});
+            try append_fields(real_type, seen_map, next_id, writer);
             try writer.print("_", .{});
             try hash_type_internal(real_type.rhs(), seen_map, next_id, writer);
         },

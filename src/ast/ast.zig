@@ -403,7 +403,7 @@ pub const AST = union(enum) {
     type_param_decl: struct {
         common: AST_Common,
         _symbol: ?*Symbol = null,
-        constraint: ?*Type_AST,
+        constraints: std.array_list.Managed(*Type_AST),
     },
     struct_decl: struct {
         common: AST_Common,
@@ -440,7 +440,6 @@ pub const AST = union(enum) {
         _param_symbols: std.array_list.Managed(*Symbol), // Parameters' symbols
         context_param_symbols: std.array_list.Managed(*Symbol), // Context parameters' symbols
         c_type: ?*Type_AST = null,
-        domain: ?*Type_AST = null, // Domain type when calling. Filled in at symbol-tree creation for impls and traits.
         ret_type: *Type_AST,
         context_decls: std.array_list.Managed(*AST),
         _decl_type: ?*Type_AST = null,
@@ -1251,10 +1250,10 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_type_param_decl(_token: Token, constraint: ?*Type_AST, allocator: std.mem.Allocator) *AST {
+    pub fn create_type_param_decl(_token: Token, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .type_param_decl = .{
             .common = AST_Common{ ._token = _token },
-            .constraint = constraint,
+            .constraints = constraints,
         } }, allocator);
     }
 
@@ -1631,7 +1630,7 @@ pub const AST = union(enum) {
             },
             .type_param_decl => return create_type_param_decl(
                 self.token(),
-                if (self.type_param_decl.constraint) |constraint| constraint.clone(substs, allocator) else null,
+                Type_AST.clone_types(self.type_param_decl.constraints, substs, allocator),
                 allocator,
             ),
             .struct_value => {
@@ -1874,7 +1873,6 @@ pub const AST = union(enum) {
                     allocator,
                 );
                 retval.method_decl.impl = self.method_decl.impl;
-                retval.method_decl.domain = if (self.method_decl.domain) |domain| domain.clone(substs, allocator) else null;
                 retval.method_decl._decl_type = if (self.method_decl._decl_type != null) self.method_decl._decl_type.?.clone(substs, allocator) else null;
                 return retval;
             },

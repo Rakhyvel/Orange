@@ -165,7 +165,9 @@ pub fn output_var_decl(
         try self.writer.print("    ", .{});
     }
     try self.output_type(symbol.type());
-    try self.writer.print(" /*{f}*/ ", .{symbol.type()});
+    var str = try Canonical_Type_Fmt.canonical_rep(symbol.type());
+    defer str.deinit();
+    try self.writer.print(" /*{s}*/ ", .{str.str()});
     try self.output_symbol(symbol);
     if (!is_parameter) {
         try self.writer.print(";\n", .{});

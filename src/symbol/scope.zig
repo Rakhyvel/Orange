@@ -150,7 +150,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
-        if (type_param_decl.type_param_decl.constraint) |constraint| {
+        for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = constraint.symbol().?;
             if (trait_symbol == trait) {
                 return .{ .count = 1, .ast = null };
@@ -205,7 +205,7 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
 
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
-        if (type_param_decl.type_param_decl.constraint) |constraint| {
+        for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = constraint.symbol().?.decl.?;
             for (trait_decl.trait.method_decls.items) |method_decl| {
                 if (std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) {

@@ -1,0 +1,27 @@
+// 393
+
+trait Add{ fn add(self, other: Self) -> Self }
+trait Default{ fn default() -> Self }
+
+impl Add for Int {
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+}
+
+impl Default for Int {
+    fn default() -> Self { 0 }
+}
+
+fn sum[T: Add + Default](ts: []T) -> T {
+    let mut retval = T::default()
+    while let mut i = 0; i < ts.length; i += 1 {
+        retval = retval.>add(ts[i])
+    }
+    return retval
+}
+
+fn main() -> Int {
+    let arr = [300, 90, 3]
+    sum[Int]([]arr)
+}
