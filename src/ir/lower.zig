@@ -757,7 +757,14 @@ fn tuple_equality_check(
     if (lhs == null or rhs == null) {
         return null;
     }
+
+    // simple case, simple equality
     const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
+    const lhs_type = lhs.?.get_expanded_type();
+    if (lhs_type.* != .tuple_type and lhs_type.* != .enum_type) {
+        self.instructions.append(Instruction.init(if (ast.* == .equal) .equal else .not_equal, temp, lhs, rhs, lhs.?.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
+        return temp;
+    }
 
     // Labels used
     const fail_label = Instruction.init_label("tuple-eq.fail", ast.token().span, self.ctx.allocator());
@@ -781,8 +788,8 @@ fn tuple_equality_flow(
     rhs: *lval_.L_Value,
     fail_label: *Instruction,
 ) void {
-    const new_lhs = lhs; // try L_Value.create_unversioned_symbver(lhs.symbol, lhs.symbol._type.?, allocator);
-    const new_rhs = rhs; // try L_Value.create_unversioned_symbver(rhs.symbol, rhs.symbol._type.?, allocator);
+    const new_lhs = lhs;
+    const new_rhs = rhs;
     const temp = self.create_temp_lvalue(prelude_.bool_type);
     var lhs_type = lhs.get_expanded_type();
     if (lhs_type.* == .tuple_type) {
