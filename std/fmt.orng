@@ -196,18 +196,64 @@ fn parse_int(buffer: String) -> Int {
 }
 
 fn parse_float(buffer: String) -> Float {
-    // atof
-    _ = buffer
-    0.0
+    let mut retval = 0.0
+    let mut sign = 1.0
+    let mut i = 0
+
+    // handle sign
+    if buffer[0] == '-' {
+        sign = -1.0
+        i += 1
+    } else if buffer[0] == '+' {
+        i += 1
+    }
+
+    // process integer part
+    while i < buffer.length; i += 1 {
+        let c: Byte = buffer[i]
+        if c.>is_digit() {
+            retval = retval * 10.0 + math::as_float(c as Int - '0')
+        } else {
+            break
+        }
+    }
+
+    // process fractional part
+    if i < buffer.length and buffer[i] == '.' {
+        i += 1
+        let mut divisor = 10.0
+        while i < buffer.length; i += 1 {
+            let c: Byte = buffer[i]
+            if c.>is_digit() {
+                retval += math::as_float(c as Int - '0') / divisor
+                divisor *= 10.0
+            } else {
+                break
+            }
+        }
+    }
+
+    retval * sign
 }
 
-test "parse_int" with core::IO {
-    let res = parse_int("123")
-    try @println("{res}")
+test "parse_int" {
     try testing::expect(parse_int("123") == 123)
-    //try testing::expect(parse_int("+123") == 123)
-    //try testing::expect(parse_int("-123") == -123)
-    //try testing::expect(parse_int("abc") == 0)
-    //try testing::expect(parse_int("123abc") == 123)
+    try testing::expect(parse_int("+123") == 123)
+    try testing::expect(parse_int("-123") == -123)
+    try testing::expect(parse_int("abc") == 0)
+    try testing::expect(parse_int("123abc") == 123)
+    .ok
+}
+
+test "parse_float" {
+    try testing::expect(parse_float("123") == 123.0)
+    try testing::expect(parse_float("123.456") == 123.456)
+    try testing::expect(parse_float("+123") == 123.0)
+    try testing::expect(parse_float("+123.456") == 123.456)
+    try testing::expect(parse_float("-123") == -123.0)
+    try testing::expect(parse_float("-123.456") == -123.456)
+    try testing::expect(parse_float("abc") == 0.0)
+    try testing::expect(parse_float("123abc") == 123.0)
+    try testing::expect(parse_float("123.456abc") == 123.456)
     .ok
 }
