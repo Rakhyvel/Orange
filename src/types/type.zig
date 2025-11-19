@@ -481,6 +481,7 @@ pub const Type_AST = union(enum) {
                 gen_apply.set_symbol(ast.symbol());
                 break :blk gen_apply;
             },
+            .unit_value => Type_AST.create_unit_type(ast.token(), allocator),
             else => std.debug.panic("unable to construct type from {t}", .{ast.*}),
         };
     }

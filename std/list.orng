@@ -100,7 +100,7 @@ impl[T] for List[T] {
             return .ok
         }
 
-        if new_length > self.items.length {
+        if new_length > self.capacity {
             let new_cap_elements = new_length * 2
             let new_cap_bytes = new_cap_elements * @sizeof(T)
 
@@ -113,8 +113,8 @@ impl[T] for List[T] {
 
             self.items.data = new_data as [*mut]T
             self.capacity = new_cap_elements
-            self.items.length = new_length
         }
+        self.items.length = new_length
 
         .ok
     }
@@ -124,6 +124,13 @@ impl core::Writer for List[Byte] {
     virtual fn write(&mut self, bytes: String) -> ()!() {
         .ok(self.>append_slice(bytes) catch {return .err})
     }
+}
+
+test "init, deinit" with core::Allocating {
+    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    defer list.>deinit()
+
+    .ok
 }
 
 test "init_from_slice" with core::Allocating {

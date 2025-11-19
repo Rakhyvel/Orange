@@ -4,6 +4,7 @@ import ffi
 import fmt
 import io
 import list
+import map
 import math
 import mem
 import string_buffer

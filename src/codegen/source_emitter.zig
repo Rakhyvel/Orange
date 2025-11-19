@@ -356,7 +356,19 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
         },
         .load_int => {
             try self.output_var_assign(instr.dest.?);
-            try self.writer.print("{};\n", .{instr.data.int});
+            try self.writer.print("{}", .{instr.data.int});
+            if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .unsigned_integer) {
+                if (instr.dest.?.expanded_type_sizeof() == 8) {
+                    try self.writer.print("ULL", .{});
+                } else {
+                    try self.writer.print("U", .{});
+                }
+            } else if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .signed_integer) {
+                if (instr.dest.?.expanded_type_sizeof() == 8) {
+                    try self.writer.print("LL", .{});
+                }
+            }
+            try self.writer.print(";\n", .{});
         },
         .load_float => {
             try self.output_var_assign(instr.dest.?);
@@ -727,8 +739,9 @@ fn output_var_assign_cast(self: *Self, lval: *lval_.L_Value, _type: *Type_AST) C
 /// Outputs the C code for an operator from an Instruction.
 fn output_operator(self: *Self, instr: *Instruction) CodeGen_Error!void {
     try self.output_var_assign(instr.dest.?);
-    if (instr.kind.is_checked() and instr.dest.?.get_expanded_type().can_expanded_represent_int()) { // TODO: Check if checked operations are enabled, too
-        try self.writer.print("orange_debug__{s}_{s}(", .{ instr.kind.checked_name(), prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.c_name });
+    const info = prelude_.info_from_ast(instr.dest.?.get_expanded_type());
+    if (info != null and instr.kind.is_checked() and instr.dest.?.get_expanded_type().can_expanded_represent_int() and (info.?.type_kind != .unsigned_integer or instr.kind == .mod)) { // TODO: Check if checked operations are enabled, too
+        try self.writer.print("orange_debug__{s}_{s}(", .{ instr.kind.checked_name(), info.?.c_name });
         try self.output_rvalue(instr.src1.?, instr.kind.precedence());
         try self.writer.print(", ", .{});
         if (instr.kind.arity() == .binop) {
