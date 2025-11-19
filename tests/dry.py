@@ -11,7 +11,7 @@ Usage:
 
 import argparse
 
-# TODO: 
+# TODO:
 # - [ ] Fix to only check if the substring is repeated 3 or more times!
 # - [ ] Move all files to all.txt
 #     * Remove imports with `const [a-z0-9_]+ = @import\("[a-z0-9_/-]+(.zig)?"\).*`
@@ -45,7 +45,7 @@ def alnumus(c):
     return c == "_" or c.isalnum()
 
 
-keywords = [ # TODO: Add these to a text file, and read it in
+keywords = [  # TODO: Add these to a text file, and read it in
     "fn",
     "if",
     "while",
@@ -89,7 +89,7 @@ class Scanner:
 
     def curr(self):
         return self.text[self.cursor]
-    
+
     def curr_or_empty(self):
         return self.curr() if not self.eof() else ""
 
@@ -106,7 +106,7 @@ class Scanner:
         prev_token_was_dot = False
         while not self.eof():
             char = self.curr()
-            
+
             if token[0] in {'"', "'"}:
                 token += char
                 if char == token[0]:
@@ -120,18 +120,22 @@ class Scanner:
                 or char in open_close
                 or char == '"'
             ):
-                if token.startswith("//") :
+                if token.startswith("//"):
                     self.skip_while(lambda x: self.curr() != "\n")
-                elif all([alnumus(x) for x in token]) and token not in keywords and not prev_token_was_dot:
-                    tokens.append('X')
+                elif (
+                    all([alnumus(x) for x in token])
+                    and token not in keywords
+                    and not prev_token_was_dot
+                ):
+                    tokens.append("X")
                 else:
-                    prev_token_was_dot = '.' in token or token == 'fn'
+                    prev_token_was_dot = "." in token or token == "fn"
                     tokens.append(token)
                 self.skip_while(lambda x: x.isspace())
                 token = self.curr_or_empty()
             else:
                 token += char
-            
+
             prev_char = self.curr_or_empty()
             self.cursor += 1
         print(tokens)

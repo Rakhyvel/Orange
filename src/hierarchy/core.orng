@@ -156,6 +156,41 @@ impl Format for String {
     }
 }
 
+trait Eq {
+    fn eq(self, other: Self) -> Bool
+}
+
+impl Eq for String {
+    fn eq(self, other: Self) -> Bool {
+        if self.length != other.length {
+            return false
+        }
+        while let mut i = 0; i < self.length; i += 1 {
+            if self[i] != other[i] {
+                return false
+            }
+        }
+        true
+    }
+}
+
+trait Hash {
+    virtual fn hash(&self) -> Word64
+}
+
+impl Hash for String {
+    virtual fn hash(&self) -> Word64 {
+        let mut h: Word64 = 14695981039346656037
+        const prime: Word64 = 1099511628211
+
+        while let mut i = 0; i < self.length; i += 1 {
+            h = @bit_xor(h, self[i] as Word64) * prime
+        }
+
+        h
+    }
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

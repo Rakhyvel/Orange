@@ -219,7 +219,7 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
                     var subst = unification_.Substitutions.init(compiler.allocator());
                     subst.put("Self", for_type) catch unreachable;
                     const cloned = method_decl.clone(&subst, compiler.allocator());
-                    const new_scope = init(self, self.uid_gen, std.heap.page_allocator);
+                    const new_scope = init(self.parent.?, self.uid_gen, std.heap.page_allocator);
                     try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
                     return cloned;
                 }

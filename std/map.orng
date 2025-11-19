@@ -1,0 +1,300 @@
+import mem
+import testing
+
+struct Map[K: core::Hash + core::Eq, V] {
+    hashes: [mut]Word64
+    keys: [mut]K
+    values: [mut]V
+    capacity: Int
+    alloc: &mut dyn core::Allocator
+}
+
+enum Error {
+    out_of_memory
+}
+
+impl[K: core::Hash + core::Eq, V] for Map[K, V] {
+    fn init() -> Self with core::Allocating {
+        Self(
+            .hashes = mem::slice_from_parts[Word64](0 as [*mut]Word64, 0),
+            .keys = mem::slice_from_parts[K](0 as [*mut]K, 0),
+            .values = mem::slice_from_parts[V](0 as [*mut]V, 0),
+            .capacity = 0,
+            .alloc = core::Allocating.alloc,
+        )
+    }
+
+    fn init_from_slice(pairs: [](K, V)) -> Error!Self with core::Allocating {
+        let mut retval = Self::init()
+
+        while let mut i = 0; i < pairs.length; i += 1 {
+            try retval.>put(pairs[i][0], pairs[i][1])
+        }
+
+        .ok(retval)
+    }
+
+    fn deinit(&mut self) {
+        self.alloc.>free(self.hashes.data as [*mut]Byte)
+        self.alloc.>free(self.keys.data as [*mut]Byte)
+        self.alloc.>free(self.values.data as [*mut]Byte)
+    }
+
+    fn clone(&self) -> Error!Self with core::Allocating {
+        let mut retval = Self::init()
+
+        while let mut i = 0; i < self.>count(); i += 1 {
+            try retval.>put(self.keys[i], self.values[i])
+        }
+
+        .ok(retval)
+    }
+
+    fn count(&self) -> Int {
+        self.hashes.length
+    }
+
+    fn get(&self, key: K) -> ?&V {
+        let hash = key.>hash()
+
+        while let mut i = 0; i < self.hashes.length; i += 1 {
+            if self.hashes[i] == hash {
+                if self.keys[i].>eq(key) {
+                    return .some(&self.values[i])
+                }
+            }
+        }
+
+        .none
+    }
+
+    fn get_mut(&self, key: K) -> ?&mut V {
+        let hash = key.>hash()
+
+        while let mut i = 0; i < self.hashes.length; i += 1 {
+            if self.hashes[i] == hash {
+                if self.keys[i].>eq(key) {
+                    return .some(&mut self.values[i])
+                }
+            }
+        }
+
+        .none
+    }
+
+    fn contains(&self, key: K) -> Bool {
+        match self.>get(key) {
+            .some(_) => true
+            .none    => false
+        }
+    }
+
+    fn clear(&mut self) {
+        self.hashes.length = 0
+        self.keys.length = 0
+        self.values.length = 0
+    }
+
+    fn put(&mut self, key: K, value: V) -> Error!() {
+        let hash = key.>hash()
+
+        while let mut i = 0; i < self.hashes.length; i += 1 {
+            if self.hashes[i] == hash and self.keys[i].>eq(key) {
+                self.values[i] = value
+                return .ok
+            }
+        }
+
+        try self.>ensure_length(self.hashes.length + 1)
+
+        self.hashes[self.hashes.length - 1] = hash
+        self.keys[self.keys.length - 1] = key
+        self.values[self.values.length - 1] = value
+
+        .ok
+    }
+
+    fn remove(&mut self, key: K) {
+        let hash = key.>hash()
+
+        while let mut i = 0; i < self.hashes.length; i += 1 {
+            if self.hashes[i] == hash and self.keys[i].>eq(key) {
+                let last = self.hashes.length - 1
+
+                self.hashes[i] = self.hashes[last]
+                self.keys[i] = self.keys[last]
+                self.values[i] = self.values[last]
+
+                self.hashes.length -= 1
+                self.keys.length -= 1
+                self.values.length -= 1
+
+                return
+            }
+        }
+    }
+
+    fn ensure_length(&mut self, new_length: Int) -> Error!() {
+        if new_length > self.capacity {
+            let new_cap_elements = new_length * 2
+
+            self.hashes.data = (self.alloc.>realloc(
+                self.hashes.data as [*mut]Byte,
+                new_cap_elements * @sizeof(Word64)
+            ) orelse {
+                return .err(.out_of_memory)
+            }) as [*mut]Word64
+
+            if @sizeof(K) > 0 {
+                self.keys.data = (self.alloc.>realloc(
+                    self.keys.data as [*mut]Byte,
+                    new_cap_elements * @sizeof(K)
+                ) orelse {
+                    return .err(.out_of_memory)
+                }) as [*mut]K
+            }
+
+            if @sizeof(V) > 0 {
+                self.values.data = (self.alloc.>realloc(
+                    self.values.data as [*mut]Byte,
+                    new_cap_elements * @sizeof(V)
+                ) orelse {
+                    return .err(.out_of_memory)
+                }) as [*mut]V
+            }
+
+            self.capacity = new_cap_elements
+        }
+
+        self.hashes.length = new_length
+        self.keys.length = new_length
+        self.values.length = new_length
+
+        .ok
+    }
+}
+
+test "init_from_slice" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+    
+    try testing::expect(map.>count() == 3)
+    try testing::expect(map.>get("a").some^ == 1)
+    try testing::expect(map.>get("b").some^ == 2)
+    try testing::expect(map.>get("c").some^ == 3)
+
+    .ok
+}
+
+test "clone" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+    let mut clone = map.>clone() catch {return .err}
+    defer clone.>deinit()
+    
+    try testing::expect(clone.>count() == 3)
+    try testing::expect(clone.>get("a").some^ == 1)
+    try testing::expect(clone.>get("b").some^ == 2)
+    try testing::expect(clone.>get("c").some^ == 3)
+
+    .ok
+}
+
+test "get none" with core::Allocating {
+    let mut map = Map[String, Int]::init()
+    defer map.>deinit()
+
+    match map.>get("Hello!") {
+        .some(_) => .err
+        .none    => .ok
+    }
+}
+
+test "get mut" with core::Allocating {
+    let mut map = Map[String, Int]::init()
+    defer map.>deinit()
+
+    map.>put("Hello", 5) catch {return .err}
+
+    let ref = map.>get_mut("Hello").some
+    ref^ = 100
+
+    try testing::expect(map.>count() == 1)
+    try testing::expect(map.>get("Hello").some^ == 100)
+
+    .ok
+}
+
+test "clear" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+
+    map.>clear()
+    
+    try testing::expect(map.>count() == 0)
+    try testing::expect(not map.>contains("a"))
+    try testing::expect(not map.>contains("b"))
+    try testing::expect(not map.>contains("c"))
+
+    .ok
+}
+
+test "put" with core::Allocating {
+    let mut map = Map[String, Int]::init()
+    defer map.>deinit()
+
+    map.>put("Hello", 5) catch {return .err}
+
+    try testing::expect(map.>count() == 1)
+    try testing::expect(map.>get("Hello").some^ == 5)
+
+    .ok
+}
+
+test "put reset" with core::Allocating {
+    let mut map = Map[String, Int]::init()
+    defer map.>deinit()
+
+    map.>put("Hello", 6) catch {return .err}
+    map.>put("Hello", 7) catch {return .err}
+
+    try testing::expect(map.>count() == 1)
+    try testing::expect(map.>get("Hello").some^ == 7)
+
+    .ok
+}
+
+test "remove" with core::Allocating {
+    let mut map = Map[String, Int]::init()
+    defer map.>deinit()
+
+    map.>put("a", 1) catch {return .err}
+    map.>put("b", 2) catch {return .err}
+    map.>put("c", 3) catch {return .err}
+
+    map.>remove("b")
+
+    try testing::expect(map.>count() == 2)
+    try testing::expect(map.>get("a").some^ == 1)
+    try testing::expect(not map.>contains("b"))
+    try testing::expect(map.>get("c").some^ == 3)
+
+    .ok
+}
+
+test "set" with core::Allocating {
+    let mut set = Map[String, ()]::init()
+
+    set.>put("a", {}) catch {return .err}
+    set.>put("b", {}) catch {return .err}
+    set.>put("c", {}) catch {return .err}
+
+    set.>remove("b")
+
+    try testing::expect(set.>count() == 2)
+    try testing::expect(set.>contains("a"))
+    try testing::expect(not set.>contains("b"))
+    try testing::expect(set.>contains("c"))
+
+    .ok
+}
