@@ -250,7 +250,7 @@ inline static int8_t orange_debug__div_int8_t(const int8_t lhs, const int8_t rhs
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT8_MIN && rhs == -1)
@@ -268,7 +268,7 @@ inline static int16_t orange_debug__div_int16_t(const int16_t lhs, const int16_t
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT16_MIN && rhs == -1)
@@ -286,7 +286,7 @@ inline static int32_t orange_debug__div_int32_t(const int32_t lhs, const int32_t
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT32_MIN && rhs == -1)
@@ -304,7 +304,7 @@ inline static int64_t orange_debug__div_int64_t(const int64_t lhs, const int64_t
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT64_MIN && rhs == -1)
