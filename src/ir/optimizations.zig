@@ -165,8 +165,13 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("not_equal; known float,float value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.float != src2_def.?.data.float) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.src1.?.* == .symbver and
+                instr.src2.?.* == .symbver and
+                instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol and
+                !instr.src1.?.symbver.symbol.expanded_type().can_expanded_represent_float())
+            {
                 // `x != x` => `false`
+                // NOTE: Cannot do `x != x  ==> true` optimization for floats, `NaN == NaN` is true!
                 log("not_equal; self inequality");
                 try instr.convert_to_load(.load_int, .{ .int = 0 }, errors);
                 retval = true;

@@ -46,8 +46,8 @@ pub fn format(self: Self, writer: *std.io.Writer) !void {
     var out = std.array_list.Managed(u8).init(arena.allocator());
     defer out.deinit();
 
-    writer.print("{s}@{}", .{ self.symbol.name, self.symbol.scope.uid }) catch unreachable;
-    // try writer.print("{s:<10}", .{out.str()});
+    // writer.print("{s}@{}", .{ self.symbol.name, self.symbol.scope.uid }) catch unreachable;
+    writer.print("{s}", .{self.symbol.name}) catch unreachable;
 }
 
 pub fn set_def(self: *Self, def: ?*Instruction) void {
