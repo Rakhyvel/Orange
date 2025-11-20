@@ -513,7 +513,7 @@ fn lower_AST_inner(
                 continue_labels.append(Instruction.init_label("block.defer.continue", ast.token().span, self.ctx.allocator())) catch unreachable;
                 break_labels.append(Instruction.init_label("block.defer.break", ast.token().span, self.ctx.allocator())) catch unreachable;
                 return_labels.append(Instruction.init_label("block.defer.return", ast.token().span, self.ctx.allocator())) catch unreachable;
-                error_labels.append(Instruction.init_label("block.errdefer.error.ok", ast.token().span, self.ctx.allocator())) catch unreachable;
+                error_labels.append(Instruction.init_label("block.errdefer.error", ast.token().span, self.ctx.allocator())) catch unreachable;
             }
             const end_label = Instruction.init_label("block.end", ast.token().span, self.ctx.allocator());
 
@@ -527,6 +527,7 @@ fn lower_AST_inner(
             var temp: ?*lval_.L_Value = null;
             for (ast.children().items) |child| {
                 temp = try self.lower_AST(child, current_labels);
+                // Update where to jump for defers
                 if (child.* == .@"defer") {
                     current_labels.continue_label = continue_labels.items[defer_label_index];
                     current_labels.break_label = break_labels.items[defer_label_index];
@@ -544,16 +545,31 @@ fn lower_AST_inner(
                 self.wrap_error_return(_temp, ast.token().span, current_labels);
             }
 
-            try self.generate_defers(&ast.block.defers, &continue_labels);
+            // Output the labels and statements for each defer ramp.
+            // Defers are structured as a jump table, with a final jump at the end.
+            // Statements in a block are given labels to jump to for certain kinds of jumps, and these point
+            // to inside a defer ramp.
+            // These labels start off right before the label for the block, and as defer statements are
+            // encountered, they're subtracted.
+            //
+            // Block instructions:              Defer ramp:
+            // {
+            //    stmt0                         defer label 1:  < stmt2 labels
+            //    defer 0                       defer 1
+            //    stmt1                         defer label 0:  < stmt1 labels
+            //    defer 1                       defer 0
+            //    stmt2                         jump            < stmt0 labels
+            // }
+            try self.generate_defers(&ast.block.defers, &continue_labels, false);
             self.instructions.append(Instruction.init_jump(end_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
-            try self.generate_defers(&ast.block.defers, &break_labels);
+            try self.generate_defers(&ast.block.defers, &break_labels, false);
             self.instructions.append(Instruction.init_jump(labels.break_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
-            try self.generate_defers(&ast.block.defers, &return_labels);
+            try self.generate_defers(&ast.block.defers, &return_labels, false);
             self.instructions.append(Instruction.init_jump(labels.return_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
-            try self.generate_defers(&ast.block.defers, &error_labels);
+            try self.generate_defers(&ast.block.defers, &error_labels, true);
             self.instructions.append(Instruction.init_jump(labels.error_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
             self.instructions.append(end_label) catch unreachable;
@@ -1195,11 +1211,15 @@ fn generate_defers(
     self: *Self,
     defers: *std.array_list.Managed(*ast_.AST),
     defer_labels: *std.array_list.Managed(*Instruction),
+    emit_errdefers: bool,
 ) Lower_Errors!void {
     var i: usize = defers.items.len;
     while (i > 0) : (i -= 1) {
-        self.instructions.append(defer_labels.items[i - 1]) catch unreachable;
-        _ = try self.lower_AST(defers.items[i - 1], Labels.null_labels);
+        const def = defers.items[i - 1];
+        if (def.* != .@"errdefer" or emit_errdefers) {
+            self.instructions.append(defer_labels.items[i - 1]) catch unreachable;
+            _ = try self.lower_AST(def.statement(), Labels.null_labels);
+        }
     }
 }
 

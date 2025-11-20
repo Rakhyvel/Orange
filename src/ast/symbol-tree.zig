@@ -57,13 +57,13 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         // Add defers to scope
         .@"defer" => if (self.defers) |defers| {
-            defers.append(ast.statement()) catch unreachable;
+            defers.append(ast) catch unreachable;
         } else {
             // TODO: an error
         },
 
         .@"errdefer" => if (self.defers) |defers| {
-            defers.append(ast.statement()) catch unreachable;
+            defers.append(ast) catch unreachable;
         } else {
             // TODO: an error
         },
