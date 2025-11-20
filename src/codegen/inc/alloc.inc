@@ -6,8 +6,8 @@
 
 static inline struct orange_type_F4C9DA480E915B59 orange__core__alloc(void *self, int64_t nbytes)
 {
+    void *retval = malloc((size_t)nbytes);
     (void)self;
-    void *retval = malloc(nbytes);
     if (retval)
     {
         return (struct orange_type_F4C9DA480E915B59){.tag = 0, ._0 = retval};
@@ -20,8 +20,8 @@ static inline struct orange_type_F4C9DA480E915B59 orange__core__alloc(void *self
 
 static inline struct orange_type_F4C9DA480E915B59 orange__core__realloc(void *self, uint8_t *allocation, int64_t newsize)
 {
+    void *retval = realloc(allocation, (size_t)newsize);
     (void)self;
-    void *retval = realloc(allocation, newsize);
     if (retval)
     {
         return (struct orange_type_F4C9DA480E915B59){.tag = 0, ._0 = retval};

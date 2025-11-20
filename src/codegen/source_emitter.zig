@@ -212,7 +212,7 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
     } else {
         if (codomain.* == .enum_type and codomain.enum_type.from == .@"error") {
             try self.emitter.output_type(codomain);
-            try self.writer.print("   retcode = ", .{});
+            try self.writer.print("  retcode = ", .{});
         }
         try self.emitter.output_symbol(symbol);
         try self.writer.print("(", .{});
@@ -222,7 +222,7 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
 
     if (codomain.* == .enum_type and codomain.enum_type.from == .@"error") {
         try self.writer.print(
-            \\    return retcode.tag;
+            \\    return (int)retcode.tag;
             \\}}
             \\
         , .{});

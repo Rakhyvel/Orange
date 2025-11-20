@@ -70,7 +70,6 @@ pub fn main() !void {
 }
 
 fn build(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) Command_Error!void {
-    _ = args;
     var compiler = try Compiler_Context.init(errs_.get_std_err(), allocator);
     defer compiler.deinit();
     const package_abs_path = try construct_package_dag(compiler);
@@ -82,7 +81,7 @@ fn build(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
     try compiler.compile(package_abs_path);
 
     if (std.mem.eql(u8, name, "run")) {
-        try run(compiler, package_abs_path, allocator);
+        try run(compiler, package_abs_path, args, allocator);
     }
 }
 
@@ -96,7 +95,7 @@ fn run_build_orng(compiler: *Compiler_Context, interpreter: *Interpreter_Context
 }
 
 /// Runs the package executable after it's built
-fn run(compiler: *Compiler_Context, package_abs_path: []const u8, allocator: std.mem.Allocator) !void {
+fn run(compiler: *Compiler_Context, package_abs_path: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) !void {
     const curr_package = compiler.lookup_package(package_abs_path).?;
     if (curr_package.kind == .static_library) {
         var stderr_writer = errs_.get_std_err().writer(&.{}).interface;
@@ -109,14 +108,21 @@ fn run(compiler: *Compiler_Context, package_abs_path: []const u8, allocator: std
 
     var output_name = std.array_list.Managed(u8).init(allocator);
     output_name.print("{s}", .{curr_package.output_absolute_path}) catch unreachable;
-    const argv = &[_][]const u8{output_name.items};
-    const res = exec(argv, .Inherit) catch return error.CompileError;
+
+    var argv = std.array_list.Managed([]const u8).init(allocator);
+    defer argv.deinit();
+
+    try argv.append(output_name.items);
+    if (args.next()) |arg| {
+        try argv.append(arg);
+    }
+
+    const res = exec(argv.items, .Inherit) catch return error.CompileError;
     std.process.exit(@intCast(res.retcode));
 }
 
 fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) Command_Error!void {
     _ = name;
-    _ = args;
 
     var compiler = try Compiler_Context.init(errs_.get_std_err(), allocator);
     defer compiler.deinit();
@@ -129,7 +135,7 @@ fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.
     try Codegen_Context.output_modules(compiler);
     try compiler.compile(package_abs_path);
 
-    try run(compiler, package_abs_path, allocator);
+    try run(compiler, package_abs_path, args, allocator);
 }
 
 fn validate_env_vars(allocator: std.mem.Allocator) Command_Error!void {
