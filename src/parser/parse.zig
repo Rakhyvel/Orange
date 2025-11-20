@@ -1622,6 +1622,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
 fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.trait);
     const trait_name: Token = try self.expect(.identifier);
+    self.newlines();
     _ = try self.expect(.left_brace);
     var method_decls = std.array_list.Managed(*ast_.AST).init(self.allocator);
     errdefer method_decls.deinit();

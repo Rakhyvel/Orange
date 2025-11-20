@@ -304,7 +304,8 @@ pub fn validate_requested_contexts(contexts: []const *Type_AST, errors: *errs_.E
     for (contexts) |ctx| {
         if (!ctx.child().types_match(core_.allocating_context) and
             !ctx.child().types_match(core_.io_context) and
-            !ctx.child().types_match(core_.args_context))
+            !ctx.child().types_match(core_.args_context) and
+            !ctx.child().types_match(core_.file_io_context))
         {
             errors.add_error(errs_.Error{ .basic = .{
                 .span = ctx.token().span,
