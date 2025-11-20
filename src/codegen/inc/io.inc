@@ -16,7 +16,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self
 
     if (bytes._0 != NULL && bytes._1 > 0)
     {
-        size_t written = fwrite(bytes._0, 1, bytes._1, stdout);
+        size_t written = fwrite(bytes._0, 1, (size_t)bytes._1, stdout);
         if (written < (size_t)bytes._1)
         {
             if (ferror(stdout))
@@ -32,10 +32,11 @@ static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self
 
 static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_CE26574889E9A595 maybe_limit)
 {
-    (void)self;
     unsigned char buffer[4096];
     size_t total = 0;
     size_t limit;
+
+    (void)self;
 
     if (maybe_limit.tag == 0)
     {
@@ -48,6 +49,9 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
 
     while (1)
     {
+        struct orange_type_73877515D86B0F5 slice;
+        struct orange_type_C53265BF4F923210 write_result;
+
         size_t n = fread(buffer, 1, MIN(sizeof(buffer), limit - total), stdin);
         if (n == 0)
         {
@@ -59,9 +63,10 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
             break;
         }
         total += n;
-        struct orange_type_73877515D86B0F5 slice = {._0 = buffer, ._1 = n};
+        slice._0 = buffer;
+        slice._1 = (int64_t)n;
 
-        struct orange_type_C53265BF4F923210 write_result = writer.vtable->write(writer.data_ptr, slice);
+        write_result = writer.vtable->write(writer.data_ptr, slice);
         if (write_result.tag == 1)
         {
             return write_result;

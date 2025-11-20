@@ -4,7 +4,12 @@ import std::io
 import std::string_buffer::String_Buffer
 import externs
 
-fn main() -> ()!() with (core::IO, core::Allocating) {
+fn main() -> ()!() with (core::IO, core::Allocating, core::Args) {
+    try @println("given {core::Args.args.length} args:")
+    while let mut i = 0; i < core::Args.args.length; i += 1 {
+        try @println("    arg[{i}]: {core::Args.args[i]}")
+    }
+
     let mut first_name_buf = String_Buffer::init()
     defer first_name_buf.>deinit()
     let mut last_name_buf = String_Buffer::init()

@@ -78,6 +78,7 @@ pub fn ensure_inc_dir_exists(allocator: std.mem.Allocator) void {
         "alloc.inc",
         "debug.inc",
         "io.inc",
+        "args.inc",
     };
 
     inline for (filenames) |filename| {

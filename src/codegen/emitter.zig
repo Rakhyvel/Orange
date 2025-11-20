@@ -197,6 +197,8 @@ pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) Code
             try self.writer.print("#include \"alloc.inc\"\n", .{});
         } else if (ctx.types_match(core_.io_context)) {
             try self.writer.print("#include \"io.inc\"\n", .{});
+        } else if (ctx.types_match(core_.args_context)) {
+            try self.writer.print("#include \"args.inc\"\n", .{});
         }
     }
 }
@@ -216,6 +218,12 @@ pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_
                 \\ io_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}}, ._1 = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}}}};
                 \\    
             , .{});
+        } else if (ctx.types_match(core_.args_context)) {
+            try self.output_type(core_.args_context);
+            try self.writer.print(
+                \\ args_context = orange__core__convert_args(argc, argv);
+                \\    
+            , .{});
         }
     }
 }
@@ -227,6 +235,8 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
             try self.writer.print("&allocator_context", .{});
         } else if (ctx.child().types_match(core_.io_context)) {
             try self.writer.print("&io_context", .{});
+        } else if (ctx.child().types_match(core_.args_context)) {
+            try self.writer.print("&args_context", .{});
         }
         if (i + 1 < contexts.len) {
             try self.writer.print(", ", .{});
