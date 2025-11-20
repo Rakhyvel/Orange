@@ -499,6 +499,7 @@ fn lower_AST_inner(
                 return self.lval_from_unit_value(ast);
             }
 
+            // List of labels for each kind of jump
             var continue_labels = std.array_list.Managed(*Instruction).init(self.ctx.allocator());
             defer continue_labels.deinit();
             var break_labels = std.array_list.Managed(*Instruction).init(self.ctx.allocator());
@@ -507,13 +508,12 @@ fn lower_AST_inner(
             defer return_labels.deinit();
             var error_labels = std.array_list.Managed(*Instruction).init(self.ctx.allocator());
             defer error_labels.deinit();
+            // populate the lists a label for each jump kind for each defer
             for (ast.block.defers.items) |_| {
-                continue_labels.append(Instruction.init_label("block.continue", ast.token().span, self.ctx.allocator())) catch unreachable;
-                break_labels.append(Instruction.init_label("block.break", ast.token().span, self.ctx.allocator())) catch unreachable;
-                return_labels.append(Instruction.init_label("block.return", ast.token().span, self.ctx.allocator())) catch unreachable;
-            }
-            for (ast.block.errdefers.items) |_| {
-                error_labels.append(Instruction.init_label("block.errdefer", ast.token().span, self.ctx.allocator())) catch unreachable;
+                continue_labels.append(Instruction.init_label("block.defer.continue", ast.token().span, self.ctx.allocator())) catch unreachable;
+                break_labels.append(Instruction.init_label("block.defer.break", ast.token().span, self.ctx.allocator())) catch unreachable;
+                return_labels.append(Instruction.init_label("block.defer.return", ast.token().span, self.ctx.allocator())) catch unreachable;
+                error_labels.append(Instruction.init_label("block.errdefer.error.ok", ast.token().span, self.ctx.allocator())) catch unreachable;
             }
             const end_label = Instruction.init_label("block.end", ast.token().span, self.ctx.allocator());
 
@@ -531,6 +531,7 @@ fn lower_AST_inner(
                     current_labels.continue_label = continue_labels.items[defer_label_index];
                     current_labels.break_label = break_labels.items[defer_label_index];
                     current_labels.return_label = return_labels.items[defer_label_index];
+                    current_labels.error_label = error_labels.items[defer_label_index];
                     defer_label_index += 1;
                 } else if (child.* == .@"errdefer") {
                     current_labels.error_label = error_labels.items[errdefer_label_index];
@@ -552,7 +553,7 @@ fn lower_AST_inner(
             try self.generate_defers(&ast.block.defers, &return_labels);
             self.instructions.append(Instruction.init_jump(labels.return_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
-            try self.generate_defers(&ast.block.errdefers, &error_labels);
+            try self.generate_defers(&ast.block.defers, &error_labels);
             self.instructions.append(Instruction.init_jump(labels.error_label, ast.token().span, self.ctx.allocator())) catch unreachable;
 
             self.instructions.append(end_label) catch unreachable;
@@ -1189,6 +1190,7 @@ fn create_temp_symbol(self: *Self, _type: *Type_AST) *Symbol {
     return temp_symbol;
 }
 
+/// Appends the label and body for each defer
 fn generate_defers(
     self: *Self,
     defers: *std.array_list.Managed(*ast_.AST),

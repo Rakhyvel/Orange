@@ -17,7 +17,6 @@ scope: *Scope,
 in_loop: bool,
 is_param_scope: bool,
 defers: ?*std.array_list.Managed(*ast_.AST),
-errdefers: ?*std.array_list.Managed(*ast_.AST),
 errors: *errs_.Errors,
 allocator: std.mem.Allocator,
 
@@ -30,7 +29,6 @@ pub fn new(scope: *Scope, errors: *errs_.Errors, allocator: std.mem.Allocator) S
         .in_loop = false,
         .is_param_scope = false,
         .defers = null,
-        .errdefers = null,
         .errors = errors,
         .allocator = allocator,
     };
@@ -64,8 +62,8 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             // TODO: an error
         },
 
-        .@"errdefer" => if (self.errdefers) |errdefers| {
-            errdefers.append(ast.statement()) catch unreachable;
+        .@"errdefer" => if (self.defers) |defers| {
+            defers.append(ast.statement()) catch unreachable;
         } else {
             // TODO: an error
         },
@@ -86,10 +84,6 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             if (ast.block.defers.items.len == 0) {
                 // Only register defers list to be appended if the list is empty
                 new_self.defers = &ast.block.defers;
-            }
-            if (ast.block.errdefers.items.len == 0) {
-                // Only register errdefers list to be appended if the list is empty
-                new_self.errdefers = &ast.block.errdefers;
             }
             new_self.in_loop = new_self.in_loop or ast.* == .@"while" or ast.* == .@"for";
             ast.set_scope(new_self.scope);
