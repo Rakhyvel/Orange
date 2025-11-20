@@ -191,6 +191,23 @@ impl Hash for String {
     }
 }
 
+enum File_Mode {
+    read
+    write
+    append
+    read_and_write
+}
+
+trait File_System {
+    virtual fn open(&mut self, path: String, mode: File_Mode = File_Mode.read) -> ?&mut dyn File
+}
+
+trait File
+// : Writer + Reader TODO: Uncomment when trait inheritance is added
+{
+    virtual fn close(&mut self)
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }
@@ -202,4 +219,8 @@ context IO {
 
 context Args {
     args: []String
+}
+
+context File_IO {
+    fs: &mut dyn File_System
 }

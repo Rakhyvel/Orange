@@ -333,7 +333,6 @@ pub const AST = union(enum) {
         _scope: ?*Scope,
         _statements: std.array_list.Managed(*AST),
         defers: std.array_list.Managed(*AST),
-        errdefers: std.array_list.Managed(*AST),
         final: ?*AST, // either `return`, `continue`, or `break`
     },
 
@@ -1111,7 +1110,6 @@ pub const AST = union(enum) {
                 ._scope = null,
                 ._statements = statements,
                 .defers = std.array_list.Managed(*AST).init(allocator),
-                .errdefers = std.array_list.Managed(*AST).init(allocator),
                 .final = final,
             } },
             allocator,

@@ -79,6 +79,7 @@ pub fn ensure_inc_dir_exists(allocator: std.mem.Allocator) void {
         "debug.inc",
         "io.inc",
         "args.inc",
+        "file_io.inc",
     };
 
     inline for (filenames) |filename| {
@@ -86,14 +87,14 @@ pub fn ensure_inc_dir_exists(allocator: std.mem.Allocator) void {
         const inc_dest_file_path = std.fs.path.join(allocator, &inc_dest_file_paths) catch unreachable;
         _ = if (std.fs.openFileAbsolute(inc_dest_file_path, .{})) |_| {} else |err| {
             switch (err) {
-                error.FileNotFound => {
-                    var file = std.fs.createFileAbsolute(inc_dest_file_path, .{}) catch unreachable;
-                    defer file.close();
-                    _ = file.write(@embedFile("../codegen/inc/" ++ filename)) catch unreachable;
-                },
+                error.FileNotFound => {},
                 else => std.debug.panic("whoa: {}", .{err}),
             }
         };
+
+        var file = std.fs.createFileAbsolute(inc_dest_file_path, .{}) catch unreachable;
+        defer file.close();
+        _ = file.write(@embedFile("../codegen/inc/" ++ filename)) catch unreachable;
     }
 }
 
