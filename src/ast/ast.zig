@@ -158,6 +158,7 @@ pub const AST = union(enum) {
     },
     trait: struct {
         common: AST_Common,
+        super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
         num_virtual_methods: i64 = 0,
@@ -827,12 +828,14 @@ pub const AST = union(enum) {
 
     pub fn create_trait(
         _token: Token,
+        super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
         return AST.box(AST{ .trait = .{
             .common = AST_Common{ ._token = _token },
+            .super_traits = super_traits,
             .method_decls = method_decls,
             .const_decls = const_decls,
         } }, allocator);
@@ -1580,10 +1583,12 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .trait => {
+                const cloned_super_traits = Type_AST.clone_types(self.trait.super_traits, substs, allocator);
                 const cloned_method_decls = clone_children(self.trait.method_decls, substs, allocator);
                 const cloned_const_decls = clone_children(self.trait.const_decls, substs, allocator);
                 return create_trait(
                     self.token(),
+                    cloned_super_traits,
                     cloned_method_decls,
                     cloned_const_decls,
                     allocator,

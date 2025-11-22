@@ -79,6 +79,20 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
+    // Check that super traits are implemented
+    for (trait_ast.trait.super_traits.items) |super_trait| {
+        const super_trait_symbol = super_trait.symbol().?;
+        const super_lookup_res = impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol);
+        if (super_lookup_res.count == 0) {
+            self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                ._type = impl.impl._type,
+                .span = impl.token().span,
+                .trait_name = super_trait.symbol().?.name,
+            } });
+            return error.CompileError;
+        }
+    }
+
     // Construct a map of all trait decls
     var trait_decls = std.StringArrayHashMap(*ast_.AST).init(self.ctx.allocator()); // Map name -> Method Decl
     defer trait_decls.deinit();

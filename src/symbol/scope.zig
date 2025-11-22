@@ -214,16 +214,7 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = constraint.symbol().?.decl.?;
-            for (trait_decl.trait.method_decls.items) |method_decl| {
-                if (std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) {
-                    var subst = unification_.Substitutions.init(compiler.allocator());
-                    subst.put("Self", for_type) catch unreachable;
-                    const cloned = method_decl.clone(&subst, compiler.allocator());
-                    const new_scope = init(self.parent.?, self.uid_gen, std.heap.page_allocator);
-                    try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-                    return cloned;
-                }
-            }
+            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
         }
     }
 
@@ -233,10 +224,31 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
     return null;
 }
 
+fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+    for (trait_decl.trait.method_decls.items) |method_decl| {
+        if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
+
+        var subst = unification_.Substitutions.init(compiler.allocator());
+        subst.put("Self", for_type) catch unreachable;
+        const cloned = method_decl.clone(&subst, compiler.allocator());
+        const new_scope = init(self.parent.?, self.uid_gen, std.heap.page_allocator);
+        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        return cloned;
+    }
+    return null;
+}
+
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
+
+        // Check super-traits
+        if (impl.impl.trait) |trait| {
+            for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+            }
+        }
 
         // TODO: This was a hack to make sure the impl type is always decorated. Decorations should probably be needs-driven?
         const decorate_context = Decorate.new(self, compiler);
@@ -295,6 +307,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
         token.data = Symbol_Tree.next_anon_name("Trait", compiler.allocator());
         const anon_trait = ast_.AST.create_trait(
             token,
+            std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
             compiler.allocator(),

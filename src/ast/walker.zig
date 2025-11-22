@@ -259,6 +259,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_ast(ast.@"test".init, new_context);
         },
         .trait => {
+            try walk_types(&ast.trait.super_traits, new_context);
             try walk_asts(&ast.trait.method_decls, new_context);
             try walk_asts(&ast.trait.const_decls, new_context);
         },
