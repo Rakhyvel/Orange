@@ -1,0 +1,42 @@
+// 399
+trait A {
+    fn a(self) -> Int
+}
+
+trait B {
+    fn b(self) -> Int
+}
+
+trait C: A + B {
+    fn c(self) -> Int
+}
+
+impl A for Int {
+    fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    fn b(self) -> Int {
+        self + 100
+    }
+}
+
+impl C for Int {
+    fn c(self) -> Int {
+        self - 1
+    }
+}
+
+fn get_result[T: C](t: T) -> Int {
+    let a = t.>a()
+    let b = t.>b()
+    let c = t.>c()
+
+    a + b + c
+}
+
+fn main() -> Int {
+    get_result[Int](75)
+}
