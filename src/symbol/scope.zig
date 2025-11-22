@@ -237,6 +237,17 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         return cloned;
     }
+    for (trait_decl.trait.const_decls.items) |const_decl| {
+        if (!std.mem.eql(u8, const_decl.binding.decls.items[0].decl.name.token().data, name)) continue;
+
+        var subst = unification_.Substitutions.init(compiler.allocator());
+        defer subst.deinit();
+        subst.put("Self", for_type) catch unreachable;
+        const cloned = const_decl.clone(&subst, compiler.allocator());
+        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        return cloned;
+    }
     return null;
 }
 

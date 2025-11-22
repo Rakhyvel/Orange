@@ -1,0 +1,24 @@
+// 142
+trait Base {
+    const offset: Int
+}
+
+trait Derived: Base {
+    const multiplier: Int
+}
+
+impl Base for Int {
+    const offset: Int = 42
+}
+
+impl Derived for Int {
+    const multiplier: Int = 2
+}
+
+fn compute[T: Derived]() -> Int {
+    T::offset + 50 * T::multiplier
+}
+
+fn main() -> Int {
+    compute[Int]()
+}

@@ -1,4 +1,7 @@
-// 393
+// inherit_cyclic.orng:5:8: error: symbol `A` cyclic trait inheritance detected
+// trait A: B {
+//       ^
+// 
 trait A: B {
     fn a(self) -> Int
 }

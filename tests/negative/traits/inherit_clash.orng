@@ -1,0 +1,11 @@
+// inherit_clash.orng:9:19: error: duplicate method `hi`
+// trait B: A { fn hi() }
+//                  ^
+// inherit_clash.orng:8:13: note: other definition of `hi` here:
+// trait A { fn hi() }
+//            ^
+// 
+trait A { fn hi() }
+trait B: A { fn hi() }
+
+fn main() {}

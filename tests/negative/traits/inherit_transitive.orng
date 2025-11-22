@@ -1,0 +1,12 @@
+// inherit_transitive.orng:9:5: error: the type `Int` does not implement the trait `A`
+// impl B for Int {}
+//    ^
+// 
+trait A {}
+trait B: A {}
+trait C: B {}
+
+impl B for Int {}
+impl C for Int {}
+
+fn main() {}
