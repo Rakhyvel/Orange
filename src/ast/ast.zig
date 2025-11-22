@@ -171,6 +171,10 @@ pub const AST = union(enum) {
                     return decl;
                 }
             }
+            for (self.super_traits.items) |super_trait| {
+                const super_trait_decl = super_trait.symbol().?.decl.?;
+                if (super_trait_decl.trait.find_method(name)) |res| return res;
+            }
             return null;
         }
     },

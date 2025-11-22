@@ -77,11 +77,11 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
 }
 
 const struct vtable_core__core__0_Writer orange__core__writer_vtable = {
-    .write = orange__core__write,
+    ._write = orange__core__write,
 };
 
 const struct vtable_core__core__0_Reader orange__core__reader_vtable = {
-    .read = orange__core__read,
+    ._read = orange__core__read,
 };
 
 #endif

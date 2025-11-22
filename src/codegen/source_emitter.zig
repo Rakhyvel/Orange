@@ -81,12 +81,14 @@ fn output_impls(
             continue;
         }
         const trait = impl.impl.trait.?;
-        const trait_module = trait.symbol().?.scope.module.?;
+        const trait_symbol = trait.symbol().?;
+        const trait_decl = trait_symbol.decl.?;
+        const trait_module = trait_symbol.scope.module.?;
         try self.writer.print("const struct vtable_{s}__{s}__{}_{s} {s}__{s}_{}__vtable = {{\n", .{
             trait_module.package_name,
             trait_module.name(),
-            trait.symbol().?.scope.uid,
-            trait.symbol().?.name,
+            trait_symbol.scope.uid,
+            trait_symbol.name,
             //
             self.module.package_name,
             self.module.name(),
@@ -96,9 +98,18 @@ fn output_impls(
             if (!decl.method_decl.is_virtual) {
                 continue;
             }
-            try self.writer.print("    .{s} = ", .{decl.method_decl.name.token().data});
+            try self.writer.print("    ._{s} = ", .{decl.method_decl.name.token().data});
             try self.emitter.output_symbol(decl.symbol().?);
             try self.writer.print(",\n", .{});
+        }
+        for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
+            const super_trait_symbol = super_trait.symbol().?;
+            try self.writer.print("    ._{} = &{s}__{s}_{}__vtable,\n", .{
+                i,
+                self.module.package_name,
+                self.module.name(),
+                impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol).ast.?.scope().?.uid,
+            });
         }
         try self.writer.print("}};\n", .{});
     }
@@ -505,14 +516,13 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
                 try self.writer.print("(", .{});
             } else if (instr.data.invoke.dyn_value != null) {
                 // method is virtual, dyn_value (receiver ptr + vtable ptr) isn't null
-                // { dyn value }.vtable->{ method name }({ args })
-                try self.output_rvalue(instr.data.invoke.dyn_value.?, 2);
-                try self.writer.print(".vtable->{s}(", .{instr.data.invoke.method_decl.method_decl.name.token().data});
+                // { dyn value }.vtable->{.super_vtable->}{ method name }({ args })
+                try self.output_vtable_invoke(instr);
             } else {
                 // method is virtual, dyn_value is null
                 // { vtable impl }.{ method name }({ args })
                 try self.output_vtable_impl(instr.data.invoke.method_decl.method_decl.impl.?);
-                try self.writer.print(".{s}(", .{instr.data.invoke.method_decl.method_decl.name.token().data});
+                try self.writer.print("._{s}(", .{instr.data.invoke.method_decl.method_decl.name.token().data});
             }
             const num_invoke_args = instr.data.invoke.arg_lval_list.items.len;
             for (instr.data.invoke.arg_lval_list.items, 0..) |term, i| {
@@ -574,6 +584,38 @@ fn output_call_prefix(self: *Self, instr: *Instruction) !void {
     } else {
         try self.writer.print("    ", .{});
     }
+}
+
+fn output_vtable_invoke(self: *Self, instr: *Instruction) !void {
+    std.debug.assert(instr.data.invoke.dyn_value.?.get_expanded_type().* == .dyn_type);
+    const method_name = instr.data.invoke.method_decl.method_decl.name.token().data;
+    const dyn_type = instr.data.invoke.dyn_value.?.get_expanded_type();
+    const trait_decl = dyn_type.child().symbol().?.decl.?;
+    var vtables = std.array_list.Managed(usize).init(std.heap.page_allocator);
+    defer vtables.deinit();
+    _ = try self.append_vtable_indirection(trait_decl, method_name, &vtables);
+    try self.output_rvalue(instr.data.invoke.dyn_value.?, 2);
+    try self.writer.print(".vtable->", .{});
+    for (0..vtables.items.len) |i| {
+        try self.writer.print("_{}->", .{vtables.items[vtables.items.len - i - 1]});
+    }
+    try self.writer.print("_{s}(", .{method_name});
+}
+
+fn append_vtable_indirection(self: *Self, trait_decl: *ast_.AST, method_name: []const u8, vtables: *std.array_list.Managed(usize)) !bool {
+    for (trait_decl.trait.method_decls.items) |item| {
+        if (std.mem.eql(u8, method_name, item.method_decl.name.token().data)) {
+            return true;
+        }
+    }
+    for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
+        const super_trait_decl = super_trait.symbol().?.decl.?;
+        if (try self.append_vtable_indirection(super_trait_decl, method_name, vtables)) {
+            try vtables.append(i);
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Outputs the C code for checking lvalue operations. The current checks are:

@@ -39,9 +39,9 @@ static inline void orange__core__free(void *self, uint8_t *allocation)
 }
 
 const struct vtable_core__core__0_Allocator orange__core__allocator_vtable = {
-    .alloc = orange__core__alloc,
-    .realloc = orange__core__realloc,
-    .free = orange__core__free,
+    ._alloc = orange__core__alloc,
+    ._realloc = orange__core__realloc,
+    ._free = orange__core__free,
 };
 
 #endif

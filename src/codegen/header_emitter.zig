@@ -172,7 +172,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
 
             try self.writer.print("    ", .{});
             try self.emitter.output_type(decl.method_decl.ret_type);
-            try self.writer.print("(*{s})(", .{decl.method_decl.name.token().data});
+            try self.writer.print("(*_{s})(", .{decl.method_decl.name.token().data});
 
             // Output receiver parameter
             if (method_decl_has_receiver) {
@@ -207,6 +207,16 @@ fn output_traits(self: *Self) CodeGen_Error!void {
                 try self.writer.print("void", .{});
             }
             try self.writer.print(");\n", .{});
+        }
+        for (trait.trait.super_traits.items, 0..) |super_trait, i| {
+            const super_trait_symbol = super_trait.symbol().?;
+            try self.writer.print("    const struct vtable_{s}__{s}__{}_{s} *_{};\n", .{
+                super_trait_symbol.scope.module.?.package_name,
+                super_trait_symbol.scope.module.?.name(),
+                super_trait_symbol.scope.uid,
+                super_trait_symbol.name,
+                i,
+            });
         }
         try self.writer.print("}};\n\n", .{});
     }

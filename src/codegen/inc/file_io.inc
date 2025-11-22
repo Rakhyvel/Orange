@@ -16,7 +16,7 @@ static inline void orange__core__close(void *self)
 }
 
 const struct vtable_core__core__0_File orange__core__file_vtable = {
-    .close = orange__core__close,
+    ._close = orange__core__close,
 };
 
 static inline struct orange_type_F3D431398B6D5D16 orange__core__open(void *self, struct orange_type_73877515D86B0F5 path, struct orange_type_C53265BF4F923210 mode)
@@ -51,7 +51,7 @@ static inline struct orange_type_F3D431398B6D5D16 orange__core__open(void *self,
 }
 
 const struct vtable_core__core__0_File_System orange__core__file_system_vtable = {
-    .open = orange__core__open,
+    ._open = orange__core__open,
 };
 
 #endif

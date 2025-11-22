@@ -226,6 +226,7 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
 }
 
 fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+    // TODO: (for next release) De-duplicate this
     for (trait_decl.trait.method_decls.items) |method_decl| {
         if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
 
