@@ -20,7 +20,7 @@ const Lookup_Result = union(enum) { found_but_rt, found_but_fn, not_found, found
 parent: ?*Self,
 children: std.array_list.Managed(*Self),
 symbols: std.StringArrayHashMap(*Symbol),
-traits: std.array_list.Managed(*ast_.AST), // List of all `trait`s in this scope. Added to in the `decorate` phase.
+traits: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), // List of all `trait`s in this scope. Added to in the `decorate` phase.
 impls: std.array_list.Managed(*ast_.AST), // List of all `impl`s in this scope Added to in the `decorate` phase.
 tests: std.array_list.Managed(*ast_.AST), // List of all `test`s in this scope Added to in the `decorate` phase.
 module: ?*module_.Module, // Enclosing module
@@ -35,7 +35,7 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.parent = parent;
     retval.children = std.array_list.Managed(*Self).init(allocator);
     retval.symbols = std.StringArrayHashMap(*Symbol).init(allocator);
-    retval.traits = std.array_list.Managed(*ast_.AST).init(allocator);
+    retval.traits = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.impls = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
@@ -403,10 +403,12 @@ pub fn put_all_symbols(scope: *Self, symbols: *std.array_list.Managed(*Symbol), 
 
 pub fn collect_traits_and_impls(
     self: *Self,
-    traits: *std.array_list.Managed(*ast_.AST),
+    traits: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     impls: *std.array_list.Managed(*ast_.AST),
 ) void {
-    traits.appendSlice(self.traits.items) catch unreachable;
+    for (self.traits.keys()) |trait| {
+        traits.put(trait, void{}) catch unreachable;
+    }
     impls.appendSlice(self.impls.items) catch unreachable;
 
     for (self.children.items) |child| {

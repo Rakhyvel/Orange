@@ -150,6 +150,12 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     switch (ast.*) {
         else => {},
 
+        .identifier => {
+            if (ast.symbol().?.kind == .trait) {
+                try self.scope.traits.put(ast.symbol().?.decl.?, void{});
+            }
+        },
+
         .access => ast.set_symbol(try self.resolve_access_ast(ast)),
 
         .call => {
@@ -271,7 +277,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
         },
         .generic_apply => return self.monomorphize_generic_apply(ast),
-        .trait => self.scope.traits.append(ast) catch unreachable,
+        .trait => try self.scope.traits.put(ast, void{}),
         .@"test" => self.scope.tests.append(ast) catch unreachable,
     }
 }

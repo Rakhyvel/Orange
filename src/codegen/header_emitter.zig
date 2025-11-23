@@ -145,12 +145,12 @@ fn output_field_list(self: *Self, fields: *const std.array_list.Managed(*Type_AS
 
 fn output_traits(self: *Self) CodeGen_Error!void {
     // FIXME: High Cyclo
-    if (self.module.traits.items.len > 0) {
+    if (self.module.traits.keys().len > 0) {
         // Do not output header comment if there are no traits!
         try self.writer.print("\n/* Trait vtable type definitions */\n", .{});
     }
 
-    for (self.module.traits.items) |trait| {
+    for (self.module.traits.keys()) |trait| {
         // TODO: Too long
         if (trait.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) {
             continue;
