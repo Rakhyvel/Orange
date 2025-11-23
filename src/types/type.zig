@@ -1086,11 +1086,11 @@ pub const Type_AST = union(enum) {
     }
 
     fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
+        const maybe_sub_symbol = maybe_sub.symbol().?;
         const maybe_super_symbol = maybe_super.symbol().?;
+        if (maybe_sub_symbol == maybe_super_symbol) return true;
         for (maybe_sub.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
-            const super_trait_symbol = super_trait.symbol().?;
-            if (maybe_super_symbol == super_trait_symbol) return true;
-            if (is_sub_trait(maybe_sub, super_trait)) return true;
+            if (is_sub_trait(super_trait, maybe_super)) return true;
         }
         return false;
     }

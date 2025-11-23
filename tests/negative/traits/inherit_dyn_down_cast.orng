@@ -1,0 +1,12 @@
+// inherit_dyn_down_cast.orng:9:9: error: cannot cast type `&dyn A` to type `&dyn B`
+//     a as &dyn B
+//        ^
+// 
+trait A {}
+trait B: A {}
+
+fn try_to_down_cast(a: &dyn A) -> &dyn B {
+    a as &dyn B
+}
+
+fn main() {}

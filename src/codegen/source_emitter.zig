@@ -77,13 +77,13 @@ fn output_impls(
     }
 
     for (self.module.impls.items) |impl| {
-        if (impl.impl.num_virtual_methods == 0) {
-            continue;
-        }
         const trait = impl.impl.trait.?;
         const trait_symbol = trait.symbol().?;
         const trait_decl = trait_symbol.decl.?;
         const trait_module = trait_symbol.scope.module.?;
+        if (impl.impl.num_virtual_methods == 0 and trait_decl.trait.super_traits.items.len == 0) {
+            continue;
+        }
         try self.writer.print("const struct vtable_{s}__{s}__{}_{s} {s}__{s}_{}__vtable = {{\n", .{
             trait_module.package_name,
             trait_module.name(),
@@ -105,7 +105,7 @@ fn output_impls(
         for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
             const super_trait_decl = super_trait_symbol.decl.?;
-            if (super_trait_decl.trait.num_virtual_methods == 0) continue;
+            if (super_trait_decl.trait.num_virtual_methods == 0 and super_trait_decl.trait.super_traits.items.len == 0) continue;
             try self.writer.print("    ._{} = &{s}__{s}_{}__vtable,\n", .{
                 i,
                 self.module.package_name,
@@ -660,9 +660,9 @@ fn append_vtable_indirection(self: *Self, trait_decl: *ast_.AST, method_name: []
 
 fn append_vtable_to_super(self: *Self, sub_trait_decl: *ast_.AST, target_super_trait_symbol: *Symbol, vtables: *std.array_list.Managed(usize)) !bool {
     for (sub_trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
-        const maybe_super_trait_symbol = super_trait.symbol().?;
+        const super_trait_symbol = super_trait.symbol().?;
         const super_trait_decl = super_trait.symbol().?.decl.?;
-        if (maybe_super_trait_symbol == target_super_trait_symbol) {
+        if (super_trait_symbol == target_super_trait_symbol) {
             try vtables.append(i);
             return true;
         }

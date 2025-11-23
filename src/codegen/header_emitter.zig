@@ -152,7 +152,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
 
     for (self.module.traits.items) |trait| {
         // TODO: Too long
-        if (trait.trait.num_virtual_methods == 0) {
+        if (trait.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) {
             continue;
         }
         try self.writer.print("struct vtable_{s}__{s}__{}_{s} {{\n", .{
@@ -210,6 +210,8 @@ fn output_traits(self: *Self) CodeGen_Error!void {
         }
         for (trait.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
+            const super_trait_decl = super_trait_symbol.decl.?;
+            if (super_trait_decl.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) continue;
             try self.writer.print("    const struct vtable_{s}__{s}__{}_{s} *_{};\n", .{
                 super_trait_symbol.scope.module.?.package_name,
                 super_trait_symbol.scope.module.?.name(),

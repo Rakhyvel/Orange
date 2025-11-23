@@ -1,0 +1,43 @@
+// 302
+trait A {
+    virtual fn a(self) -> Int
+}
+
+trait B: A {
+    fn b(self) -> Int
+}
+
+trait C: B {
+    virtual fn c(self) -> Int
+}
+
+impl A for Int {
+    virtual fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    fn b(self) -> Int {
+        self + 95
+    }
+}
+
+impl C for Int {
+    virtual fn c(self) -> Int {
+        self + 100
+    }
+}
+
+fn accept_a(a: &dyn A) -> Int {
+    a.>a()
+}
+
+fn get_result(c: &dyn C) -> Int {
+    accept_a(c as &dyn A)
+}
+
+fn main() -> Int {
+    let x = 151
+    get_result(&x)
+}
