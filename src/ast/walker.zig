@@ -269,6 +269,9 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_ast(ast.impl.trait, new_context);
             try walk_asts(&ast.impl.method_defs, new_context);
             try walk_asts(&ast.impl.const_defs, new_context);
+            if (ast.impl.trait != null and ast.impl.trait.?.symbol() != null) {
+                try walk_ast(ast.impl.trait.?.symbol().?.decl.?, new_context);
+            }
         },
         .method_decl => {
             try walk_asts(&ast.method_decl.context_decls, new_context);

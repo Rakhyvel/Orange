@@ -150,12 +150,6 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     switch (ast.*) {
         else => {},
 
-        .identifier => {
-            if (ast.symbol().?.kind == .trait) {
-                try self.scope.traits.put(ast.symbol().?.decl.?, void{});
-            }
-        },
-
         .access => ast.set_symbol(try self.resolve_access_ast(ast)),
 
         .call => {

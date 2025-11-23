@@ -1098,6 +1098,8 @@ pub const Type_AST = union(enum) {
     /// Checks whether two AST types would generate to the same C type.
     pub fn c_types_match(self: *Type_AST, other: *Type_AST) bool {
         // FIXME: High Cyclo
+        // std.debug.print("{t} == {t}\n", .{ self.*, other.* });
+        // std.debug.print("{f} == {f}\n\n", .{ self, other });
         if (self.* == .annotation) {
             return c_types_match(self.child(), other);
         } else if (other.* == .annotation) {
