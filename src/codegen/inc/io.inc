@@ -66,7 +66,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
         slice._0 = buffer;
         slice._1 = (int64_t)n;
 
-        write_result = writer.vtable->write(writer.data_ptr, slice);
+        write_result = writer.vtable->_write(writer.data_ptr, slice);
         if (write_result.tag == 1)
         {
             return write_result;

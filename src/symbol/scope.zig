@@ -273,6 +273,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
 fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     for (self.impls.items) |impl| {
         if (impl.impl.trait) |trait| {
+            if (trait.symbol() == null) continue;
             for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
             }

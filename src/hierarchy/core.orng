@@ -174,7 +174,7 @@ impl Eq for String {
     }
 }
 
-trait Hash {
+trait Hash: Eq {
     virtual fn hash(&self) -> Word64
 }
 
@@ -202,9 +202,7 @@ trait File_System {
     virtual fn open(&mut self, path: String, mode: File_Mode = File_Mode.read) -> ?&mut dyn File
 }
 
-trait File
-// : Writer + Reader TODO: Uncomment when trait inheritance is added
-{
+trait File: Writer + Reader {
     virtual fn close(&mut self)
 }
 

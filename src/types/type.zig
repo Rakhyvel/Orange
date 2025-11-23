@@ -1079,8 +1079,8 @@ pub const Type_AST = union(enum) {
         }
 
         return switch (from_expanded.*) {
-            .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr,
-            .dyn_type => is_sub_trait(from.child(), to.child()),
+            .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr and (!to.addr_of.mut or from.addr_of.mut),
+            .dyn_type => is_sub_trait(from.child(), to.child()) and (!to.dyn_type.mut or from.dyn_type.mut),
             else => false,
         };
     }
