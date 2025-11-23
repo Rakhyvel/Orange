@@ -1,4 +1,4 @@
-// 420
+// 404
 trait A {
     fn a(self) -> Self
 }
@@ -20,5 +20,5 @@ fn get_result[T: C](t: T) -> T {
 }
 
 fn main() -> Int {
-    get_result[Int](2)
+    get_result[Int](202)
 }
