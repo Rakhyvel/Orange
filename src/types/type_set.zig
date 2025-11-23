@@ -28,8 +28,8 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
     const ast = oldast_.expand_identifier();
     // var str = Canonical_Type_Fmt.canonical_rep(ast) catch unreachable;
     // defer str.deinit();
-    // std.debug.print("{f}: {s}\n", .{ ast, str.str() });
-    // std.debug.assert(ast.* != .identifier or ast.symbol().?.decl.?.* != .type_param_decl);
+    // std.debug.print("{f}\n", .{ast});
+    std.debug.assert(ast.* != .identifier or ast.symbol().?.decl.?.* != .type_param_decl);
 
     if (self.get_node(ast)) |dag| {
         // Type is already in the set, return Dependency_Node entry for it

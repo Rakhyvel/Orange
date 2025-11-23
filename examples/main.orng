@@ -21,6 +21,7 @@ fn main() -> ()!() with (core::IO, core::Allocating, core::Args, core::File_IO) 
     try get_names[String_Buffer](&mut first_name_buf, &mut last_name_buf)
 
     try @println("Hello, {first_name_buf.>str()} {last_name_buf.>str()}!")
+    try @write(f as &mut dyn core::Writer, "Hello, {first_name_buf.>str()} {last_name_buf.>str()}!\n")
 
     .ok
 }

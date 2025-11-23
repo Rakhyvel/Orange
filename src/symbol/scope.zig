@@ -20,7 +20,7 @@ const Lookup_Result = union(enum) { found_but_rt, found_but_fn, not_found, found
 parent: ?*Self,
 children: std.array_list.Managed(*Self),
 symbols: std.StringArrayHashMap(*Symbol),
-traits: std.array_list.Managed(*ast_.AST), // List of all `trait`s in this scope. Added to in the `decorate` phase.
+traits: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), // List of all `trait`s in this scope. Added to in the `decorate` phase.
 impls: std.array_list.Managed(*ast_.AST), // List of all `impl`s in this scope Added to in the `decorate` phase.
 tests: std.array_list.Managed(*ast_.AST), // List of all `test`s in this scope Added to in the `decorate` phase.
 module: ?*module_.Module, // Enclosing module
@@ -35,7 +35,7 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.parent = parent;
     retval.children = std.array_list.Managed(*Self).init(allocator);
     retval.symbols = std.StringArrayHashMap(*Symbol).init(allocator);
-    retval.traits = std.array_list.Managed(*ast_.AST).init(allocator);
+    retval.traits = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.impls = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
@@ -214,28 +214,47 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = constraint.symbol().?.decl.?;
-            for (trait_decl.trait.method_decls.items) |method_decl| {
-                if (std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) {
-                    var subst = unification_.Substitutions.init(compiler.allocator());
-                    subst.put("Self", for_type) catch unreachable;
-                    const cloned = method_decl.clone(&subst, compiler.allocator());
-                    const new_scope = init(self.parent.?, self.uid_gen, std.heap.page_allocator);
-                    try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-                    return cloned;
-                }
-            }
+            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
         }
     }
 
     if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
+    if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| return res;
     if (try self.lookup_impl_member_imports(for_type, name, compiler)) |res| return res;
     if (self.parent) |p| return p.lookup_impl_member(for_type, name, compiler);
     return null;
 }
 
+fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+    // TODO: (for next release) De-duplicate this
+    for (trait_decl.trait.method_decls.items) |method_decl| {
+        if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
+
+        var subst = unification_.Substitutions.init(compiler.allocator());
+        defer subst.deinit();
+        subst.put("Self", for_type) catch unreachable;
+        const cloned = method_decl.clone(&subst, compiler.allocator());
+        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        return cloned;
+    }
+    for (trait_decl.trait.const_decls.items) |const_decl| {
+        if (!std.mem.eql(u8, const_decl.binding.decls.items[0].decl.name.token().data, name)) continue;
+
+        var subst = unification_.Substitutions.init(compiler.allocator());
+        defer subst.deinit();
+        subst.put("Self", for_type) catch unreachable;
+        const cloned = const_decl.clone(&subst, compiler.allocator());
+        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        return cloned;
+    }
+    return null;
+}
+
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     for (self.impls.items) |impl| {
-        var subst = unification_.Substitutions.init(std.heap.page_allocator);
+        var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
 
         // TODO: This was a hack to make sure the impl type is always decorated. Decorations should probably be needs-driven?
@@ -246,7 +265,19 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
-        return search_impl(instantiated_impl, name) orelse continue;
+        if (search_impl(instantiated_impl, name)) |res| return res;
+    }
+    return null;
+}
+
+fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+    for (self.impls.items) |impl| {
+        if (impl.impl.trait) |trait| {
+            if (trait.symbol() == null) continue;
+            for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+            }
+        }
     }
     return null;
 }
@@ -276,15 +307,15 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     if (subst_contains_generics) return impl;
 
     // Already instantiated, return the memoized impl
-    const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, std.heap.page_allocator);
+    const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
 
     // Create a new impl
-    const new_impl: *ast_.AST = impl.clone(subst, std.heap.page_allocator);
+    const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
-    const new_scope = init(self, self.uid_gen, std.heap.page_allocator);
+    const new_scope = init(self, self.uid_gen, compiler.allocator());
     try walker_.walk_ast(new_impl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
     new_impl.set_scope(new_scope);
 
@@ -295,6 +326,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
         token.data = Symbol_Tree.next_anon_name("Trait", compiler.allocator());
         const anon_trait = ast_.AST.create_trait(
             token,
+            std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
             compiler.allocator(),
@@ -371,10 +403,12 @@ pub fn put_all_symbols(scope: *Self, symbols: *std.array_list.Managed(*Symbol), 
 
 pub fn collect_traits_and_impls(
     self: *Self,
-    traits: *std.array_list.Managed(*ast_.AST),
+    traits: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     impls: *std.array_list.Managed(*ast_.AST),
 ) void {
-    traits.appendSlice(self.traits.items) catch unreachable;
+    for (self.traits.keys()) |trait| {
+        traits.put(trait, void{}) catch unreachable;
+    }
     impls.appendSlice(self.impls.items) catch unreachable;
 
     for (self.children.items) |child| {

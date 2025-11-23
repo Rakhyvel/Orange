@@ -1,0 +1,20 @@
+// 402
+trait A {
+    fn a(self) -> Int
+}
+
+impl A for Int { fn a(self) -> Int { self } }
+
+fn make_dyn(x: Int) -> &dyn A {
+    &x // completely useless, but still have to compile it properly
+}
+
+fn get_output(x: Int) -> Int {
+    x.>a()
+}
+
+fn main() -> Int {
+    let x = 402
+    _ = make_dyn(x)
+    get_output(x)
+}

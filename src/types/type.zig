@@ -1079,14 +1079,27 @@ pub const Type_AST = union(enum) {
         }
 
         return switch (from_expanded.*) {
-            .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr,
+            .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr and (!to_expanded.addr_of.mut or from_expanded.addr_of.mut),
+            .dyn_type => is_sub_trait(from.child(), to.child()) and (!to_expanded.dyn_type.mut or from_expanded.dyn_type.mut),
             else => false,
         };
+    }
+
+    fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
+        const maybe_sub_symbol = maybe_sub.symbol().?;
+        const maybe_super_symbol = maybe_super.symbol().?;
+        if (maybe_sub_symbol == maybe_super_symbol) return true;
+        for (maybe_sub.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+            if (is_sub_trait(super_trait, maybe_super)) return true;
+        }
+        return false;
     }
 
     /// Checks whether two AST types would generate to the same C type.
     pub fn c_types_match(self: *Type_AST, other: *Type_AST) bool {
         // FIXME: High Cyclo
+        // std.debug.print("{t} == {t}\n", .{ self.*, other.* });
+        // std.debug.print("{f} == {f}\n\n", .{ self, other });
         if (self.* == .annotation) {
             return c_types_match(self.child(), other);
         } else if (other.* == .annotation) {

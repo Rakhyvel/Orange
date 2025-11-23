@@ -145,14 +145,14 @@ fn output_field_list(self: *Self, fields: *const std.array_list.Managed(*Type_AS
 
 fn output_traits(self: *Self) CodeGen_Error!void {
     // FIXME: High Cyclo
-    if (self.module.traits.items.len > 0) {
+    if (self.module.traits.keys().len > 0) {
         // Do not output header comment if there are no traits!
         try self.writer.print("\n/* Trait vtable type definitions */\n", .{});
     }
 
-    for (self.module.traits.items) |trait| {
+    for (self.module.traits.keys()) |trait| {
         // TODO: Too long
-        if (trait.trait.num_virtual_methods == 0) {
+        if (trait.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) {
             continue;
         }
         try self.writer.print("struct vtable_{s}__{s}__{}_{s} {{\n", .{
@@ -172,7 +172,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
 
             try self.writer.print("    ", .{});
             try self.emitter.output_type(decl.method_decl.ret_type);
-            try self.writer.print("(*{s})(", .{decl.method_decl.name.token().data});
+            try self.writer.print("(*_{s})(", .{decl.method_decl.name.token().data});
 
             // Output receiver parameter
             if (method_decl_has_receiver) {
@@ -207,6 +207,18 @@ fn output_traits(self: *Self) CodeGen_Error!void {
                 try self.writer.print("void", .{});
             }
             try self.writer.print(");\n", .{});
+        }
+        for (trait.trait.super_traits.items, 0..) |super_trait, i| {
+            const super_trait_symbol = super_trait.symbol().?;
+            const super_trait_decl = super_trait_symbol.decl.?;
+            if (super_trait_decl.trait.num_virtual_methods == 0 and super_trait_decl.trait.super_traits.items.len == 0) continue;
+            try self.writer.print("    const struct vtable_{s}__{s}__{}_{s} *_{};\n", .{
+                super_trait_symbol.scope.module.?.package_name,
+                super_trait_symbol.scope.module.?.name(),
+                super_trait_symbol.scope.uid,
+                super_trait_symbol.name,
+                i,
+            });
         }
         try self.writer.print("}};\n\n", .{});
     }

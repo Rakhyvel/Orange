@@ -1,0 +1,23 @@
+// 301
+trait Doubler {
+    virtual fn double(self) -> Int
+}
+
+trait Incrementer: Doubler {
+    virtual fn incr(self) -> Int
+}
+
+impl Doubler for Int { virtual fn double(self) -> Int { self * 2 } }
+
+impl Incrementer for Int { virtual fn incr(self) -> Int { self + 1 } }
+
+fn get_result(incr: &dyn Incrementer) -> Int {
+    let doubled = incr.>double()
+    let incrd = incr.>incr()
+    doubled + incrd
+}
+
+fn main() -> Int {
+    let x: Int = 100
+    get_result(&x)
+}

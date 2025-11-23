@@ -1,0 +1,28 @@
+// 397
+trait A {
+    fn a(self) -> Self
+}
+
+trait B: A {
+    fn b(self) -> Self
+}
+
+impl A for Int {
+    fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    fn b(self) -> Int {
+        self + 95
+    }
+}
+
+fn get_result[T: B](t: T) -> T {
+    t.>a().>b()
+}
+
+fn main() -> Int {
+    get_result[Int](151)
+}

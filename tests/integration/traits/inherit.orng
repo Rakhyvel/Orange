@@ -1,0 +1,25 @@
+// 395
+trait A {
+    fn a(self) -> Int
+}
+
+trait B: A {
+    fn b(self) -> Int
+}
+
+impl A for Int {
+    fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    fn b(self) -> Int {
+        self + 95
+    }
+}
+
+fn main() -> Int {
+    let x = 150
+    x.>a().>b()
+}

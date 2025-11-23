@@ -160,17 +160,22 @@ fn validate_trait(self: *Self, trait: *Symbol) Validate_Error_Enum!void {
     defer names.deinit();
 
     for (trait.decl.?.trait.method_decls.items) |decl| {
-        if (names.get(decl.method_decl.name.token().data)) |other| {
+        const method_name = decl.method_decl.name.token().data;
+        if (names.get(method_name)) |other| {
             self.ctx.errors.add_error(errs_.Error{ .duplicate = .{
                 .span = decl.token().span,
                 .thing = "method",
-                .identifier = decl.method_decl.name.token().data,
+                .identifier = method_name,
                 .first = other.token().span,
             } });
             return error.CompileError;
         } else {
-            names.put(decl.method_decl.name.token().data, decl) catch unreachable;
+            names.put(method_name, decl) catch unreachable;
         }
+
+        var visited = std.array_hash_map.AutoArrayHashMap(*Symbol, void).init(self.ctx.allocator());
+        defer visited.deinit();
+        try self.validate_super_name_collision(trait, decl.method_decl.name.token(), &visited);
 
         for (decl.method_decl._params.items) |param| {
             try self.ctx.validate_type.validate_type(param.binding.type);
@@ -182,12 +187,44 @@ fn validate_trait(self: *Self, trait: *Symbol) Validate_Error_Enum!void {
             if (decl.method_decl.c_type.?.refers_to_self()) {
                 self.ctx.errors.add_error(errs_.Error{ .trait_virtual_refers_to_self = .{
                     .span = decl.token().span,
-                    .method_name = decl.method_decl.name.token().data,
+                    .method_name = method_name,
                     .trait_name = trait.name,
                 } });
                 return error.CompileError;
             }
             trait.decl.?.trait.num_virtual_methods += 1;
+        }
+    }
+}
+
+fn validate_super_name_collision(self: *Self, trait_symbol: *Symbol, method_token: Token, visited: *std.array_hash_map.AutoArrayHashMap(*Symbol, void)) Validate_Error_Enum!void {
+    if (visited.get(trait_symbol)) |_| {
+        self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
+            .problem = "cyclic trait inheritance detected",
+            .span = trait_symbol.span(),
+            .name = trait_symbol.name,
+        } });
+        return error.CompileError;
+    }
+    try visited.put(trait_symbol, void{});
+    defer _ = visited.swapRemove(trait_symbol);
+
+    // Check that there are no name collision between super traits
+    for (trait_symbol.decl.?.trait.super_traits.items) |super_trait| {
+        const super_trait_symbol = super_trait.symbol().?;
+        try self.validate_super_name_collision(super_trait_symbol, method_token, visited);
+
+        // TODO: (for next release, check const and type decls too)
+        for (super_trait_symbol.decl.?.trait.method_decls.items) |super_decl| {
+            const super_method_name = super_decl.method_decl.name.token().data;
+            if (std.mem.eql(u8, super_method_name, method_token.data)) {
+                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{
+                    .span = method_token.span,
+                    .thing = "method",
+                    .identifier = method_token.data,
+                    .first = super_decl.token().span,
+                } });
+            }
         }
     }
 }

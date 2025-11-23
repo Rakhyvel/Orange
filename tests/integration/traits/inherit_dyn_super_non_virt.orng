@@ -1,0 +1,20 @@
+// 6
+trait A {
+    fn a(self) -> Int
+}
+
+trait B: A {
+    virtual fn b(self) -> Int
+}
+
+impl A for Int { fn a(self) -> Self { self * 2 } }
+impl B for Int { virtual fn b(self) -> Self { self * 3 } }
+
+fn get_result(t: &dyn B) -> Int {
+    t.>b()
+}
+
+fn main() -> Int {
+    let x = 2
+    get_result(&x)
+}

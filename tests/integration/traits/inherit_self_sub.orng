@@ -1,0 +1,33 @@
+// 42
+
+trait Doubler {
+    fn double(self) -> Self
+}
+
+trait Incrementer: Doubler {
+    fn increment(self) -> Self
+}
+
+impl Doubler for Int {
+    fn double(self) -> Self {
+        self * 2
+    }
+}
+
+impl Incrementer for Int {
+    fn increment(self) -> Self {
+        self + 1
+    }
+}
+
+fn process[T: Incrementer](value: T) -> T {
+    let doubled = value.>double()
+    doubled.>increment()
+}
+
+fn main() -> Int {
+    let first = process[Int](5)
+    let second = process[Int](11)
+    
+    first + second + 8
+}

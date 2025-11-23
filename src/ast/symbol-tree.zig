@@ -217,7 +217,11 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         // Create new scope, create and walk trait symbols/decls
         .trait => {
-            std.debug.assert(ast.symbol() == null);
+            if (ast.symbol() != null) {
+                // this can happen sometimes with anonymous traits
+                // its fine, just return
+                return null;
+            }
             var new_self = self;
             new_self.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
             ast.set_scope(new_self.scope);
@@ -291,10 +295,12 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 }
                 const anon_trait = ast_.AST.create_trait(
                     token,
+                    std.array_list.Managed(*Type_AST).init(self.allocator),
                     cloned_methods,
                     ast_.AST.clone_children(ast.impl.const_defs, &subst, self.allocator),
                     self.allocator,
                 );
+                try new_self_for_anon_trait.scope.traits.put(anon_trait, void{});
                 try walk_.walk_ast(anon_trait, new_self_for_anon_trait);
                 ast.impl.trait = ast_.AST.create_identifier(token, self.allocator);
                 ast.impl.trait.?.set_symbol(anon_trait.symbol().?);

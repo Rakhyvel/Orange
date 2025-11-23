@@ -1,0 +1,30 @@
+// 302
+trait A {
+    fn a(self) -> Int
+}
+
+trait B: A {
+    virtual fn b(self) -> Int
+}
+
+impl A for Int {
+    fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    virtual fn b(self) -> Int {
+        self + 95
+    }
+}
+
+fn make_a(a: &dyn B) -> &dyn A {
+    a as &dyn A
+}
+
+fn main() -> Int {
+    let x = 302
+    _ = make_a(&x)
+    x
+}

@@ -74,7 +74,7 @@ pub const Module = struct {
     entry: ?*CFG,
 
     /// List of all traits defined in this module. Used by codegen to output the vtable structs definitions
-    traits: std.array_list.Managed(*ast_.AST),
+    traits: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
 
     /// List of all impls defined in this module. Used by codegen to output the vtable implementations.
     impls: std.array_list.Managed(*ast_.AST),
@@ -105,7 +105,7 @@ pub const Module = struct {
         retval.local_imported_modules = std.AutoArrayHashMap(*Module, void).init(allocator);
         retval.cincludes = std.array_list.Managed(*ast_.AST).init(allocator);
         retval.instructions = std.array_list.Managed(*Instruction).init(allocator);
-        retval.traits = std.array_list.Managed(*ast_.AST).init(allocator);
+        retval.traits = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
         retval.impls = std.array_list.Managed(*ast_.AST).init(allocator);
         retval.tests = std.array_list.Managed(*CFG).init(allocator);
         retval.cfgs = std.array_list.Managed(*CFG).init(allocator);
@@ -284,7 +284,7 @@ pub const Module = struct {
     }
 
     fn collect_local_types(self: *Module) void {
-        for (self.traits.items) |trait| {
+        for (self.traits.keys()) |trait| {
             for (trait.trait.method_decls.items) |decl| {
                 const @"type" = decl.method_decl.c_type.?.expand_identifier();
                 if (@"type".refers_to_self()) continue;

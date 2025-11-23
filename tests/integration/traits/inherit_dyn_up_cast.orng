@@ -1,0 +1,34 @@
+// 548
+trait A {
+    virtual fn a(self) -> Int
+}
+
+trait B: A {
+    virtual fn b(self) -> Int
+}
+
+impl A for Int {
+    virtual fn a(self) -> Int {
+        self * 2
+    }
+}
+
+impl B for Int {
+    virtual fn b(self) -> Int {
+        self + 95
+    }
+}
+
+fn accept_a(a: &dyn A) -> Int {
+    a.>a()
+}
+
+fn get_result(b: &dyn B) -> Int {
+    let a = accept_a(b as &dyn A)
+    b.>b() + a
+}
+
+fn main() -> Int {
+    let x = 151
+    get_result(&x)
+}

@@ -1,0 +1,15 @@
+// 403
+trait A {
+    virtual fn a(self) -> Int
+}
+
+impl A for Int {
+    virtual fn a(self) -> Int { self }
+}
+
+fn main() -> Int {
+    let x = 403
+    let da: &dyn A = &x
+    let da2 = da as &dyn A
+    da2.>a()
+}

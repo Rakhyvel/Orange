@@ -1,0 +1,9 @@
+// inherit_3_cycle.orng:5:8: error: symbol `A` cyclic trait inheritance detected
+// trait A: C { fn hi() }
+//       ^
+// 
+trait A: C { fn hi() }
+trait B: A { fn goo() }
+trait C: B { fn moo() }
+
+fn main() {}
