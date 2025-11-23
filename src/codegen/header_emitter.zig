@@ -211,7 +211,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
         for (trait.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
             const super_trait_decl = super_trait_symbol.decl.?;
-            if (super_trait_decl.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) continue;
+            if (super_trait_decl.trait.num_virtual_methods == 0 and super_trait_decl.trait.super_traits.items.len == 0) continue;
             try self.writer.print("    const struct vtable_{s}__{s}__{}_{s} *_{};\n", .{
                 super_trait_symbol.scope.module.?.package_name,
                 super_trait_symbol.scope.module.?.name(),
