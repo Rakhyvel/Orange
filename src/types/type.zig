@@ -1080,8 +1080,19 @@ pub const Type_AST = union(enum) {
 
         return switch (from_expanded.*) {
             .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr,
+            .dyn_type => is_sub_trait(from.child(), to.child()),
             else => false,
         };
+    }
+
+    fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
+        const maybe_super_symbol = maybe_super.symbol().?;
+        for (maybe_sub.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+            const super_trait_symbol = super_trait.symbol().?;
+            if (maybe_super_symbol == super_trait_symbol) return true;
+            if (is_sub_trait(maybe_sub, super_trait)) return true;
+        }
+        return false;
     }
 
     /// Checks whether two AST types would generate to the same C type.

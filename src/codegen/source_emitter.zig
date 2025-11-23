@@ -104,6 +104,8 @@ fn output_impls(
         }
         for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
+            const super_trait_decl = super_trait_symbol.decl.?;
+            if (super_trait_decl.trait.num_virtual_methods == 0) continue;
             try self.writer.print("    ._{} = &{s}__{s}_{}__vtable,\n", .{
                 i,
                 self.module.package_name,
@@ -444,8 +446,16 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
             try self.writer.print("{{", .{});
             try self.output_lvalue(instr.src1.?, instr.kind.precedence());
-            try self.writer.print(", &", .{});
-            try self.output_vtable_impl(instr.data.dyn.impl);
+            try self.writer.print(", ", .{});
+
+            const dyn_type = instr.dest.?.get_expanded_type();
+            const trait_decl = dyn_type.child().symbol().?.decl.?;
+            if (trait_decl.trait.num_virtual_methods != 0) {
+                try self.writer.print("&", .{});
+                try self.output_vtable_impl(instr.data.dyn.impl);
+            } else {
+                try self.writer.print("NULL", .{});
+            }
             try self.writer.print("}};\n", .{});
         },
         .not,
@@ -483,12 +493,42 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.writer.print(".tag;\n", .{});
         },
         .cast => {
-            try self.output_var_assign(instr.dest.?);
-            try self.writer.print("(", .{});
-            try self.emitter.output_type(instr.dest.?.get_expanded_type());
-            try self.writer.print(")", .{});
-            try self.output_rvalue(instr.src1.?, instr.kind.precedence());
-            try self.writer.print(";\n", .{});
+            if (instr.dest.?.get_expanded_type().* == .dyn_type) {
+                // dyn type up-casting
+                const super_dyn_type = instr.dest.?.get_expanded_type();
+                const super_trait_symbol = super_dyn_type.child().symbol().?;
+                const super_trait_decl = super_trait_symbol.decl.?;
+                const sub_dyn_type = instr.src1.?.get_expanded_type();
+                const sub_trait_decl = sub_dyn_type.child().symbol().?.decl.?;
+
+                try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
+                try self.writer.print("{{", .{});
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(".data_ptr, ", .{});
+
+                if (super_trait_decl.trait.num_virtual_methods != 0) {
+                    // super trait has a vtable, find path to it
+                    var vtables = std.array_list.Managed(usize).init(std.heap.page_allocator);
+                    defer vtables.deinit();
+                    _ = try self.append_vtable_to_super(sub_trait_decl, super_trait_symbol, &vtables);
+
+                    try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                    try self.writer.print(".vtable", .{});
+                    for (0..vtables.items.len) |i| {
+                        try self.writer.print("->_{}", .{vtables.items[vtables.items.len - i - 1]});
+                    }
+                } else {
+                    try self.writer.print("NULL", .{});
+                }
+                try self.writer.print("}};\n", .{});
+            } else {
+                try self.output_var_assign(instr.dest.?);
+                try self.writer.print("(", .{});
+                try self.emitter.output_type(instr.dest.?.get_expanded_type());
+                try self.writer.print(")", .{});
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(";\n", .{});
+            }
         },
         .call => {
             // TODO: De-duplicate 2
@@ -611,6 +651,22 @@ fn append_vtable_indirection(self: *Self, trait_decl: *ast_.AST, method_name: []
     for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
         const super_trait_decl = super_trait.symbol().?.decl.?;
         if (try self.append_vtable_indirection(super_trait_decl, method_name, vtables)) {
+            try vtables.append(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+fn append_vtable_to_super(self: *Self, sub_trait_decl: *ast_.AST, target_super_trait_symbol: *Symbol, vtables: *std.array_list.Managed(usize)) !bool {
+    for (sub_trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
+        const maybe_super_trait_symbol = super_trait.symbol().?;
+        const super_trait_decl = super_trait.symbol().?.decl.?;
+        if (maybe_super_trait_symbol == target_super_trait_symbol) {
+            try vtables.append(i);
+            return true;
+        }
+        if (try self.append_vtable_to_super(super_trait_decl, target_super_trait_symbol, vtables)) {
             try vtables.append(i);
             return true;
         }

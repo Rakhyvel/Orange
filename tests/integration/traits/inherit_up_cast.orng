@@ -1,10 +1,10 @@
 // 397
 trait A {
-    fn a(self) -> Int
+    fn a(self) -> Self
 }
 
 trait B: A {
-    fn b(self) -> Int
+    fn b(self) -> Self
 }
 
 impl A for Int {
@@ -19,7 +19,7 @@ impl B for Int {
     }
 }
 
-fn get_result[T: B](t: T) -> Int {
+fn get_result[T: B](t: T) -> T {
     t.>a().>b()
 }
 

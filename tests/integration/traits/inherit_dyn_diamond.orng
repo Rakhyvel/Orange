@@ -1,0 +1,34 @@
+// 34
+trait A {
+    virtual fn a(self) -> Int
+}
+
+trait B: A {
+    virtual fn b(self) -> Int
+}
+
+trait C: A {
+    virtual fn c(self) -> Int
+}
+
+trait D: B + C {
+    virtual fn d(self) -> Int
+}
+
+impl A for Int { virtual fn a(self) -> Self { self * 2 } }
+impl B for Int { virtual fn b(self) -> Self { self * 3 } }
+impl C for Int { virtual fn c(self) -> Self { self * 5 } }
+impl D for Int { virtual fn d(self) -> Self { self * 7 } }
+
+fn get_result(t: &dyn D) -> Int {
+    let a = t.>a()
+    let b = t.>b()
+    let c = t.>c()
+    let d = t.>d()
+    a + b + c + d
+}
+
+fn main() -> Int {
+    let x = 2
+    get_result(&x)
+}
