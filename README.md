@@ -16,6 +16,7 @@ Orange is a versatile systems programming language I've been developing that giv
 * Documentation can be found [here (coming soon)](http://ornglang.org/docs).
 
 ## Quick Start
+To build the Orange compiler from source:
 ```sh
 # Orange compiler requires Zig 0.15.1
 git clone --recursive https://github.com/Rakhyvel/Orange.git
@@ -25,20 +26,10 @@ cd Orange
 zig build orng
 ```
 
-A fancy hello-world example:
+A hello-world example:
 ```rs
-fn main() with core.System {
-    @print("Enter your name here: ")
-
-    let name_buf = core.String_Buffer.new()
-    defer name_buf.dispose()
-    stdin.readln(&name_buf)
-
-    greet(name_buf.str())
-}
-
-fn greet(recipient: String) with .. {
-    @println("Hello, {recipient}")
+fn main() -> ()!() with core::IO {
+    @println("Hello, World!")
 }
 ```
 
@@ -109,7 +100,7 @@ impl Ord for Int {
     fn lt(self, other: Int) -> Bool { self < other }
 }
 
-fn main() with core.System {
+fn main() -> ()!() with core::IO {
     let x = max(10, 20)
     @println("max is {x}")
 }
@@ -130,7 +121,7 @@ fn compile_regex(pattern: String) -> Regex {
 
 const number_regex = compile_regex("[0-9]+") // regex compiled at compile-time
 
-fn main() with core.System {
+fn main() -> ()!() with core::IO {
     if number_regex.matches("12345") {
         @println("Matched a number!")
     }
