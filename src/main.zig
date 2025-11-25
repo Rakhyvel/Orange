@@ -138,46 +138,6 @@ fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.
     try run(compiler, package_abs_path, args, allocator);
 }
 
-fn validate_env_vars(allocator: std.mem.Allocator) Command_Error!void {
-    var env_map = std.process.getEnvMap(allocator) catch unreachable;
-    defer env_map.deinit();
-
-    const build_path_buffer = std.heap.page_allocator.alloc(u8, std.fs.max_path_bytes) catch unreachable;
-    defer std.heap.page_allocator.free(build_path_buffer);
-
-    const env_var_res = env_map.get("ORNG_STD_PATH");
-    if (env_var_res == null) {
-        (errs_.Error{
-            .basic = .{
-                .msg = "an environment variable is not defined",
-                .span = Span.phony,
-            },
-        }).fatal_error();
-        return error.CompileError;
-    }
-    var dir = std.fs.Dir.openDir(std.fs.cwd(), env_var_res.?, .{}) catch |err| switch (err) {
-        error.FileNotFound => {
-            (errs_.Error{ .basic = .{
-                .msg = "the path specified by an environment variable does not exist",
-                .span = Span.phony,
-            } }).fatal_error();
-            return error.CompileError;
-        },
-        error.NotDir => {
-            (errs_.Error{ .basic = .{
-                .msg = "the path specified by an environment variable does not refer to a directory",
-                .span = Span.phony,
-            } }).fatal_error();
-            return error.CompileError;
-        },
-        else => {
-            std.debug.print("an unexpected error occurred when trying to stat an environment variable: {}\n", .{err});
-            return error.CompileError;
-        },
-    };
-    dir.close();
-}
-
 fn make_package(
     package: *ast_.AST,
     compiler: *Compiler_Context,
@@ -374,7 +334,6 @@ fn clean(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
 }
 
 fn construct_package_dag(compiler: *Compiler_Context) Command_Error![]const u8 {
-    // try validate_env_vars(allocator);
     const build_path_buffer = std.heap.page_allocator.alloc(u8, std.fs.max_path_bytes) catch unreachable;
 
     var stderr_writer = errs_.get_std_err().writer(&.{}).interface;

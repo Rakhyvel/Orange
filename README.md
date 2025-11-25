@@ -20,12 +20,6 @@ Orange is a versatile systems programming language I've been developing that giv
 # Orange compiler requires Zig 0.15.1
 git clone --recursive https://github.com/Rakhyvel/Orange.git
 
-# Set the Orange Standard Library path environment variable
-# For Linux:
-export ORNG_STD_PATH="/wherever/you/put/Orange/std"
-# For Windows:
-$env:ORNG_STD_PATH="/wherever/you/put/Orange/std"
-
 # Build Orange
 cd Orange
 zig build orng
