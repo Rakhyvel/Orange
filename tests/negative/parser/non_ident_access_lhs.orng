@@ -1,0 +1,3 @@
+const x: Wrapper[Int]::init()
+
+fn main() {}

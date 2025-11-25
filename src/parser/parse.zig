@@ -436,7 +436,8 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
         if (self.accept(.double_colon)) |token| {
             if (val_access == null) {
                 if (exp.* != .identifier) {
-                    unreachable;
+                    self.errors.add_error(errs_.Error{ .expected_basic_token = .{ .expected = "identifier", .got = exp.token() } });
+                    return Parser_Error_Enum.ParseError;
                 }
                 val_access = ast_.AST.create_identifier(exp.token(), self.allocator);
             }
