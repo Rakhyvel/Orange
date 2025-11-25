@@ -164,7 +164,7 @@ def build_ngram_model():
     files = collect_files.collect_files(
         [
             "tests/integration",
-            "tests/negative",
+            # "tests/negative",
             "examples",
             "std",
         ]

@@ -37,10 +37,12 @@ class NGram:
         return self._sample(candidates)
 
     def _sample(self, counter):
-        total = sum(counter.values())
-        rand = random.randint(1, total)
+        inv = {tok: 1.0 / cnt for tok, cnt in counter.items()}
+
+        total = sum(inv.values())
+        rand = random.random() * total
         i = 0
-        for token, count in counter.items():
+        for token, count in inv.items():
             i += count
             if rand <= i:
                 return token

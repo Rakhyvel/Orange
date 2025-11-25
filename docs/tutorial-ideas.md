@@ -1,11 +1,13 @@
 ## Basic of the language
 <!-- I like https://qmonnet.github.io/whirl-offload/ blog's theme, make it Orange! -->
+<!-- I also really like Gleam's language tutorial -->
 - Basic types
     - Math
     - Booleans
-    - Chars
-    - Strings
+    - "Chars"
+    - Strings, Multiline strings
     - Words
+    - `()` vs `Void`
 - Variables
     - Immutability
     - Type inference
@@ -19,50 +21,57 @@
     - `continue`
     - `defer`
 - Addresses
-    - `&mut`
+    - `&` and `&mut`
+    - `[*]` and `[*mut]`
 - Tuples
     - default fields
     - implicit dereferencing
 - Arrays
     - implicit dereferencing
 - Slices
-    - sliceof operator, creating a stack-base slice: `[](1, 2, 3)`
+    - sliceof operator, creating a stack-base slice: `[][1, 2, 3]`
     - implicit dereferencing
     - subslicing, and how the upper bound is not inclusive, and not a length its an upper bound
     - when to accept an array vs a slice for a function
-- Strings
-    - multiline string literals; how they are basically like comments, to the end of a line
-    - compile-time string literal concat (implement btw)
-- Sum types
-    - Injections
-    - how to do enums (how Orange is better than Go)
-    - inferred members
+- Struct types
+    - default field values
+- Enum types
+    - With or without payloads
+    - how to do enum enums (how Orange is better than Go)
+    - inferred parent
 - Functions
     - `return`
     - default function arguments
     - Inner functions, scope
-- `()` vs `Void`
 - Optional types
+    - `orelse`
 - Error handling
-    - How to `throw` an error
+    - How to "throw" an error
     - `try`
     - `catch`
-    - `errdefer` (maybe change to `defer if res != .ok {}`, with implicit return variable)
+    - `errdefer`
 - Pattern matching
     - How is it different from a switch
     - `let` tuple/array/dereference/select destructuring
         > Emphasis on the fact they can be in any order!
+- Traits
+    - `virtual` and `dyn`
+- Generics
+    - Creating and using generic types
+    - Creating and using generic functions
+    - Trait impl constraints
+    - Associated type constraints
 - Compile-time execution
     - When is it done?!
     - Type reflection
+- Contexts
+    - Defining a custom context
+    - Context requesting
+    - `with`
+    - The contexts that `main()` and `test`s can request
 - Packages/modules/build system
     - `main` entry function
-    - `sys: System` input tuple
-- Traits
-    - Implementing Iterable and Iterator for custom types
-    - Implementing generators
-    - Using traits as an interface for code
-    - Implementing compile-tile traits (`as` trait)
+    - `test`s
 - How to use the build system
     - How to import other Orange modules
         - How to encapsulate with `pub`
@@ -81,19 +90,40 @@
     - Parse an int from string
     - `.>equals`
     - Split a string into a words
+    - Joining strings
+    - Trimming strings
+    - starts_with, ends_with, contains
+    - formatting
     - Iterate over the words of a string
 - Allocators and memory management
     - `new`, `box`, `clone`, `make`, `delete`, `free`
 - Lists
+    - from([]T), from(Range[T]), repeat()
     - Sorting a list with a custom function
     - Concatonating two lists
-- Hashmap
+    - contains
+- Map
+    - get, insert
+- Iterators
+    - map, filter, reduce
+    - some, all, none
+    - collect
 - Debug
 - Accessing command line arguments
+    - Parse flags (argparse)
 - File
     - Read a file line by line
     - Read and parse CSV files
 - How to execute a terminal command and get the result
+- Networking
+    - Basic UDP/TCP socket operations
+- HTTP
+    - Making web requests
+    - Making a REST API
+- JSON
+    - Parse json data to Orange data
+    - Generate JSON from Orange data
+- Regex
 
 # "Killer" Feature Examples
 - Effect system

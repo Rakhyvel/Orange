@@ -40,7 +40,6 @@ jobs:
       shell: bash
       run: |
         #!/bin/bash
-        export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
         zig build orng
         cd std
         ../zig-out/bin/orng test
@@ -50,7 +49,6 @@ jobs:
       shell: bash
       run: |
         #!/bin/bash
-        export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
         zig build orng
         cd std
         ../zig-out/bin/orng test

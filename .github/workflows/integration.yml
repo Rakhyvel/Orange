@@ -55,7 +55,6 @@ jobs:
     - name: Build project (Linux)
       if: runner.os == 'Linux'
       run: |
-        export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
         python tests/test.py all --no-coverage
 
     # TODO: Once zig gets its act together and child process stdout actually works on Windows... smh
@@ -63,7 +62,6 @@ jobs:
     #   if: runner.os == 'Windows'
     #   shell: bash
     #   run: |
-    #     export ORNG_STD_PATH="$GITHUB_WORKSPACE/std"
     #     python tests/test.py all --no-coverage
 
     # Upload artifacts if build fails
