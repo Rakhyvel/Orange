@@ -70,7 +70,7 @@ impl core::Format for Float {
             value = -value
         }
 
-        let int_part = math::truncate(value)
+        let int_part = math::as_int(value)
         let frac_part = value - math::as_float(int_part)
 
         try int_part.>format(writer)
@@ -84,7 +84,7 @@ impl core::Format for Float {
         let mut scaled = frac_part
         while let mut i = 0; i < precision; i += 1 {
             scaled *= 10.0
-            let digit = math::truncate(scaled)
+            let digit = math::as_int(scaled)
             buf[i] = ('0' + digit) as Byte
             if digit != 0 {
                 buf_slice.length = i + 1

@@ -3,8 +3,9 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
-inline int64_t truncate_float(double x)
+inline int64_t as_int_helper(double x)
 {
     return (int64_t)x;
 }

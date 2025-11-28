@@ -15,6 +15,10 @@ impl for Float {
         exp == 0x7FF and mant == 0
     }
 
+    fn is_finite(self) -> Bool {
+        not self.>is_inf()
+    }
+
     fn as_bits(self) -> Word64 {
         enum Float_Or_Bits_Tagged {
             float(Float)
@@ -25,11 +29,47 @@ impl for Float {
         retval.float = self
         retval.bits
     }
+
+    fn floor(self) -> Float {
+        extern("floor") const c_floor: Float -> Float
+        c_floor(self)
+    }
+
+    fn ceil(self) -> Float {
+        extern("ceil") const c_ceil: Float -> Float
+        c_ceil(self)
+    }
+
+    fn round(self) -> Float {
+        extern("round") const c_round: Float -> Float
+        c_round(self)
+    }
+
+    fn trunc(self) -> Float {
+        extern("trunc") const c_trunc: Float -> Float
+        c_trunc(self)
+    }
+
+    fn fract(self) -> Float {
+        self - self.>trunc()
+    }
+
+    // pow, sqrt, cbrt
+    // exp, ln, log10, log2, log
+    // sin, cos, tan
+    // asin, acos, atan, atan2
+    // sinh, cosh, tanh
+    // asinh, acosh, atanh
+    // min, max, clamp, abs, signum, sign, copysign, recip, is_sign_positive, is_sign_negative
 }
 
-fn truncate(x: Float) -> Int {
-    extern const truncate_float: Float -> Int
-    truncate_float(x)
+impl for Int {
+    // pow
+}
+
+fn as_int(x: Float) -> Int {
+    extern const as_int_helper: Float -> Int
+    as_int_helper(x)
 }
 
 fn as_float(x: Int) -> Float {
@@ -59,5 +99,43 @@ test "is_inf" {
 
     try testing::expect(x.>is_inf())
 
+    .ok
+}
+
+test "floor" {
+    try testing::expect((14.5).>floor() == 14.0)
+    try testing::expect((-14.5).>floor() == -15.0)
+    .ok
+}
+
+test "ceil" {
+    try testing::expect((14.5).>ceil() == 15.0)
+    try testing::expect((-14.5).>ceil() == -14.0)
+    .ok
+}
+
+test "round" {
+    try testing::expect((5.0).>round() == 5.0)
+    try testing::expect((-5.0).>round() == -5.0)
+    try testing::expect((1.2).>round() == 1.0)
+    try testing::expect((-1.2).>round() == -1.0)
+    try testing::expect((1.7).>round() == 2.0)
+    try testing::expect((-1.7).>round() == -2.0)
+    try testing::expect((1.5).>round() == 2.0)
+    try testing::expect((-1.5).>round() == -2.0)
+    .ok
+}
+
+test "trunc" {
+    try testing::expect((1.7).>trunc() == 1.0)
+    try testing::expect((-1.7).>trunc() == -1.0)
+    try testing::expect((3.2).>trunc() == 3.0)
+    .ok
+}
+
+test "fract" {
+    try testing::expect((3.5).>fract() == 0.5)
+    try testing::expect((-3.5).>fract() == -0.5)
+    try testing::expect((-5.0).>fract() == -0.0)
     .ok
 }
