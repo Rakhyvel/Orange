@@ -116,6 +116,26 @@ impl for Float {
     }
 
     // asin, acos, atan, atan2
+    fn asin(self) -> Float {
+        extern("asin") const c_asin: Float -> Float
+        c_asin(self)
+    }
+
+    fn acos(self) -> Float {
+        extern("acos") const c_acos: Float -> Float
+        c_acos(self)
+    }
+
+    fn atan(self) -> Float {
+        extern("atan") const c_atan: Float -> Float
+        c_atan(self)
+    }
+
+    fn atan2(self, x: Float) -> Float {
+        extern("atan2") const c_atan2: (Float, Float) -> Float
+        c_atan2(self, x)
+    }
+
     // sinh, cosh, tanh
     // asinh, acosh, atanh
     // min, max, clamp, abs, signum, sign, copysign, recip, is_sign_positive, is_sign_negative
@@ -202,52 +222,32 @@ test "fract" {
     .ok
 }
 
-test "pow" {
+test "power" {
     try testing::expect(2.0.>pow(10.0) == 1024.0)
-    .ok
-}
-
-test "sqrt" {
     try testing::expect(9.0.>sqrt() == 3.0)
-    .ok
-}
-
-test "cbrt" {
     try testing::expect(Float::near((-27.0).>cbrt(), -3.0))
     .ok
 }
 
-test "exp" {
+test "exponentials" {
     try testing::expect(Float::near(2.0.>exp(), 7.389056))
-    .ok
-}
-
-test "log" {
     try testing::expect(Float::near(2.0.>log(), 0.69314))
-    .ok
-}
-
-test "log2" {
     try testing::expect(Float::near(2.0.>log2(), 1.0))
-    .ok
-}
-
-test "log10" {
     try testing::expect(Float::near(2.0.>log10(), 0.301030))
     .ok
 }
 
-test "sin" {
+test "trig" {
     try testing::expect(Float::near((Float::pi / 6.0).>sin(), 0.5))
-    .ok
-}
-
-test "cos" {
     try testing::expect(Float::near((Float::pi / 3.0).>cos(), 0.5))
+    try testing::expect(Float::near((Float::pi / 4.0).>tan(), 1.0))
     .ok
 }
 
-test "tan" {
-    try testing::expect(Float::near((Float::pi / 4.0).>tan(), 1.0))
+test "inverse trig" {
+    try testing::expect(Float::near(0.5.>asin(), Float::pi / 6.0))
+    try testing::expect(Float::near(0.5.>acos(), Float::pi / 3.0))
+    try testing::expect(Float::near(1.0.>atan(), Float::pi / 4.0))
+    try testing::expect(Float::near(Float::atan2(-1.0, -1.0), -3.0 * Float::pi / 4.0))
     .ok
 }

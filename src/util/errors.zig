@@ -378,10 +378,16 @@ pub const Error = union(enum) {
                 err.expected_basic_token.expected,
                 err.expected_basic_token.got.kind.repr() orelse err.expected_basic_token.got.data,
             }) catch unreachable,
-            .expected2token => writer.print("expected `{s}`, got `{s}`\n", .{
-                err.expected2token.expected.repr() orelse "identifier",
-                err.expected2token.got.kind.repr() orelse err.expected2token.got.data,
-            }) catch unreachable,
+            .expected2token => if (err.expected2token.expected.repr()) |repr| {
+                writer.print("expected `{s}`, got `{s}`\n", .{
+                    repr,
+                    err.expected2token.got.kind.repr() orelse err.expected2token.got.data,
+                }) catch unreachable;
+            } else {
+                writer.print("expected identifier, got `{s}`\n", .{
+                    err.expected2token.got.kind.repr() orelse err.expected2token.got.data,
+                }) catch unreachable;
+            },
             .missing_close => {
                 writer.print("expected closing `{s}` to match opening `{s}` here, got `{s}`\n", .{
                     err.missing_close.expected.repr() orelse "",
