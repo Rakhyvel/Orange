@@ -3,6 +3,8 @@ cinclude "../math.h"
 import testing
 
 impl for Float {
+    const pi: Self = 3.14159265358979323846
+
     fn is_nan(self) -> Bool {
         self != self
     }
@@ -98,7 +100,21 @@ impl for Float {
         c_log10(self)
     }
 
-    // sin, cos, tan
+    fn sin(self) -> Float {
+        extern("sin") const c_sin: Float -> Float
+        c_sin(self)
+    }
+
+    fn cos(self) -> Float {
+        extern("cos") const c_cos: Float -> Float
+        c_cos(self)
+    }
+
+    fn tan(self) -> Float {
+        extern("tan") const c_tan: Float -> Float
+        c_tan(self)
+    }
+
     // asin, acos, atan, atan2
     // sinh, cosh, tanh
     // asinh, acosh, atanh
@@ -201,8 +217,6 @@ test "cbrt" {
     .ok
 }
 
-
-
 test "exp" {
     try testing::expect(Float::near(2.0.>exp(), 7.389056))
     .ok
@@ -220,5 +234,20 @@ test "log2" {
 
 test "log10" {
     try testing::expect(Float::near(2.0.>log10(), 0.301030))
+    .ok
+}
+
+test "sin" {
+    try testing::expect(Float::near((Float::pi / 6.0).>sin(), 0.5))
+    .ok
+}
+
+test "cos" {
+    try testing::expect(Float::near((Float::pi / 3.0).>cos(), 0.5))
+    .ok
+}
+
+test "tan" {
+    try testing::expect(Float::near((Float::pi / 4.0).>tan(), 1.0))
     .ok
 }
