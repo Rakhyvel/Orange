@@ -73,7 +73,31 @@ impl for Float {
         c_cbrt(self)
     }
 
-    // exp, ln, log10, log2, log
+    fn exp(self) -> Float {
+        extern("exp") const c_exp: Float -> Float
+        c_exp(self)
+    }
+
+    fn exp2(self) -> Float {
+        extern("exp2") const c_exp2: Float -> Float
+        c_exp2(self)
+    }
+
+    fn log(self) -> Float {
+        extern("log") const c_log: Float -> Float
+        c_log(self)
+    }
+
+    fn log2(self) -> Float {
+        extern("log2") const c_log2: Float -> Float
+        c_log2(self)
+    }
+
+    fn log10(self) -> Float {
+        extern("log10") const c_log10: Float -> Float
+        c_log10(self)
+    }
+
     // sin, cos, tan
     // asin, acos, atan, atan2
     // sinh, cosh, tanh
@@ -162,17 +186,39 @@ test "fract" {
     .ok
 }
 
-test "Float::pow" {
+test "pow" {
     try testing::expect(2.0.>pow(10.0) == 1024.0)
     .ok
 }
 
-test "Float::sqrt" {
+test "sqrt" {
     try testing::expect(9.0.>sqrt() == 3.0)
     .ok
 }
 
-test "Float::cbrt" {
+test "cbrt" {
     try testing::expect(Float::near((-27.0).>cbrt(), -3.0))
+    .ok
+}
+
+
+
+test "exp" {
+    try testing::expect(Float::near(2.0.>exp(), 7.389056))
+    .ok
+}
+
+test "log" {
+    try testing::expect(Float::near(2.0.>log(), 0.69314))
+    .ok
+}
+
+test "log2" {
+    try testing::expect(Float::near(2.0.>log2(), 1.0))
+    .ok
+}
+
+test "log10" {
+    try testing::expect(Float::near(2.0.>log10(), 0.301030))
     .ok
 }
