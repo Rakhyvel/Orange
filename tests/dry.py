@@ -14,7 +14,7 @@ import argparse
 # TODO:
 # - [ ] Fix to only check if the substring is repeated 3 or more times!
 # - [ ] Move all files to all.txt
-#     * Remove imports with `const [a-z0-9_]+ = @import\("[a-z0-9_/-]+(.zig)?"\).*`
+#     * Remove imports with `const [a-z0-9_]+ = @import\("[a-z0-9_/-.]+(.zig)?"\).*`
 #     * Recursively remove newlines with `\n *\n`
 # - [ ] Output actual regex
 #     * Replace ', ' with ''

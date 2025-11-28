@@ -23,7 +23,7 @@ fn cinclude_flat(self: Self, ast: *ast_.AST, asts: *std.array_list.Managed(*ast_
     _ = asts;
     _ = idx;
     if (ast.* == .cinclude) {
-        self.cincludes.append(ast.expr()) catch unreachable;
+        try self.cincludes.append(ast.expr());
     }
 
     return 0;

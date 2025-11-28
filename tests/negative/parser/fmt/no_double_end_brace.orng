@@ -1,6 +1,6 @@
-// no_double_end_brace.orng:6:25: error: expected `}`
+// no_double_end_brace.orng:6:26: error: expected `}`
 //     try @print("Hello, } world!")
-//                        ^
+//                         ^
 // 
 fn main() -> ()!() with core::IO {
     try @print("Hello, } world!")

@@ -2,7 +2,7 @@ const std = @import("std");
 const anon_name_ = @import("../util/anon_name.zig");
 const ast_ = @import("../ast/ast.zig");
 const errs_ = @import("../util/errors.zig");
-const fmt_string_ = @import("fmt_string.zig");
+const Fmt_String = @import("fmt_string.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
@@ -101,6 +101,15 @@ fn next_is_statement(self: *Self) bool {
         self.next_is_expr();
 }
 
+fn next_is_compound_assign(self: *Self) bool {
+    const next_kind = self.peek().kind;
+    return next_kind == .plus_equals or
+        next_kind == .minus_equals or
+        next_kind == .star_equals or
+        next_kind == .slash_equals or
+        next_kind == .percent_equals;
+}
+
 /// Returns the next token if its kind matches the given kind, otherwise
 /// null
 fn accept(self: *Self, kind: Token.Kind) ?Token {
@@ -121,6 +130,12 @@ fn expect(self: *Self, kind: Token.Kind) Parser_Error_Enum!Token {
         self.errors.add_error(errs_.Error{ .expected2token = .{ .expected = kind, .got = self.peek() } });
         return Parser_Error_Enum.ParseError;
     }
+}
+
+fn pop(self: *Self) Token {
+    const token = self.peek();
+    self.cursor += 1;
+    return token;
 }
 
 /// Parses a token stream a file into a list of declaration ASTs
@@ -374,18 +389,7 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             }
             return Type_AST.create_type_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "Untagged")) {
-            const args = try self.call_type_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_type_args_range(1, 1);
             return Type_AST.create_untagged_sum_type(token, args.items[0], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -571,7 +575,7 @@ fn let_pattern_atom(self: *Self) Parser_Error_Enum!*ast_.AST {
         const identifier = try self.expect(.identifier);
         return ast_.AST.create_pattern_symbol(identifier, kind, .local, identifier.data, self.allocator);
     } else if (self.accept(.left_parenthesis)) |_| {
-        const res = try self.let_pattern_product();
+        const res = try self.tuple_value(Self.let_pattern_atom);
         _ = try self.expect(.right_parenthesis);
         return res;
     } else if (self.accept(.left_square)) |_| {
@@ -581,25 +585,6 @@ fn let_pattern_atom(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else {
         self.errors.add_error(errs_.Error{ .expected_basic_token = .{ .expected = "a pattern expression here", .got = self.peek() } });
         return Parser_Error_Enum.ParseError;
-    }
-}
-
-fn let_pattern_product(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const exp = try self.let_pattern_atom();
-    var terms: ?std.array_list.Managed(*ast_.AST) = null;
-    var firsttoken_: ?Token = null;
-    while (self.accept(.comma)) |token| {
-        if (terms == null) {
-            terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
-            firsttoken_ = token;
-            terms.?.append(exp) catch unreachable;
-        }
-        terms.?.append(try self.let_pattern_atom()) catch unreachable;
-    }
-    if (terms) |terms_list| {
-        return ast_.AST.create_tuple_value(firsttoken_.?, terms_list, self.allocator);
-    } else {
-        return exp;
     }
 }
 
@@ -670,46 +655,16 @@ fn statement(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 pub fn parse_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    return self.product_expr();
+    return self.tuple_value(Self.bool_expr);
 }
 
 fn assignment_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const exp = try self.bool_expr();
     if (self.accept(.single_equals)) |token| {
         return ast_.AST.create_assign(token, exp, try self.bool_expr(), self.allocator);
-    } else if (self.accept(.plus_equals)) |token| {
+    } else if (self.next_is_compound_assign()) {
+        const token = self.pop();
         return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
-    } else if (self.accept(.minus_equals)) |token| {
-        return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
-    } else if (self.accept(.star_equals)) |token| {
-        return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
-    } else if (self.accept(.slash_equals)) |token| {
-        return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
-    } else if (self.accept(.percent_equals)) |token| {
-        return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
-    } else {
-        return exp;
-    }
-}
-
-fn product_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const exp = try self.bool_expr();
-    var terms: ?std.array_list.Managed(*ast_.AST) = null;
-    var firsttoken_: ?Token = null;
-    while (self.accept(.comma)) |token| {
-        if (terms == null) {
-            terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
-            firsttoken_ = token;
-            terms.?.append(exp) catch unreachable;
-        }
-        if (self.peek_kind(.right_parenthesis)) {
-            // Trailing comma, break out
-            break;
-        }
-        terms.?.append(try self.bool_expr()) catch unreachable;
-    }
-    if (terms) |terms_list| {
-        return ast_.AST.create_tuple_value(firsttoken_.?, terms_list, self.allocator);
     } else {
         return exp;
     }
@@ -805,166 +760,48 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
         // TODO: Would be nice to make a table of this, somehow!
         if (std.mem.eql(u8, token.data, "default")) {
-            const args = try self.call_type_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_type_args_range(1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "sizeof")) {
-            const args = try self.call_type_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_type_args_range(1, 1);
             return ast_.AST.create_size_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "write")) {
-            const args = try self.call_args();
-            if (args.items.len != 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, 2);
             const writer = args.items[0];
             const fmt_str = args.items[1];
-            const children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
+            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+            const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_write(token, writer, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "print")) {
-            const args = try self.call_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(1, 1);
             const fmt_str = args.items[0];
-            const children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
+            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+            const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "println")) {
-            const args = try self.call_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(1, 1);
             const fmt_str = args.items[0];
-            var children = try fmt_string_.parse_fmt_string(fmt_str, fmt_str.token().span, self.errors, self.allocator);
+            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+            var children = try fmt_string_parser.parse_fmt_string();
             try children.append(ast_.AST.create_string(token, "\n", self.allocator));
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_args();
-            if (args.items.len < 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, std.math.maxInt(usize));
             return ast_.AST.create_bit_and(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_args();
-            if (args.items.len < 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, std.math.maxInt(usize));
             return ast_.AST.create_bit_or(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_args();
-            if (args.items.len < 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, std.math.maxInt(usize));
             return ast_.AST.create_bit_xor(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_args();
-            if (args.items.len != 1) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 1,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(1, 1);
             return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "left_shift")) {
-            const args = try self.call_args();
-            if (args.items.len != 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, 2);
             return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "right_shift")) {
-            const args = try self.call_args();
-            if (args.items.len != 2) {
-                self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = token.span,
-                    .takes = 2,
-                    .given = args.items.len,
-                    .thing_name = "built-in function",
-                    .takes_name = "parameter",
-                    .given_name = "argument",
-                } });
-                return error.ParseError;
-            }
+            const args = try self.call_args_range(2, 2);
             return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -1091,6 +928,24 @@ fn call_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     return retval;
 }
 
+fn call_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
+    const prev_token = self.peek();
+    const args = try self.call_args();
+    if (upper < args.items.len or args.items.len < lower) {
+        self.errors.add_error(errs_.Error{ .mismatch_arity = .{
+            .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
+            .takes = upper,
+            .given = args.items.len,
+            .thing_name = "built-in function",
+            .takes_name = "parameter",
+            .given_name = "argument",
+        } });
+        return error.ParseError;
+    } else {
+        return args;
+    }
+}
+
 fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     _ = try self.expect(.left_square);
     var retval = std.array_list.Managed(*Type_AST).init(self.allocator);
@@ -1116,6 +971,24 @@ fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AS
     }
     _ = try self.expect(.right_parenthesis);
     return retval;
+}
+
+fn call_type_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+    const prev_token = self.peek();
+    const args = try self.call_type_args();
+    if (upper < args.items.len or args.items.len < lower) {
+        self.errors.add_error(errs_.Error{ .mismatch_arity = .{
+            .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
+            .takes = upper,
+            .given = args.items.len,
+            .thing_name = "built-in function",
+            .takes_name = "parameter",
+            .given_name = "argument",
+        } });
+        return error.ParseError;
+    } else {
+        return args;
+    }
 }
 
 fn control_flow(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1475,34 +1348,8 @@ fn context_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.context);
     const identifier: Token = try self.expect(.identifier);
     const name = ast_.AST.create_pattern_symbol(identifier, .type, .local, identifier.data, self.allocator);
-    _ = try self.expect(.left_brace);
 
-    var fields = std.array_list.Managed(*Type_AST).init(self.allocator);
-
-    self.newlines();
-    while (!self.peek_kind(.right_brace)) {
-        const ident_token = try self.expect(.identifier);
-        _ = try self.expect(.single_colon);
-        const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
-        const _type = try self.type_expr();
-        var _init: ?*ast_.AST = null;
-        if (self.accept(.single_equals)) |token| {
-            _init = ast_.AST.create_comptime(token, try self.bool_expr(), self.allocator);
-        }
-
-        const field = Type_AST.create_annotation(ident_token, field_ident, _type, _init, self.allocator);
-
-        fields.append(field) catch unreachable;
-        if (!self.peek_kind(.right_brace)) {
-            _ = self.accept(.comma) orelse self.accept(.newline) orelse {
-                self.errors.add_error(errs_.Error{ .expected2token = .{ .expected = .newline, .got = self.peek() } });
-                return error.ParseError;
-            };
-        }
-        self.newlines();
-    }
-
-    _ = try self.expect(.right_brace);
+    const fields = try self.parse_fields(Self.parse_struct_field);
     return ast_.AST.create_context_decl(identifier, name, fields, self.allocator);
 }
 
@@ -1513,34 +1360,7 @@ fn struct_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     const gen_params = try self.generic_params_list();
 
-    _ = try self.expect(.left_brace);
-
-    var fields = std.array_list.Managed(*Type_AST).init(self.allocator);
-
-    self.newlines();
-    while (!self.peek_kind(.right_brace)) {
-        const ident_token = try self.expect(.identifier);
-        _ = try self.expect(.single_colon);
-        const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
-        const _type = try self.type_expr();
-        var _init: ?*ast_.AST = null;
-        if (self.accept(.single_equals)) |token| {
-            _init = ast_.AST.create_comptime(token, try self.bool_expr(), self.allocator);
-        }
-
-        const field = Type_AST.create_annotation(ident_token, field_ident, _type, _init, self.allocator);
-
-        fields.append(field) catch unreachable;
-        if (!self.peek_kind(.right_brace)) {
-            _ = self.accept(.comma) orelse self.accept(.newline) orelse {
-                self.errors.add_error(errs_.Error{ .expected2token = .{ .expected = .newline, .got = self.peek() } });
-                return error.ParseError;
-            };
-        }
-        self.newlines();
-    }
-
-    _ = try self.expect(.right_brace);
+    const fields = try self.parse_fields(Self.parse_struct_field);
     return ast_.AST.create_struct_decl(identifier, name, fields, gen_params, self.allocator);
 }
 
@@ -1551,20 +1371,18 @@ fn enum_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     const gen_params = try self.generic_params_list();
 
+    const fields = try self.parse_fields(Self.parse_enum_field);
+    return ast_.AST.create_enum_decl(identifier, name, fields, gen_params, self.allocator);
+}
+
+fn parse_fields(self: *Self, field_parser: *const fn (*Self) Parser_Error_Enum!*Type_AST) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     _ = try self.expect(.left_brace);
 
     var fields: std.array_list.Managed(*Type_AST) = std.array_list.Managed(*Type_AST).init(self.allocator);
 
     self.newlines();
     while (!self.peek_kind(.right_brace)) {
-        const ident_token = try self.expect(.identifier);
-        const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
-        var _type: ?*Type_AST = null;
-        if (self.peek_kind(.left_parenthesis)) {
-            _type = try self.paren_type_expr();
-        }
-
-        const field = Type_AST.create_annotation(ident_token, field_ident, _type orelse Type_AST.create_unit_type(ident_token, self.allocator), null, self.allocator);
+        const field = try field_parser(self);
 
         fields.append(field) catch unreachable;
         if (!self.peek_kind(.right_brace)) {
@@ -1578,7 +1396,31 @@ fn enum_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     self.newlines();
 
     _ = try self.expect(.right_brace);
-    return ast_.AST.create_enum_decl(identifier, name, fields, gen_params, self.allocator);
+    return fields;
+}
+
+fn parse_struct_field(self: *Self) Parser_Error_Enum!*Type_AST {
+    const ident_token = try self.expect(.identifier);
+    _ = try self.expect(.single_colon);
+    const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
+    const _type = try self.type_expr();
+    var _init: ?*ast_.AST = null;
+    if (self.accept(.single_equals)) |token| {
+        _init = ast_.AST.create_comptime(token, try self.bool_expr(), self.allocator);
+    }
+
+    return Type_AST.create_annotation(ident_token, field_ident, _type, _init, self.allocator);
+}
+
+fn parse_enum_field(self: *Self) Parser_Error_Enum!*Type_AST {
+    const ident_token = try self.expect(.identifier);
+    const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
+    var _type: ?*Type_AST = null;
+    if (self.peek_kind(.left_parenthesis)) {
+        _type = try self.paren_type_expr();
+    }
+
+    return Type_AST.create_annotation(ident_token, field_ident, _type orelse Type_AST.create_unit_type(ident_token, self.allocator), null, self.allocator);
 }
 
 fn type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1883,13 +1725,13 @@ fn match_pattern_atom(self: *Self) Parser_Error_Enum!*ast_.AST {
         const sum_val = ast_.AST.create_enum_value(try self.expect(.identifier), self.allocator); // member will be inferred
         if (self.accept(.left_parenthesis) != null) {
             if (!self.peek_kind(.right_parenthesis)) {
-                sum_val.enum_value.init = try self.match_pattern_product();
+                sum_val.enum_value.init = try self.tuple_value(Self.match_pattern_enum_value);
             }
             _ = try self.expect(.right_parenthesis);
         }
         return sum_val;
     } else if (self.accept(.left_parenthesis)) |_| {
-        const pattern = try self.match_pattern_product();
+        const pattern = try self.tuple_value(Self.match_pattern_enum_value);
         _ = try self.expect(.right_parenthesis);
         return pattern;
     } else {
@@ -1897,8 +1739,8 @@ fn match_pattern_atom(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 }
 
-fn match_pattern_product(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const exp = try self.match_pattern_enum_value();
+fn tuple_value(self: *Self, elem: *const fn (*Self) Parser_Error_Enum!*ast_.AST) Parser_Error_Enum!*ast_.AST {
+    const exp = try elem(self);
     var terms: ?std.array_list.Managed(*ast_.AST) = null;
     var firsttoken_: ?Token = null;
     while (self.accept(.comma)) |token| {
@@ -1907,7 +1749,11 @@ fn match_pattern_product(self: *Self) Parser_Error_Enum!*ast_.AST {
             firsttoken_ = token;
             terms.?.append(exp) catch unreachable;
         }
-        terms.?.append(try self.match_pattern_enum_value()) catch unreachable;
+        if (self.peek_kind(.right_parenthesis)) {
+            // Trailing comma, break out
+            break;
+        }
+        terms.?.append(try elem(self)) catch unreachable;
     }
     if (terms) |terms_list| {
         return ast_.AST.create_tuple_value(firsttoken_.?, terms_list, self.allocator);

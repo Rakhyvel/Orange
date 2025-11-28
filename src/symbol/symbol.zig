@@ -1,4 +1,5 @@
 const std = @import("std");
+const anon_name_ = @import("../util/anon_name.zig");
 const ast_ = @import("../ast/ast.zig");
 const CFG = @import("../ir/cfg.zig");
 const errs_ = @import("../util/errors.zig");
@@ -224,15 +225,6 @@ pub fn represents_method(self: *Self, impl_for_type: *Type_AST, method_name: []c
         std.mem.eql(u8, self.name, method_name);
 }
 
-var num_anons: usize = 0;
-fn next_anon_name(class: []const u8, allocator: std.mem.Allocator) []const u8 {
-    defer num_anons += 1;
-    var out = std.array_list.Managed(u8).init(allocator);
-    defer out.deinit();
-    out.print("{s}__{}", .{ class, num_anons }) catch unreachable;
-    return out.toOwnedSlice() catch unreachable;
-}
-
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 
 pub fn monomorphize(
@@ -253,7 +245,7 @@ pub fn monomorphize(
         }
 
         // Clone the decl with the substitution
-        const name = next_anon_name(self.name, ctx.allocator());
+        const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
 
         const Symbol_Tree = @import("../ast/symbol-tree.zig");

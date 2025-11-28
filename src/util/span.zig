@@ -1,5 +1,6 @@
 const std = @import("std");
 const String = @import("../zig-string/zig-string.zig").String;
+const fmt_ = @import("../util/fmt.zig");
 
 const Self = @This();
 
@@ -57,23 +58,8 @@ pub fn print_debug_line(self: *const Self, writer: *std.array_list.Managed(u8), 
     });
 }
 
-pub fn pprint(self: Self, allocator: std.mem.Allocator) ![]const u8 {
-    var out = std.array_list.Managed(u8).init(allocator);
-    defer out.deinit();
-
-    // TODO: Generic pprinter that makes the arena and string and passes the writer to a pprint method
-    try out.print("{s}:{}:{}", .{ self.filename, self.line_number, self.col });
-
-    return out.toOwnedSlice();
-}
-
 pub fn format(self: Self, writer: *std.io.Writer) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    const out = self.pprint(arena.allocator()) catch unreachable;
-
-    try writer.print("{s}", .{out});
+    try writer.print("{s}:{}:{}", .{ self.filename, self.line_number, self.col });
 }
 
 /// Sanitizes a string, escaping proper characters.

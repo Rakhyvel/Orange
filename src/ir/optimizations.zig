@@ -73,8 +73,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
 
     switch (instr.kind) {
         .copy => {
-            const src1_def_is_ast = src1_def != null and src1_def.?.kind == .load_AST;
-            if (instr.src1 == null or (instr.src1.?.expanded_type_sizeof() == 0 and !src1_def_is_ast)) {
+            if (instr.src1 == null or (instr.src1.?.expanded_type_sizeof() == 0)) {
                 logfln("unit-copy elimination {?f} {f}", .{ instr.src1, instr.src1.?.get_expanded_type() });
                 instr.in_block.?.mark_for_removal(instr); // Mark for deletion in a later pass
             } else if (instr.dest.?.* == .symbver and
@@ -93,7 +92,6 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                     (instr.src1.?.* == .symbver and instr.src1.?.symbver.uses == 1 and try instr.copy_prop(src1_def, .load_struct, errors)) or
                     try instr.copy_prop(src1_def, .load_union, errors) or
                     try instr.copy_prop(src1_def, .load_symbol, errors) or
-                    try instr.copy_prop(src1_def, .load_AST, errors) or
                     (try instr.copy_prop(src1_def, .copy, errors) and instr.src1 != src1_def.?.src1.?) or
                     try instr.copy_prop(src1_def, .addr_of, errors) or
                     try instr.copy_prop(src1_def, .mut_addr_of, errors) or
@@ -139,11 +137,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("equal; known float,float value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.float == src2_def.?.data.float) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and
-                instr.src2.?.* == .symbver and
-                instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol and
-                !instr.src1.?.symbver.symbol.expanded_type().can_expanded_represent_float())
-            {
+            } else if (instr.self_eq() and !instr.src1.?.symbver.symbol.expanded_type().can_expanded_represent_float()) {
                 // `x == x => true (where x is NOT floating-point type)`
                 // NOTE: Cannot do `x == x  ==> true` optimization for floats, `NaN == NaN` is false!
                 log("equal; self inequality");
@@ -165,11 +159,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("not_equal; known float,float value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.float != src2_def.?.data.float) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and
-                instr.src2.?.* == .symbver and
-                instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol and
-                !instr.src1.?.symbver.symbol.expanded_type().can_expanded_represent_float())
-            {
+            } else if (instr.self_eq() and !instr.src1.?.symbver.symbol.expanded_type().can_expanded_represent_float()) {
                 // `x != x` => `false`
                 // NOTE: Cannot do `x != x  ==> true` optimization for floats, `NaN == NaN` is true!
                 log("not_equal; self inequality");
@@ -187,7 +177,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("greater_int; known int,int value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.int > src2_def.?.data.int) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x > x` => `false`
                 log("greater_int; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 0 }, errors);
@@ -200,7 +190,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("greater_float; known float,float value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.float > src2_def.?.data.float) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x > x` => `false`
                 log("greater_float; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 0 }, errors);
@@ -213,7 +203,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("lesser_int; known int,int value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.int < src2_def.?.data.int) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x < x` => `false`
                 log("lesser_int; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 0 }, errors);
@@ -226,7 +216,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("lesser_float; known int,int value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.float < src2_def.?.data.float) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x < x` => `false`
                 log("lesser_float; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 0 }, errors);
@@ -239,7 +229,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("greater_equal_int; known int,int value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.int >= src2_def.?.data.int) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x >= x` => `true`
                 log("greater_equal_int; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 1 }, errors);
@@ -261,7 +251,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
                 log("lesser_equal_int; known int,int value");
                 try instr.convert_to_load(.load_int, .{ .int = if (src1_def.?.data.int <= src2_def.?.data.int) 1 else 0 }, errors);
                 retval = true;
-            } else if (instr.src1.?.* == .symbver and instr.src2.?.* == .symbver and instr.src1.?.symbver.symbol == instr.src2.?.symbver.symbol) {
+            } else if (instr.self_eq()) {
                 // `x <= x` => `true`
                 log("lesser_equal_int; self compare");
                 try instr.convert_to_load(.load_int, .{ .int = 1 }, errors);

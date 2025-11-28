@@ -272,7 +272,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
         .generic_apply => return self.monomorphize_generic_apply(ast),
         .trait => try self.scope.traits.put(ast, void{}),
-        .@"test" => self.scope.tests.append(ast) catch unreachable,
+        .@"test" => try self.scope.tests.append(ast),
     }
 }
 
@@ -396,20 +396,20 @@ fn resolve_symbol_from_identlike(self: Self, identlike_ast: *ast_.AST) walk_.Err
             self.ctx.errors.add_error(errs_.Error{ .undeclared_identifier = .{ .identifier = identlike_ast.token(), .expected = null } });
             return error.CompileError;
         },
-        .import => return self.resolve_symbol_from_import_identlike(identlike_ast),
+        .import => return try self.resolve_symbol_from_import_identlike(identlike_ast),
         else => return identlike_ast.symbol().?,
     }
 }
 
 /// Takes in an identlike AST that refers to an import symbol, and returns the module symbol that it imports
-fn resolve_symbol_from_import_identlike(self: Self, identlike_ast: *ast_.AST) *Symbol {
+fn resolve_symbol_from_import_identlike(self: Self, identlike_ast: *ast_.AST) !*Symbol {
     const this_module = identlike_ast.symbol().?.scope.module.?;
     const curr_package_path = this_module.get_package_abs_path();
     var module_path_name = std.array_list.Managed(u8).init(self.ctx.allocator());
     defer module_path_name.deinit();
-    module_path_name.print("{s}.orng", .{identlike_ast.token().data}) catch unreachable;
+    try module_path_name.print("{s}.orng", .{identlike_ast.token().data});
     const package_build_paths = [_][]const u8{ curr_package_path, module_path_name.items };
-    const other_module_dir = std.fs.path.join(self.ctx.allocator(), &package_build_paths) catch unreachable;
+    const other_module_dir = try std.fs.path.join(self.ctx.allocator(), &package_build_paths);
 
     if (std.mem.eql(u8, identlike_ast.symbol().?.kind.import.real_name, "core")) {
         return core_.core_symbol.?;

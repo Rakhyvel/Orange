@@ -2,6 +2,7 @@ const std = @import("std");
 const Symbol = @import("../symbol/symbol.zig");
 const Instruction = @import("../ir/instruction.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const fmt_ = @import("../util/fmt.zig");
 
 const Self = @This();
 
@@ -26,28 +27,12 @@ pub fn deinit(self: *Self) void {
     // self.allocator.destroy(self); // TODO: Bwuh?!
 }
 
-fn pprint(self: ?*Self) void {
+pub fn format(self: ?*Self, out: *std.io.Writer) !void {
     if (self) |symbver| {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-        var out = std.array_list.Managed(u8).init(arena.allocator());
-        defer out.deinit();
-
-        out.writer(out.buffer.?).interface.print("{s}", .{symbver.symbol.name}) catch unreachable;
-        std.debug.print("{s:<10}", .{out.str()});
+        try out.print("{s:<10}", .{symbver.symbol.name});
     } else {
-        std.debug.print("<null>    ", .{});
+        try out.print("<null>    ", .{});
     }
-}
-
-pub fn format(self: Self, writer: *std.io.Writer) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var out = std.array_list.Managed(u8).init(arena.allocator());
-    defer out.deinit();
-
-    // writer.print("{s}@{}", .{ self.symbol.name, self.symbol.scope.uid }) catch unreachable;
-    writer.print("{s}", .{self.symbol.name}) catch unreachable;
 }
 
 pub fn set_def(self: *Self, def: ?*Instruction) void {

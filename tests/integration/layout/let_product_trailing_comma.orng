@@ -1,0 +1,9 @@
+// 413
+fn main() -> Int {
+    let (
+        hundreds,
+        tens,
+        ones,
+    ) = (4, 1, 3)
+    100 * hundreds + 10 * tens + ones
+}

@@ -12,7 +12,7 @@ json_absolute_path: []const u8,
 /// Potentially allocates for json data. Call deinit to deinitialize.
 pub fn init(package_absolute_path: []const u8, allocator: std.mem.Allocator) !Self {
     const json_absolute_paths = [_][]const u8{ package_absolute_path, "build", "hash.json" };
-    const json_absolute_path = std.fs.path.join(allocator, &json_absolute_paths) catch unreachable;
+    const json_absolute_path = try std.fs.path.join(allocator, &json_absolute_paths);
 
     const contents = read_contents(json_absolute_path, allocator) catch |err| switch (err) {
         error.FileNotFound => return Self{ .json_parsed = null, .json_absolute_path = json_absolute_path },

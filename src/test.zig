@@ -24,7 +24,17 @@ const Debug_Allocator = std.heap.DebugAllocator(.{
     .resize_stack_traces = true,
     .enable_memory_limit = true,
 });
-const Test_File_Fn = fn ([]const u8, Test_Mode, *Debug_Allocator) bool;
+
+const Test_Error = error{
+    CompileError,
+    FileNotFound,
+    LexerError,
+    InvalidRange,
+    OutOfMemory,
+    ParseError,
+    WriteFailed,
+};
+const Test_File_Fn = fn ([]const u8, Test_Mode, *Debug_Allocator) Test_Error!bool;
 
 // This is for compatability with Windows, since stdout for Windows isn't known at compile-time
 fn get_std_out() std.fs.File {
@@ -33,9 +43,9 @@ fn get_std_out() std.fs.File {
 
 pub fn main() !void {
     var args = try std.process.ArgIterator.initWithAllocator(allocator);
-    _ = args.next() orelse unreachable;
+    _ = args.next().?;
 
-    _ = std.fs.cwd().realpathAlloc(allocator, ".") catch unreachable;
+    _ = try std.fs.cwd().realpathAlloc(allocator, ".");
 
     var arg: []const u8 = undefined;
     if (args.next()) |_arg| {
@@ -84,16 +94,16 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
         var debug_alloc = Debug_Allocator{};
         const test_name = get_test_name(next) orelse continue;
         if (mode == .regular) {
-            term_.outputColor(succeed_color, "[ RUN      ... ] ", writer) catch unreachable;
-            writer.print("{s}\n", .{test_name}) catch unreachable;
+            try term_.outputColor(succeed_color, "[ RUN      ... ] ", writer);
+            try writer.print("{s}\n", .{test_name});
         }
 
-        const res = test_file(next, mode, &debug_alloc);
+        const res = try test_file(next, mode, &debug_alloc);
 
         const debug_result = debug_alloc.deinit();
         var memory_leak_detected: bool = undefined;
         if (debug_result == .leak) {
-            writer.print("compiler error: memory leak!\n", .{}) catch unreachable;
+            try writer.print("compiler error: memory leak!\n", .{});
             memory_leak_detected = true;
         } else {
             memory_leak_detected = false;
@@ -102,13 +112,13 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
         if (res and !memory_leak_detected) {
             results.passed += 1;
             if (mode == .regular) {
-                term_.outputColor(succeed_color, "[  ... PASSED  ]\n", writer) catch unreachable;
+                try term_.outputColor(succeed_color, "[  ... PASSED  ]\n", writer);
             }
         } else {
             results.failed += 1;
-            failed_tests.append(test_name) catch unreachable;
+            try failed_tests.append(test_name);
             if (mode == .regular) {
-                term_.outputColor(fail_color, "[  ... FAILED  ]\n", writer) catch unreachable;
+                try term_.outputColor(fail_color, "[  ... FAILED  ]\n", writer);
             }
         }
     }
@@ -129,68 +139,68 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
     }
 }
 
-fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) bool {
+fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
     // Try to compile Orange (make sure no errors)
-    var compiler = Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator()) catch unreachable;
+    var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();
     defer prelude_.deinit();
     defer core_.deinit();
 
     const module = module_.Module.load_from_filename(absolute_filename, "main", false, compiler) catch {
         if (mode == .regular) {
-            writer.print("Orange -> C.\n", .{}) catch unreachable;
+            try writer.print("Orange -> C.\n", .{});
         }
         return false;
     };
     const module_symbol = compiler.lookup_module(module.absolute_path).?;
 
     const package_abs_path = module.get_package_abs_path();
-    compiler.register_package(package_abs_path, .executable);
+    try compiler.register_package(package_abs_path, .executable);
     compiler.set_package_root(package_abs_path, module_symbol);
     compiler.clean_package(package_abs_path);
-    compiler.lookup_package(package_abs_path).?.include_directories.put(std.fs.path.dirname(absolute_filename).?, void{}) catch unreachable;
+    try compiler.lookup_package(package_abs_path).?.include_directories.put(std.fs.path.dirname(absolute_filename).?, void{});
 
     compiler.propagate_include_directories(package_abs_path);
-    compiler.collect_package_local_modules();
-    compiler.determine_if_modified(package_abs_path);
+    try compiler.collect_package_local_modules();
+    try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
 
     const package = compiler.lookup_package(package_abs_path).?;
     package.modified = true; // so that it always re-does stuff
-    Codegen_Context.output_modules(compiler) catch unreachable;
+    try Codegen_Context.output_modules(compiler);
 
     if (mode == .coverage) {
         // kcov can't call gcc, so stop JUST before it calls gcc
         return false;
     }
 
-    const contents = Read_File.init(compiler.allocator()).run(absolute_filename) catch unreachable;
-    const header_comment_contents = header_comment(contents, debug_alloc.allocator()) catch unreachable;
+    const contents = try Read_File.init(compiler.allocator()).run(absolute_filename);
+    const header_comment_contents = try header_comment(contents, debug_alloc.allocator());
     defer debug_alloc.allocator().free(header_comment_contents);
-    var expected_out = String.init_with_contents(debug_alloc.allocator(), header_comment_contents[0]) catch unreachable;
+    var expected_out = try String.init_with_contents(debug_alloc.allocator(), header_comment_contents[0]);
     defer expected_out.deinit();
-    _ = expected_out.replace("\r", "") catch unreachable;
-    _ = expected_out.replace("\n", "") catch unreachable;
+    _ = try expected_out.replace("\r", "");
+    _ = try expected_out.replace("\n", "");
 
-    compiler.compile(package_abs_path) catch unreachable;
+    try compiler.compile(package_abs_path);
 
     // execute (make sure no signals)
-    var output_name = String.init_with_contents(allocator, "") catch unreachable;
+    var output_name = try String.init_with_contents(allocator, "");
     var output_name_writer = output_name.writer(output_name.buffer.?);
     const out_name_writer_intfc = &output_name_writer.interface;
-    out_name_writer_intfc.print("{s}/build/{s}", .{ package_abs_path, module.package_name }) catch unreachable;
+    try out_name_writer_intfc.print("{s}/build/{s}", .{ package_abs_path, module.package_name });
     const res = exec(&[_][]const u8{output_name.str()}, .Pipe) catch |e| {
-        writer.print("{}\n", .{e}) catch unreachable;
-        writer.print("Execution interrupted!\n", .{}) catch unreachable;
+        try writer.print("{}\n", .{e});
+        try writer.print("Execution interrupted!\n", .{});
         return false;
     };
     if (!std.mem.eql(u8, res.stdout, expected_out.str())) {
-        writer.print("Expected \"{s}\" retcode, got \"{s}\"\n", .{ expected_out.str(), res.stdout }) catch unreachable;
+        try writer.print("Expected \"{s}\" retcode, got \"{s}\"\n", .{ expected_out.str(), res.stdout });
         return false;
     }
 
@@ -198,25 +208,25 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
     return true;
 }
 
-fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) bool {
+fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
     // Try to compile Orange (make sure no errors)
-    var compiler = Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator()) catch unreachable;
+    var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();
     defer prelude_.deinit();
     defer core_.deinit();
-    const contents = Read_File.init(compiler.allocator()).run(absolute_filename) catch unreachable;
-    const head = header_comment(contents, debug_alloc.allocator()) catch unreachable;
+    const contents = try Read_File.init(compiler.allocator()).run(absolute_filename);
+    const head = try header_comment(contents, debug_alloc.allocator());
     defer debug_alloc.allocator().free(head);
-    var flat_head = flatten_header_comment(head, debug_alloc.allocator()) catch unreachable;
+    var flat_head = try flatten_header_comment(head, debug_alloc.allocator());
     defer flat_head.deinit();
     const body = test_body(contents);
 
-    var error_string = String.init_with_contents(debug_alloc.allocator(), "") catch unreachable;
+    var error_string = try String.init_with_contents(debug_alloc.allocator(), "");
     defer error_string.deinit();
 
     // Try to compile Orange (make sure YES errors)
@@ -225,14 +235,14 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
         const error_string_writer_intfc = &error_string_writer.interface;
         compiler.errors.print_errors(error_string_writer_intfc, .{ .print_full_path = false, .print_color = false });
         if (mode == .bless) {
-            bless_file(filename, error_string.str(), body) catch unreachable;
+            try bless_file(filename, error_string.str(), body);
             return true;
         } else if (mode == .regular) {
             // For windows compatability, these don't really matter tbh
-            _ = error_string.replace("\r", "") catch unreachable;
-            _ = error_string.replace("\n", "") catch unreachable;
-            _ = flat_head.replace("\r", "") catch unreachable;
-            _ = flat_head.replace("\n", "") catch unreachable;
+            _ = try error_string.replace("\r", "");
+            _ = try error_string.replace("\n", "");
+            _ = try flat_head.replace("\r", "");
+            _ = try flat_head.replace("\n", "");
             const errors_match = std.mem.eql(u8, error_string.str(), flat_head.str());
             switch (err) {
                 error.LexerError,
@@ -242,12 +252,12 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
                     return errors_match;
                 },
                 error.ParseError, error.FileNotFound => {
-                    var str = String.init_with_contents(allocator, filename) catch unreachable;
+                    var str = try String.init_with_contents(allocator, filename);
                     defer str.deinit();
                     if (str.find("parser") != null) {
                         return errors_match;
                     } else {
-                        writer.print("Non-parser negative tests should parse!\n", .{}) catch unreachable;
+                        try writer.print("Non-parser negative tests should parse!\n", .{});
                         return false;
                     }
                 },
@@ -261,15 +271,15 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
         return false;
     }
 
-    writer.print("Negative test compiled without error.\n", .{}) catch unreachable;
+    try writer.print("Negative test compiled without error.\n", .{});
     return false;
 }
 
-fn bless_file(filename: []const u8, error_msg: []const u8, body: []const u8) !void {
-    var file = try std.fs.cwd().createFile(filename, .{});
+fn bless_file(filename: []const u8, error_msg: []const u8, body: []const u8) Test_Error!void {
+    var file = std.fs.cwd().createFile(filename, .{}) catch unreachable;
     defer file.close();
 
-    var file_contents = String.init_with_contents(std.heap.page_allocator, "") catch unreachable;
+    var file_contents = try String.init_with_contents(std.heap.page_allocator, "");
     defer file_contents.deinit();
 
     var writer_struct = file_contents.writer(file_contents.buffer.?);
@@ -286,7 +296,7 @@ fn bless_file(filename: []const u8, error_msg: []const u8, body: []const u8) !vo
     _ = try writer.write(&[1]u8{'\n'});
     _ = try writer.write(body);
 
-    _ = file.write(file_contents.str()) catch unreachable;
+    _ = file.write(file_contents.str()) catch return error.WriteFailed;
 }
 
 // Great std lib function candidate! Holy hell...
@@ -350,7 +360,7 @@ fn header_comment(contents: []const u8, alloc: std.mem.Allocator) ![][]const u8 
 }
 
 fn flatten_header_comment(lines: [][]const u8, alloc: std.mem.Allocator) !String {
-    var line = String.init_with_contents(alloc, "") catch unreachable;
+    var line = try String.init_with_contents(alloc, "");
     var line_writer = line.writer(line.buffer.?);
     const writer = &line_writer.interface;
     var i: usize = 0;

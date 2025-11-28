@@ -124,7 +124,7 @@ fn get_required_package(self: *Package, requirement_name: []const u8, packages: 
 /// A package is modified if:
 /// - Any of its modules are modified
 /// - Any of its dependencies are modified
-pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHashMap(*Package), compiler: *Compiler_Context) void {
+pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHashMap(*Package), compiler: *Compiler_Context) !void {
     if (self.modified != null) {
         return;
     }
@@ -133,21 +133,21 @@ pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHa
     // Check if any requirements are modified
     for (self.requirements.keys()) |requirement_name| {
         const required_package = self.get_required_package(requirement_name, packages);
-        required_package.determine_if_package_modified(packages, compiler);
+        try required_package.determine_if_package_modified(packages, compiler);
         self.modified = required_package.modified.? or self.modified.?;
     }
 
     // Check if the build module was modified, if it was, entire package will be rebuilt
     if (self.get_build_module(compiler)) |build_module| {
-        build_module.determine_if_module_modified(compiler);
-        build_module.update_module_hash(&self.module_hash, compiler.allocator());
+        try build_module.determine_if_module_modified(compiler);
+        try build_module.update_module_hash(&self.module_hash, compiler.allocator());
         self.modified = build_module.modified.? or self.modified.?;
     }
 
     // Check if any modules are modified
     for (self.local_modules.items) |local_module| {
-        local_module.determine_if_module_modified(compiler);
-        local_module.update_module_hash(&self.module_hash, compiler.allocator());
+        try local_module.determine_if_module_modified(compiler);
+        try local_module.update_module_hash(&self.module_hash, compiler.allocator());
         self.modified = local_module.modified.? or self.modified.?;
     }
 

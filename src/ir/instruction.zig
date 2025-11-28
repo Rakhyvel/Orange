@@ -8,6 +8,7 @@ const Span = @import("../util/span.zig");
 const String_Idx = @import("../ir/interned_string_set.zig").String_Idx;
 const Symbol = @import("../symbol/symbol.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const fmt_ = @import("../util/fmt.zig");
 
 const Self = @This();
 
@@ -65,12 +66,6 @@ pub fn init_float(dest: *lval_.L_Value, float: f64, span: Span, allocator: std.m
 pub fn init_string(dest: *lval_.L_Value, id: String_Idx, span: Span, allocator: std.mem.Allocator) *Self {
     var retval = Self.init(.load_string, dest, null, null, span, allocator);
     retval.data = Data{ .string_id = id };
-    return retval;
-}
-
-pub fn init_ast(dest: *lval_.L_Value, ast: *ast_.AST, span: Span, allocator: std.mem.Allocator) *Self {
-    const retval = Self.init(.load_AST, dest, null, null, span, allocator);
-    retval.data = Data{ .ast = ast };
     return retval;
 }
 
@@ -235,9 +230,6 @@ pub fn pprint(self: Self, allocator: std.mem.Allocator) ![]const u8 {
         .load_string => {
             try out.print("    {f} := <interned string:{}>\n", .{ self.dest.?, self.data.string_id });
         },
-        .load_AST => {
-            try out.print("    {f} := AST({f})\n", .{ self.dest.?, self.data.ast });
-        },
         .load_unit => {
             try out.print("    {f} := {{}}\n", .{self.dest.?});
         },
@@ -373,14 +365,7 @@ pub fn pprint(self: Self, allocator: std.mem.Allocator) ![]const u8 {
 }
 
 pub fn format(self: Self, writer: *std.io.Writer) !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-
-    const out = self.pprint(arena.allocator()) catch unreachable;
-
-    // TODO: Generic pprinter that makes the arena and string and passes the writer to a pprint method
-
-    try writer.print("{s}", .{out});
+    try fmt_.indirect_format(self, writer);
 }
 
 fn print_lval_list(lval_list: std.array_list.Managed(*lval_.L_Value), writer: *std.array_list.Managed(u8)) !void {
@@ -468,6 +453,23 @@ pub fn copy_of_prop(self: *Self, src: *?*lval_.L_Value, src_def: ?*Self) bool {
     }
 }
 
+pub fn self_eq(self: *Self) bool {
+    return self.src1.?.* == .symbver and self.src2.?.* == .symbver and self.src1.?.symbver.symbol == self.src2.?.symbver.symbol;
+}
+
+pub const Precedence = enum(usize) {
+    literal = 0,
+    postfix = 1,
+    prefix = 2,
+    multiplicative = 3,
+    additive = 4,
+    bitwise = 5,
+    comparative = 6,
+    equality = 7,
+    copy = 14,
+    highest = 100,
+};
+
 pub const Kind = enum {
     // nullary instructions
     load_symbol,
@@ -477,7 +479,6 @@ pub const Kind = enum {
     load_struct,
     load_union, // src1 is init, data.int is tag id
     load_string,
-    load_AST,
     load_unit, // no-op, but required. DO NOT optimize away
 
     // Monadic instructions
@@ -614,7 +615,7 @@ pub const Kind = enum {
         };
     }
 
-    pub fn precedence(self: Kind) i64 {
+    pub fn precedence(self: Kind) Precedence {
         return switch (self) {
             .load_symbol,
             .load_extern,
@@ -623,11 +624,11 @@ pub const Kind = enum {
             .load_struct,
             .load_union,
             .load_string,
-            => 0,
+            => Precedence.literal,
 
             .call,
             .get_tag,
-            => 1,
+            => Precedence.postfix,
 
             .negate_int,
             .negate_float,
@@ -639,22 +640,22 @@ pub const Kind = enum {
             .addr_of,
             .mut_dyn_value,
             .dyn_value,
-            => 2,
+            => Precedence.prefix,
 
             .mult_int,
             .mult_float,
             .div_int,
             .div_float,
             .mod,
-            => 3,
+            => Precedence.multiplicative,
 
             .add_int,
             .add_float,
             .sub_int,
             .sub_float,
-            => 4,
+            => Precedence.additive,
 
-            .bit_and, .bit_or, .bit_xor, .left_shift, .right_shift => 5,
+            .bit_and, .bit_or, .bit_xor, .left_shift, .right_shift => Precedence.bitwise,
 
             .greater_int,
             .greater_float,
@@ -664,13 +665,13 @@ pub const Kind = enum {
             .greater_equal_float,
             .lesser_equal_int,
             .lesser_equal_float,
-            => 6,
+            => Precedence.comparative,
 
             .equal,
             .not_equal,
-            => 7,
+            => Precedence.equality,
 
-            .copy => 14,
+            .copy => Precedence.copy,
 
             else => std.debug.panic("compiler error: unimplemented precedence for kind {s}", .{@tagName(self)}),
         };
@@ -735,13 +736,7 @@ pub const Data = union(enum) {
     }
 
     pub fn format(self: Data, writer: *std.io.Writer) !void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-
-        // TODO: Generic pprinter that makes the arena and string and passes the writer to a pprint method
-        const out = self.pprint(arena.allocator()) catch unreachable;
-
-        try writer.print("{s}", .{out});
+        try fmt_.indirect_format(self, writer);
     }
 
     pub fn equals(self: Data, other: Data) bool {

@@ -7,6 +7,7 @@ const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const unification_ = @import("unification.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 pub const Type_AST_Common = struct {
     /// Token that defined the type
@@ -487,92 +488,50 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn common(self: *const Type_AST) *const Type_AST_Common {
-        return get_field_const_ref(self, "common");
+        return union_fields_.get_field_const_ref(self, "common");
     }
 
     pub fn set_alignof(self: *Type_AST, _alignof: i64) void {
-        get_field_ref(self, "common")._alignof = _alignof;
+        union_fields_.get_field_ref(self, "common")._alignof = _alignof;
     }
 
     pub fn set_sizeof(self: *Type_AST, _sizeof: i64) void {
-        get_field_ref(self, "common")._size = _sizeof;
+        union_fields_.get_field_ref(self, "common")._size = _sizeof;
     }
 
     pub fn set_expanded_type(self: *Type_AST, _expanded_type: *Type_AST) void {
-        get_field_ref(self, "common")._expanded_type = _expanded_type;
+        union_fields_.get_field_ref(self, "common")._expanded_type = _expanded_type;
     }
 
     pub fn set_unexpanded_type(self: *Type_AST, _unexpanded_type: *Type_AST) void {
-        get_field_ref(self, "common")._unexpanded_type = _unexpanded_type;
+        union_fields_.get_field_ref(self, "common")._unexpanded_type = _unexpanded_type;
     }
 
     pub fn token(self: *const Type_AST) Token {
         return self.common()._token;
     }
 
-    /// Returns the type of the field with a given name in a Zig union type
-    fn Unwrapped(comptime Union: type, comptime field: []const u8) type {
-        return inline for (std.meta.fields(Union)) |variant| {
-            const Struct = variant.type;
-            const s: Struct = undefined;
-            if (@hasField(Struct, field)) break @TypeOf(@field(s, field));
-        } else @compileError("No such field in any of the variants!");
-    }
-
-    /// Generically retrieve the value of a field in a Zig union type
-    fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeOf(u), field) {
-        return switch (u) {
-            inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
-        } catch {
-            std.debug.panic("compiler error: `{s}` does not have field `{s}` {}", .{ @tagName(u), field, Unwrapped(@TypeOf(u), field) });
-        };
-    }
-
-    /// Generically retrieve a reference to a field in a Zig union type
-    fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    fn get_field_const_ref(u: anytype, comptime field: []const u8) *const Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    /// Generically set a field in a Zig union type
-    fn set_field(u: anytype, comptime field: []const u8, val: Unwrapped(@TypeOf(u.*), field)) void {
-        switch (u.*) {
-            inline else => |*v| if (@hasField(@TypeOf(v.*), field)) {
-                @field(v, field) = val;
-            } else {
-                std.debug.panic("compiler error: `{s}` does not have field `{s}`", .{ @tagName(u.*), field });
-            },
-        }
-    }
-
     pub fn expr(self: Type_AST) *AST {
-        return get_struct_field(self, "_expr");
+        return union_fields_.get_struct_field(self, "_expr");
     }
 
     pub fn child(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_child");
+        return union_fields_.get_struct_field(self, "_child");
     }
 
     pub fn mut(self: Type_AST) bool {
-        return get_struct_field(self, "mut");
+        return union_fields_.get_struct_field(self, "mut");
     }
 
     pub fn set_mut(self: *Type_AST, val: bool) void {
-        set_field(self, "mut", val);
+        union_fields_.set_field(self, "mut", val);
     }
 
     pub fn symbol(self: Type_AST) ?*Symbol {
         if (self == .access) {
             return self.access.inner_access.symbol();
         }
-        return get_struct_field(self, "_symbol");
+        return union_fields_.get_struct_field(self, "_symbol");
     }
 
     pub fn set_symbol(self: *Type_AST, val: ?*Symbol) void {
@@ -580,23 +539,23 @@ pub const Type_AST = union(enum) {
             self.access.inner_access.set_symbol(val);
             return;
         }
-        set_field(self, "_symbol", val);
+        union_fields_.set_field(self, "_symbol", val);
     }
 
     pub fn lhs(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_lhs");
+        return union_fields_.get_struct_field(self, "_lhs");
     }
 
     pub fn set_lhs(self: *Type_AST, val: *Type_AST) void {
-        set_field(self, "_lhs", val);
+        union_fields_.set_field(self, "_lhs", val);
     }
 
     pub fn rhs(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_rhs");
+        return union_fields_.get_struct_field(self, "_rhs");
     }
 
     pub fn set_rhs(self: *Type_AST, val: *Type_AST) void {
-        set_field(self, "_rhs", val);
+        union_fields_.set_field(self, "_rhs", val);
     }
 
     pub fn children(self: *const Type_AST) *const std.array_list.Managed(*Type_AST) {
@@ -1002,9 +961,7 @@ pub const Type_AST = union(enum) {
             .anyptr_type => return B.* == .anyptr_type,
             .unit_type => return true,
             .struct_type, .tuple_type, .context_type => {
-                if (B.children().items.len != A.children().items.len) {
-                    return false;
-                }
+                if (!lengths_match(A.children(), B.children())) return false;
                 var retval = true;
                 for (A.children().items, B.children().items) |term, B_term| {
                     if (term.* == .annotation and B_term.* == .annotation and term.annotation.pattern.* == .identifier and B_term.annotation.pattern.* == .identifier) {
@@ -1017,9 +974,7 @@ pub const Type_AST = union(enum) {
                 return retval;
             },
             .generic_apply => {
-                if (B.children().items.len != A.children().items.len) {
-                    return false;
-                }
+                if (!lengths_match(A.children(), B.children())) return false;
                 var retval = A.lhs().symbol() == B.lhs().symbol();
                 for (A.children().items, B.children().items) |term, B_term| {
                     retval = retval and term.types_match(B_term);
@@ -1027,9 +982,7 @@ pub const Type_AST = union(enum) {
                 return retval;
             },
             .enum_type, .untagged_sum_type => {
-                if (B.children().items.len != A.children().items.len) {
-                    return false;
-                }
+                if (!lengths_match(A.children(), B.children())) return false;
                 var retval = true;
                 // need to make sure the types and variant names match
                 for (A.children().items, B.children().items) |term, B_term| {
@@ -1040,9 +993,7 @@ pub const Type_AST = union(enum) {
                 return retval;
             },
             .function => {
-                if (B.children().items.len != A.children().items.len) {
-                    return false;
-                }
+                if (!lengths_match(A.children(), B.children())) return false;
                 var retval = true;
                 for (A.children().items, B.children().items) |term, other_term| {
                     retval = retval and term.types_match(other_term);
@@ -1054,6 +1005,10 @@ pub const Type_AST = union(enum) {
             },
             else => std.debug.panic("compiler error: unimplemented types_match() for {s}", .{@tagName(A.*)}),
         }
+    }
+
+    fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.array_list.Managed(*Type_AST)) bool {
+        return bs.items.len == as.items.len;
     }
 
     /// Returns whether the term A is convertible to B
@@ -1193,11 +1148,7 @@ pub const Type_AST = union(enum) {
                 return create_function(self.token(), args, _rhs, contexts, allocator);
             },
             .enum_type => {
-                var new_children = std.array_list.Managed(*Type_AST).init(allocator);
-                for (self.children().items) |item| {
-                    const new_type = item.clone(substs, allocator);
-                    new_children.append(new_type) catch unreachable;
-                }
+                const new_children = clone_types(self.children().*, substs, allocator);
                 var retval = create_enum_type(self.token(), new_children, allocator);
                 retval.enum_type.from = self.enum_type.from;
                 // NOTE: Do NOT copy over the `all_unit` type, as Self could be unit. Leave it null to be re-evaluated.
@@ -1208,21 +1159,13 @@ pub const Type_AST = union(enum) {
                 return create_untagged_sum_type(self.token(), _child, allocator);
             },
             .struct_type => {
-                var new_children = std.array_list.Managed(*Type_AST).init(allocator);
-                for (self.children().items) |item| {
-                    const new_type = item.clone(substs, allocator);
-                    new_children.append(new_type) catch unreachable;
-                }
+                const new_children = clone_types(self.children().*, substs, allocator);
                 var retval = create_struct_type(self.token(), new_children, allocator);
                 retval.struct_type.was_slice = self.struct_type.was_slice;
                 return retval;
             },
             .tuple_type => {
-                var new_children = std.array_list.Managed(*Type_AST).init(allocator);
-                for (self.children().items) |item| {
-                    const new_type = item.clone(substs, allocator);
-                    new_children.append(new_type) catch unreachable;
-                }
+                const new_children = clone_types(self.children().*, substs, allocator);
                 return create_tuple_type(self.token(), new_children, allocator);
             },
             .generic_apply => {
@@ -1299,11 +1242,9 @@ pub const Type_AST = union(enum) {
     }
 
     /// Determines if an AST type has the operators `==` and `!=` defined
+    /// TODO: Replace with trait impl lookup
     pub fn is_eq_type(self: *Type_AST) bool {
-        var expanded = self.expand_identifier();
-        while (expanded.* == .annotation) {
-            expanded = expanded.child();
-        }
+        const expanded = self.expand_identifier();
         if (expanded.* == .addr_of) {
             return true;
         } else if (expanded.* == .tuple_type) {
@@ -1315,60 +1256,43 @@ pub const Type_AST = union(enum) {
             return true;
         } else if (expanded.* == .enum_type) {
             return true;
-        } else if (expanded.* != .identifier) {
-            return false;
         }
-        return prelude_.info_from_ast(expanded).?.is_eq();
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .eq or expanded.is_ord_type();
     }
 
     /// Determines if an AST type has the operators `<` and `>` defined.
     /// Ord <: Eq
+    /// TODO: Replace with trait impl lookup
     pub fn is_ord_type(self: *Type_AST) bool {
-        var expanded = self.expand_identifier();
-        while (expanded.* == .annotation) {
-            expanded = expanded.child();
-        }
-        if (expanded.* != .identifier) {
-            return false;
-        }
-        return prelude_.info_from_ast(expanded).?.is_ord();
+        const expanded = self.expand_identifier();
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .ord or expanded.is_num_type();
     }
 
     /// Determines if an AST type has the operators `+`, `-`, `/` and `*` defined.
     /// Num <: Ord
+    /// TODO: Replace with trait impl lookup
     pub fn is_num_type(self: *Type_AST) bool {
-        var expanded = self.expand_identifier();
-        while (expanded.* == .annotation) {
-            expanded = expanded.child();
-        }
-        if (expanded.* != .identifier) {
-            return false;
-        }
-        return prelude_.info_from_ast(expanded).?.is_num();
+        const expanded = self.expand_identifier();
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .num or expanded.is_int_type();
     }
 
     /// Determines if an AST type has the operator `%` defined.
     /// Int <: Num
+    /// TODO: Replace with trait impl lookup
     pub fn is_int_type(self: *Type_AST) bool {
-        var expanded = self.expand_identifier();
-        while (expanded.* == .annotation) {
-            expanded = expanded.child();
-        }
-        if (expanded.* != .identifier) {
-            return false;
-        }
-        return prelude_.info_from_ast(expanded).?.is_int();
+        const expanded = self.expand_identifier();
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .int;
     }
 
+    /// TODO: Replace with trait impl lookup
     pub fn is_bits_type(self: *Type_AST) bool {
-        var expanded = self.expand_identifier();
-        while (expanded.* == .annotation) {
-            expanded = expanded.child();
-        }
-        if (expanded.* != .identifier) {
-            return false;
-        }
-        return prelude_.info_from_ast(expanded).?.is_bits();
+        const expanded = self.expand_identifier();
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_kind == .unsigned_integer;
     }
 
     pub fn is_c_void_type(self: *Type_AST) bool {

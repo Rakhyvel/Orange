@@ -10,99 +10,107 @@ const Tokenize = @import("../lexer/tokenize.zig");
 const Apply_Layout = @import("../lexer/apply_layout.zig");
 const Parse = @import("../parser/parse.zig");
 
-/// Takes a format string and returns a list of things to print out
-pub fn parse_fmt_string(fmt_str: *AST, span: Span, errors: *errs_.Errors, allocator: std.mem.Allocator) !std.array_list.Managed(*AST) {
+const Self = @This();
+
+fmt_str: *AST,
+errors: *errs_.Errors,
+allocator: std.mem.Allocator,
+
+i: usize = 0,
+
+pub fn init(fmt_str: *AST, errors: *errs_.Errors, allocator: std.mem.Allocator) Self {
     std.debug.assert(fmt_str.* == .string);
+    return Self{
+        .fmt_str = fmt_str,
+        .errors = errors,
+        .allocator = allocator,
+    };
+}
 
-    const data = fmt_str.string.data;
+/// Takes a format string and returns a list of things to print out
+pub fn parse_fmt_string(self: *Self) !std.array_list.Managed(*AST) {
+    var retval = std.array_list.Managed(*AST).init(self.allocator);
 
-    var retval = std.array_list.Managed(*AST).init(allocator);
-
-    var i: usize = 0;
+    const data = self.fmt_str.string.data;
     var prev: usize = 0;
-    while (i < data.len) : (i += 1) {
-        if (data[i] == '{') {
-            if (i + 1 == data.len) {
-                var err_span = span;
-                err_span.col -= data.len;
-                err_span.col += i;
-                errors.add_error(errs_.Error{ .basic = .{
-                    .span = err_span,
-                    .msg = "unexpected end of format string",
-                } });
-                return error.ParseError;
-            } else if (data[i + 1] == '{') {
-                try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
-                i += 1;
-                prev = i;
+    while (self.i < data.len) : (self.i += 1) {
+        if (data[self.i] == '{') {
+            try self.ensure_not_end();
+
+            if (data[self.i + 1] == '{') {
+                try retval.append(AST.create_string(self.fmt_str.token(), data[prev..self.i], self.allocator));
+                self.i += 1;
+                prev = self.i;
             } else {
-                var end = i;
-                while (end < data.len and data[end] != '}') : (end += 1) {}
-                if (end == data.len) {
-                    var err_span = span;
-                    err_span.col -= data.len;
-                    err_span.col += i;
-                    errors.add_error(errs_.Error{ .basic = .{
-                        .span = err_span,
-                        .msg = "unexpected end of format string",
-                    } });
-                    return error.ParseError;
-                }
-                if (end - i <= 1) {
-                    var err_span = span;
-                    err_span.col -= data.len;
-                    err_span.col += i;
-                    errors.add_error(errs_.Error{ .basic = .{
-                        .span = err_span,
-                        .msg = "empty format argument",
-                    } });
-                    return error.ParseError;
-                }
-                if (i > prev) {
-                    try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
-                    prev = i;
+                const fmt_bracket_open = self.i;
+                while (self.i < data.len and data[self.i] != '}') : (self.i += 1) {}
+                try self.ensure_not_end();
+                try self.ensure_not_empty(fmt_bracket_open);
+                if (fmt_bracket_open > prev) {
+                    try retval.append(AST.create_string(self.fmt_str.token(), data[prev..fmt_bracket_open], self.allocator));
+                    prev = fmt_bracket_open;
                 }
 
-                const asts = pipeline_.run(data[i + 1 .. end], .{
-                    Split_Lines.init(errors, allocator),
-                    Tokenize.init(span.filename, span.line_number, span.col, errors, false, allocator),
-                    Parse.init(.expr, errors, allocator),
+                const asts = pipeline_.run(data[fmt_bracket_open + 1 .. self.i], .{
+                    Split_Lines.init(self.errors, self.allocator),
+                    Tokenize.init(self.fmt_str.token().span.filename, self.fmt_str.token().span.line_number, self.fmt_str.token().span.col, self.errors, false, self.allocator),
+                    Parse.init(.expr, self.errors, self.allocator),
                 }) catch return error.ParseError;
 
                 try retval.append(asts.items[0]);
-                i = end;
-                prev = i + 1;
+                prev = self.i + 1;
             }
-        } else if (data[i] == '}') {
-            if (i + 1 == data.len) {
-                var err_span = span;
-                err_span.col -= data.len;
-                err_span.col += i;
-                errors.add_error(errs_.Error{ .basic = .{
-                    .span = err_span,
-                    .msg = "unexpected end of format string",
-                } });
-                return error.ParseError;
-            } else if (data[i + 1] == '}') {
-                try retval.append(AST.create_string(fmt_str.token(), data[prev .. i - 1], allocator));
-                i += 1;
-                prev = i;
-            } else {
-                var err_span = span;
-                err_span.col -= data.len;
-                err_span.col += i;
-                errors.add_error(errs_.Error{ .basic = .{
-                    .span = err_span,
-                    .msg = "expected `}`",
-                } });
-                return error.ParseError;
-            }
+        } else if (data[self.i] == '}') {
+            self.i += 1;
+            try self.ensure_not_end();
+            try self.expect_closing_brace();
+            try retval.append(AST.create_string(self.fmt_str.token(), data[prev .. self.i - 2], self.allocator));
+            prev = self.i;
         }
     }
 
-    if (i > prev) {
-        try retval.append(AST.create_string(fmt_str.token(), data[prev..i], allocator));
+    if (self.i > prev) {
+        try retval.append(AST.create_string(self.fmt_str.token(), data[prev..self.i], self.allocator));
     }
 
     return retval;
+}
+
+fn expect_closing_brace(self: *Self) !void {
+    if (self.fmt_str.string.data[self.i] != '}') {
+        var err_span = self.fmt_str.token().span;
+        err_span.col -= self.fmt_str.string.data.len;
+        err_span.col += self.i;
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = err_span,
+            .msg = "expected `}`",
+        } });
+        return error.ParseError;
+    }
+}
+
+fn ensure_not_end(self: *Self) !void {
+    if (self.i >= self.fmt_str.string.data.len) {
+        var err_span = self.fmt_str.token().span;
+        err_span.col -= self.fmt_str.string.data.len;
+        err_span.col += self.i;
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = err_span,
+            .msg = "unexpected end of format string",
+        } });
+        return error.ParseError;
+    }
+}
+
+fn ensure_not_empty(self: *Self, bracket_open_pos: usize) !void {
+    if (self.i - bracket_open_pos <= 1) {
+        var err_span = self.fmt_str.token().span;
+        err_span.col -= self.fmt_str.string.data.len;
+        err_span.col += bracket_open_pos;
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = err_span,
+            .msg = "empty format argument",
+        } });
+        return error.ParseError;
+    }
 }

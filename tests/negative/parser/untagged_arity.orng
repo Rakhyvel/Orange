@@ -1,5 +1,5 @@
-// untagged_arity.orng:5:35: error: built-in function takes 2 parameters, 0 arguments given
+// untagged_arity.orng:5:36: error: built-in function takes 1 parameter, 0 arguments given
 // type My_Untagged_Union = @Untagged()
-//                                  ^
+//                                   ^
 // 
 type My_Untagged_Union = @Untagged()

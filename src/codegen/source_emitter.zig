@@ -18,7 +18,6 @@ const Type_Map = @import("../types/type_map.zig").Type_Map;
 const Symbol = @import("../symbol/symbol.zig");
 
 const Self = @This();
-const HIGHEST_PRECEDENCE = 100;
 
 module: *module_.Module,
 /// Interned strings for this module. Referenced when emitting a load_string instruction to retrieve the string information.
@@ -258,7 +257,7 @@ fn output_basic_block(
     // FIXME: High Cyclo
     var bb_queue = std.array_list.Managed(*Basic_Block).init(std.heap.page_allocator); // page alloc ok, immediately deinit'd
     defer bb_queue.deinit();
-    bb_queue.append(start_bb) catch unreachable;
+    try bb_queue.append(start_bb);
     start_bb.visited = true;
 
     // Output basic-blocks in BFS order
@@ -283,7 +282,7 @@ fn output_basic_block(
             .unconditional => {
                 if (bb.terminator.unconditional) |next| {
                     if (!next.visited) {
-                        bb_queue.append(next) catch unreachable;
+                        try bb_queue.append(next);
                         next.visited = true;
                     }
                     try self.writer.print("    goto BB{};\n", .{next.uid});
@@ -294,14 +293,14 @@ fn output_basic_block(
             .conditional => {
                 // Generate the if
                 try self.writer.print("    if (", .{});
-                try self.output_rvalue(bb.terminator.conditional.condition, HIGHEST_PRECEDENCE);
+                try self.output_rvalue(bb.terminator.conditional.condition, Instruction.Precedence.highest);
                 try self.writer.print(")\n    {{\n", .{});
 
                 // Generate the `next` BB
                 if (bb.terminator.conditional.true_target) |next| {
                     try self.writer.print("        goto BB{};\n    }}", .{next.uid});
                     if (!next.visited) {
-                        bb_queue.append(next) catch unreachable;
+                        try bb_queue.append(next);
                         next.visited = true;
                     }
                 } else {
@@ -313,7 +312,7 @@ fn output_basic_block(
                 // Generate the `branch` BB if it isn't the next one up
                 if (bb.terminator.conditional.false_target) |branch| {
                     if (!branch.visited) {
-                        bb_queue.append(branch) catch unreachable;
+                        try bb_queue.append(branch);
                         branch.visited = true;
                     }
                     try self.writer.print("\n    else\n    {{\n        goto BB{};\n    }}\n", .{branch.uid});
@@ -538,7 +537,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             for (instr.data.call.arg_lval_list.items, 0..) |term, i| {
                 if (!term.get_expanded_type().is_c_void_type()) {
                     // Do not output `void` arguments
-                    try self.output_rvalue(term, HIGHEST_PRECEDENCE);
+                    try self.output_rvalue(term, Instruction.Precedence.highest);
                     if (i + 1 < instr.data.call.arg_lval_list.items.len and !instr.data.call.arg_lval_list.items[i + 1].get_expanded_type().is_c_void_type()) {
                         try self.writer.print(", ", .{});
                     }
@@ -552,7 +551,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             if (instr.data.invoke.method_decl.method_decl.init != null and !instr.data.invoke.method_decl.method_decl.is_virtual) {
                 // method is non-virtual
                 // { method name }({ args })
-                try self.output_rvalue(instr.data.invoke.method_decl_lval.?, 2);
+                try self.output_rvalue(instr.data.invoke.method_decl_lval.?, Instruction.Precedence.prefix);
                 try self.writer.print("(", .{});
             } else if (instr.data.invoke.dyn_value != null) {
                 // method is virtual, dyn_value (receiver ptr + vtable ptr) isn't null
@@ -568,7 +567,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             for (instr.data.invoke.arg_lval_list.items, 0..) |term, i| {
                 if (!term.get_expanded_type().is_c_void_type()) {
                     // Do not output `void` arguments
-                    try self.output_rvalue(term, HIGHEST_PRECEDENCE);
+                    try self.output_rvalue(term, Instruction.Precedence.highest);
                     if (instr.data.invoke.dyn_value != null and instr.data.invoke.dyn_value == term and i == 0) {
                         try self.writer.print(".data_ptr", .{});
                     }
@@ -588,7 +587,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             var spaces = std.array_list.Managed(u8).init(std.heap.page_allocator); // page alloc ok, immediately deinit'd
             defer spaces.deinit();
             for (1..instr.span.col - 1) |_| {
-                spaces.print(" ", .{}) catch unreachable;
+                try spaces.print(" ", .{});
             }
             try self.writer.print("    orange_debug__lines[orange_debug__line_idx++] = ", .{});
 
@@ -634,7 +633,7 @@ fn output_vtable_invoke(self: *Self, instr: *Instruction) !void {
     var vtables = std.array_list.Managed(usize).init(std.heap.page_allocator);
     defer vtables.deinit();
     _ = try self.append_vtable_indirection(trait_decl, method_name, &vtables);
-    try self.output_rvalue(instr.data.invoke.dyn_value.?, 2);
+    try self.output_rvalue(instr.data.invoke.dyn_value.?, Instruction.Precedence.prefix);
     try self.writer.print(".vtable->", .{});
     for (0..vtables.items.len) |i| {
         try self.writer.print("_{}->", .{vtables.items[vtables.items.len - i - 1]});
@@ -687,9 +686,9 @@ fn output_lvalue_check(self: *Self, span: Span, lvalue: *lval_.L_Value) CodeGen_
 
             if (lvalue.index.length != null) {
                 try self.writer.print("    orange_debug__bounds_check(", .{});
-                try self.output_rvalue(lvalue.index.rhs, HIGHEST_PRECEDENCE); // idx
+                try self.output_rvalue(lvalue.index.rhs, Instruction.Precedence.highest); // idx
                 try self.writer.print(", ", .{});
-                try self.output_rvalue(lvalue.index.length.?, HIGHEST_PRECEDENCE); // length
+                try self.output_rvalue(lvalue.index.length.?, Instruction.Precedence.highest); // length
                 try self.writer.print(", ", .{});
                 try span.print_debug_line(self.writer, Span.c_format);
                 try self.writer.print(");\n", .{});
@@ -700,7 +699,7 @@ fn output_lvalue_check(self: *Self, span: Span, lvalue: *lval_.L_Value) CodeGen_
 
             if (lvalue.select.tag != null) {
                 try self.writer.print("    orange_debug__tag_check(", .{});
-                try self.output_rvalue(lvalue.select.tag.?, HIGHEST_PRECEDENCE); // tag
+                try self.output_rvalue(lvalue.select.tag.?, Instruction.Precedence.highest); // tag
                 try self.writer.print(", {}, ", .{lvalue.select.field});
                 try span.print_debug_line(self.writer, Span.c_format);
                 try self.writer.print(");\n", .{});
@@ -711,8 +710,8 @@ fn output_lvalue_check(self: *Self, span: Span, lvalue: *lval_.L_Value) CodeGen_
 }
 
 /// Outputs the C code for an rvalue expression based on the provided lvalue.
-fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: i128) CodeGen_Error!void {
-    if (outer_precedence < lvalue.lval_precedence()) {
+fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruction.Precedence) CodeGen_Error!void {
+    if (@intFromEnum(outer_precedence) < @intFromEnum(lvalue.lval_precedence())) {
         // Opening paren, if needed by precedence
         try self.writer.print("(", .{});
     }
@@ -753,14 +752,14 @@ fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: i128) Co
         },
         .raw_address => std.debug.panic("compiler error: cannot output raw address lvalue", .{}),
     }
-    if (outer_precedence < lvalue.lval_precedence()) {
+    if (@intFromEnum(outer_precedence) < @intFromEnum(lvalue.lval_precedence())) {
         // Closing paren, if needed by precedence
         try self.writer.print(")", .{});
     }
 }
 
 /// Outputs the C code for an lvalue expression.
-fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: i128) CodeGen_Error!void {
+fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruction.Precedence) CodeGen_Error!void {
     if (lvalue.expanded_type_sizeof() == 0) {
         try self.writer.print("(void *)0xAAAAAAAA", .{});
         return;
@@ -780,10 +779,10 @@ fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: i128) Co
             if (lvalue.index.lhs.get_expanded_type().* == .addr_of) {
                 // Index of a multiptr addr, lvalue is simply the rvalue
                 std.debug.assert(lvalue.index.lhs.get_expanded_type().addr_of.multiptr);
-                try self.output_rvalue(lvalue.index.lhs, 2);
+                try self.output_rvalue(lvalue.index.lhs, Instruction.Precedence.prefix);
             } else {
                 // Index a slice, usual lvalue of lhs
-                try self.output_lvalue(lvalue.index.lhs, 2);
+                try self.output_lvalue(lvalue.index.lhs, Instruction.Precedence.prefix);
             }
 
             // Only generate index add if index is non-zero
@@ -795,12 +794,12 @@ fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: i128) Co
         },
         .symbver, .select => {
             // For symbvers and selects, just print out the rvalue version, and take the address of it
-            if (outer_precedence < 2) {
+            if (@intFromEnum(outer_precedence) < @intFromEnum(Instruction.Precedence.prefix)) {
                 try self.writer.print("(", .{});
             }
             try self.writer.print("&", .{});
-            try self.output_rvalue(lvalue, 2);
-            if (outer_precedence < 2) { // TODO: De-magic number these
+            try self.output_rvalue(lvalue, Instruction.Precedence.prefix);
+            if (@intFromEnum(outer_precedence) < @intFromEnum(Instruction.Precedence.prefix)) {
                 try self.writer.print(")", .{});
             }
         },
@@ -822,7 +821,7 @@ fn output_return(self: *Self, return_symbol: *Symbol) CodeGen_Error!void {
 /// after this to complete the assignment.
 fn output_var_assign(self: *Self, lval: *lval_.L_Value) CodeGen_Error!void {
     try self.writer.print("    ", .{});
-    try self.output_rvalue(lval, HIGHEST_PRECEDENCE);
+    try self.output_rvalue(lval, Instruction.Precedence.highest);
     try self.writer.print(" = ", .{});
 }
 

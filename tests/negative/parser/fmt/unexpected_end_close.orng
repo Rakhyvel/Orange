@@ -1,6 +1,6 @@
-// unexpected_end_close.orng:6:25: error: unexpected end of format string
+// unexpected_end_close.orng:6:26: error: unexpected end of format string
 //     try @print("Hello, }")
-//                        ^
+//                         ^
 // 
 fn main() -> ()!() with core::IO {
     try @print("Hello, }")

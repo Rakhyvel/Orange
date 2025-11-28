@@ -349,9 +349,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const domain = expanded_lhs_type.function.args;
             const codomain = expanded_lhs_type.rhs();
             const variadic = expanded_lhs_type.function.variadic;
-            ast.set_children(try args_.default_args(.function, ast.children().*, ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator()));
-            args_.implicit_ref(ast.children(), &domain, self.ctx.allocator());
-            try args_.validate_args_arity(.function, ast.children(), &domain, variadic, ast.token().span, &self.ctx.errors);
+            var args_validator = args_.init(.function, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
+            args_validator.set_variadic(variadic);
+            ast.set_children(try args_validator.default_args());
+            args_validator.implicit_ref();
+            try args_validator.validate_args_arity();
             _ = try self.validate_args_type(ast.children(), &domain, variadic);
             return codomain;
         },
@@ -506,8 +508,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
 
             try self.validate_context(method_decl_type, ast);
 
-            ast.set_children(try args_.default_args(.method, ast.children().*, ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator()));
-            try args_.validate_args_arity(.method, ast.children(), &domain, false, ast.token().span, &self.ctx.errors);
+            var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
+            ast.set_children(try args_validator.default_args());
+            try args_validator.validate_args_arity();
             _ = try self.validate_args_type(ast.children(), &domain, false);
 
             return ast.invoke.method_decl.?.method_decl.ret_type;
@@ -560,8 +563,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const expanded_expected: *Type_AST = if (expected == null) ast.context_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .context_type) {
                 // Expecting ast to be a product value of some product type
-                ast.set_children(try args_.default_args(.context, ast.children().*, ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator()));
-                try args_.validate_args_arity(.context, ast.children(), expanded_expected.children(), false, ast.token().span, &self.ctx.errors);
+                var args_validator = args_.init(.context, ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
+                ast.set_children(try args_validator.default_args());
+                try args_validator.validate_args_arity();
                 _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false);
                 return ast.context_value.parent;
             } else if (ast.context_value.parent.expand_identifier().* != .context_type) {
@@ -581,8 +585,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             const expanded_expected: *Type_AST = if (expected == null) ast.struct_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
-                ast.set_children(try args_.default_args(.@"struct", ast.children().*, ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator()));
-                try args_.validate_args_arity(.@"struct", ast.children(), expanded_expected.children(), false, ast.token().span, &self.ctx.errors);
+                var args_validator = args_.init(.@"struct", ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
+                ast.set_children(try args_validator.default_args());
+                try args_validator.validate_args_arity();
                 _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false);
                 return ast.struct_value.parent;
             } else if (ast.struct_value.parent.expand_identifier().* != .struct_type) {
@@ -610,8 +615,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 }
             } else if (expanded_expected != null and expanded_expected.?.* == .tuple_type) {
                 // Expecting ast to be a product value of some product type
-                try args_.validate_args_arity(.tuple, ast.children(), expanded_expected.?.children(), false, ast.token().span, &self.ctx.errors);
-                terms = try self.validate_args_type(ast.children(), expanded_expected.?.children(), false);
+                var args_validator = args_.init(.tuple, ast.children(), ast.token().span, expanded_expected.?.children(), &self.ctx.errors, self.ctx.allocator());
+                try args_validator.validate_args_arity();
+                _ = try self.validate_args_type(ast.children(), expanded_expected.?.children(), false);
                 return expected.?;
             } else {
                 // It's ok to assign this to a unit type, something like `_ = (1, 2, 3)`

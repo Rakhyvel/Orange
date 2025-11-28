@@ -26,7 +26,7 @@ pub fn Dfs_Iterator(comptime T: type) type {
             if (self.current == null) return null;
 
             // Our result is our current value
-            const result = self.current orelse unreachable;
+            const result = self.current.?;
             self.visited.put(result, {}) catch unreachable;
 
             // Add all adjacent edges to the stack.

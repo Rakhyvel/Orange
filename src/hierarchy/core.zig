@@ -51,9 +51,9 @@ fn create_core(compiler: *Compiler_Context) !void {
     };
 
     var core_module_abs_path = std.array_list.Managed(u8).init(compiler.allocator());
-    core_module_abs_path.print("{s}{c}core.orng", .{ core_package_name, std.fs.path.sep }) catch unreachable;
+    try core_module_abs_path.print("{s}{c}core.orng", .{ core_package_name, std.fs.path.sep });
 
-    const module = module_.Module.init(core_module_abs_path.toOwnedSlice() catch unreachable, compiler.allocator());
+    const module = try module_.Module.init(try core_module_abs_path.toOwnedSlice(), compiler.allocator());
     core = Scope.init(compiler.prelude, &uid_gen, compiler.allocator());
     core_symbol = Symbol.init(
         compiler.prelude,
