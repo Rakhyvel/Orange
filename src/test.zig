@@ -141,7 +141,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
 
 fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
@@ -213,7 +213,7 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
     // Try to compile Orange (make sure no errors)
     var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();

@@ -152,7 +152,7 @@ def main():
         tokens = scanner.tokenize()
         with open("tokens.txt", "w") as token_f:
             token_f.write(str(tokens))
-        result = find_longest_repeated_subsequence(tokens, 2)
+        result = find_longest_repeated_subsequence(tokens)
         print(result)
 
 

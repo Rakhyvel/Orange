@@ -389,7 +389,7 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             }
             return Type_AST.create_type_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "Untagged")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return Type_AST.create_untagged_sum_type(token, args.items[0], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -760,48 +760,48 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
         // TODO: Would be nice to make a table of this, somehow!
         if (std.mem.eql(u8, token.data, "default")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "sizeof")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_size_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "write")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             const writer = args.items[0];
             const fmt_str = args.items[1];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_write(token, writer, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "print")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             const fmt_str = args.items[0];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "println")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             const fmt_str = args.items[0];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             var children = try fmt_string_parser.parse_fmt_string();
             try children.append(ast_.AST.create_string(token, "\n", self.allocator));
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_and(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_or(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_xor(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "left_shift")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "right_shift")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -928,24 +928,6 @@ fn call_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     return retval;
 }
 
-fn call_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
-    const prev_token = self.peek();
-    const args = try self.call_args();
-    if (upper < args.items.len or args.items.len < lower) {
-        self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-            .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
-            .takes = upper,
-            .given = args.items.len,
-            .thing_name = "built-in function",
-            .takes_name = "parameter",
-            .given_name = "argument",
-        } });
-        return error.ParseError;
-    } else {
-        return args;
-    }
-}
-
 fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     _ = try self.expect(.left_square);
     var retval = std.array_list.Managed(*Type_AST).init(self.allocator);
@@ -973,9 +955,9 @@ fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AS
     return retval;
 }
 
-fn call_type_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+fn call_validate_args_range(self: *Self, comptime T: type, f: *const fn (*Self) Parser_Error_Enum!std.array_list.Managed(*T), lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*T) {
     const prev_token = self.peek();
-    const args = try self.call_type_args();
+    const args = try f(self);
     if (upper < args.items.len or args.items.len < lower) {
         self.errors.add_error(errs_.Error{ .mismatch_arity = .{
             .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
@@ -1485,7 +1467,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.@"const")) {
             const_decls.append(try self.const_declaration()) catch unreachable;
         } else {
-            method_decls.append(try self.method_declaration()) catch unreachable;
+            method_decls.append(try self.method_definition()) catch unreachable;
         }
         self.newlines();
     }
@@ -1541,39 +1523,6 @@ fn test_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     );
 }
 
-fn method_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const virtual = self.accept(.virtual);
-    const introducer = try self.expect(.@"fn");
-    const name: *ast_.AST = ast_.AST.create_identifier(try self.expect(.identifier), self.allocator);
-
-    const params_and_receiver = try self.method_paramlist();
-    const params = params_and_receiver.params;
-    const _receiver = params_and_receiver.receiver;
-    var ret_type: ?*Type_AST = null;
-    if (self.accept(.skinny_arrow) != null) {
-        ret_type = try self.type_expr();
-    }
-
-    const refinement: ?*ast_.AST = null;
-    if (self.accept(.where)) |_| {
-        _ = try self.bool_expr();
-    }
-    const contexts_decls = try self.context_paramlist();
-
-    return ast_.AST.create_method_decl(
-        introducer,
-        name,
-        virtual != null,
-        _receiver,
-        params,
-        ret_type orelse Type_AST.create_unit_type(introducer, self.allocator),
-        contexts_decls,
-        refinement,
-        null, // Won't have an init!
-        self.allocator,
-    );
-}
-
 fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     const virtual = self.accept(.virtual);
     const introducer = try self.expect(.@"fn");
@@ -1593,9 +1542,12 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
     const contexts_decls = try self.context_paramlist();
 
-    const _init = try self.block_expr();
+    var _init: ?*ast_.AST = null;
+    if (self.peek_kind(.left_brace)) {
+        _init = try self.block_expr();
+    }
 
-    return ast_.AST.create_method_decl( // TODO: create `method_def` ast
+    return ast_.AST.create_method_decl(
         introducer,
         name,
         virtual != null,

@@ -47,6 +47,7 @@ const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
 const validation_state_ = @import("../util/validation_state.zig");
 const unification_ = @import("../types/unification.zig");
 const fmt_ = @import("../util/fmt.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 pub const AST_Validation_State = validation_state_.Validation_State;
 
@@ -1943,7 +1944,7 @@ pub const AST = union(enum) {
     }
 
     pub fn common(self: *AST) *AST_Common {
-        return get_field_ref(self, "common");
+        return union_fields_.get_field_ref(self, "common");
     }
 
     pub fn token(self: *AST) Token {
@@ -1951,11 +1952,11 @@ pub const AST = union(enum) {
     }
 
     pub fn expr(self: AST) *AST {
-        return get_struct_field(self, "_expr");
+        return union_fields_.get_struct_field(self, "_expr");
     }
 
     pub fn set_expr(self: *AST, val: *AST) void {
-        set_field(self, "_expr", val);
+        union_fields_.set_field(self, "_expr", val);
     }
 
     pub fn @"type"(self: AST) *Type_AST {
@@ -1968,35 +1969,35 @@ pub const AST = union(enum) {
     }
 
     pub fn symbol(self: AST) ?*Symbol {
-        return get_struct_field(self, "_symbol");
+        return union_fields_.get_struct_field(self, "_symbol");
     }
 
     pub fn set_symbol(self: *AST, val: ?*Symbol) void {
-        set_field(self, "_symbol", val);
+        union_fields_.set_field(self, "_symbol", val);
     }
 
     pub fn scope(self: AST) ?*Scope {
-        return get_struct_field(self, "_scope");
+        return union_fields_.get_struct_field(self, "_scope");
     }
 
     pub fn set_scope(self: *AST, val: ?*Scope) void {
-        set_field(self, "_scope", val);
+        union_fields_.set_field(self, "_scope", val);
     }
 
     pub fn lhs(self: AST) *AST {
-        return get_struct_field(self, "_lhs");
+        return union_fields_.get_struct_field(self, "_lhs");
     }
 
     pub fn set_lhs(self: *AST, val: *AST) void {
-        set_field(self, "_lhs", val);
+        union_fields_.set_field(self, "_lhs", val);
     }
 
     pub fn rhs(self: AST) *AST {
-        return get_struct_field(self, "_rhs");
+        return union_fields_.get_struct_field(self, "_rhs");
     }
 
     pub fn set_rhs(self: *AST, val: *AST) void {
-        set_field(self, "_rhs", val);
+        union_fields_.set_field(self, "_rhs", val);
     }
 
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
@@ -2185,79 +2186,43 @@ pub const AST = union(enum) {
     }
 
     pub fn pos(self: AST) ?usize {
-        return get_struct_field(self, "_pos");
+        return union_fields_.get_struct_field(self, "_pos");
     }
 
     pub fn set_pos(self: *AST, val: ?usize) void {
-        set_field(self, "_pos", val);
+        union_fields_.set_field(self, "_pos", val);
     }
 
     pub fn statement(self: AST) *AST {
-        return get_struct_field(self, "_statement");
+        return union_fields_.get_struct_field(self, "_statement");
     }
 
     pub fn set_statement(self: *AST, val: *AST) void {
-        set_field(self, "_statement", val);
+        union_fields_.set_field(self, "_statement", val);
     }
 
     pub fn body_block(self: AST) *AST {
-        return get_struct_field(self, "_body_block");
+        return union_fields_.get_struct_field(self, "_body_block");
     }
 
     pub fn set_body_block(self: *AST, val: *AST) void {
-        set_field(self, "_body_block", val);
+        union_fields_.set_field(self, "_body_block", val);
     }
 
     pub fn else_block(self: AST) ?*AST {
-        return get_struct_field(self, "_else_block");
+        return union_fields_.get_struct_field(self, "_else_block");
     }
 
     pub fn set_else_block(self: *AST, val: ?*AST) void {
-        set_field(self, "_else_block", val);
+        union_fields_.set_field(self, "_else_block", val);
     }
 
     pub fn mut(self: AST) bool {
-        return get_struct_field(self, "mut");
+        return union_fields_.get_struct_field(self, "mut");
     }
 
     pub fn set_mut(self: *AST, val: bool) void {
-        set_field(self, "mut", val);
-    }
-
-    /// Returns the type of the field with a given name in a Zig union type
-    fn Unwrapped(comptime Union: type, comptime field: []const u8) type {
-        return inline for (std.meta.fields(Union)) |variant| {
-            const Struct = variant.type;
-            const s: Struct = undefined;
-            if (@hasField(Struct, field)) break @TypeOf(@field(s, field));
-        } else @compileError("No such field in any of the variants!");
-    }
-
-    /// Generically retrieve the value of a field in a Zig union type
-    fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeOf(u), field) {
-        return switch (u) {
-            inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
-        } catch {
-            std.debug.panic("compiler error: `{s}` does not have field `{s}` {}", .{ @tagName(u), field, Unwrapped(@TypeOf(u), field) });
-        };
-    }
-
-    /// Generically retrieve a reference to a field in a Zig union type
-    fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    /// Generically set a field in a Zig union type
-    fn set_field(u: anytype, comptime field: []const u8, val: Unwrapped(@TypeOf(u.*), field)) void {
-        switch (u.*) {
-            inline else => |*v| if (@hasField(@TypeOf(v.*), field)) {
-                @field(v, field) = val;
-            } else {
-                std.debug.panic("compiler error: `{s}` does not have field `{s}`", .{ @tagName(u.*), field });
-            },
-        }
+        union_fields_.set_field(self, "mut", val);
     }
 
     // Expr must be an array value of length `l`. Slice value is `(&expr[0], l)`.
@@ -3474,11 +3439,7 @@ fn lookup_import_module(self: Self, pattern_ast: *ast_.AST, import_name: []const
                 } });
                 return error.CompileError;
             },
-            error.CompileError, error.ParseError, error.LexerError => {
-                // This is possible if the user does `import Int` or something, or if there's lexer errors
-                return error.CompileError;
-            },
-            else => std.debug.panic("compiler error: this shouldn't be reachable\n", .{}),
+            else => return error.CompileError,
         };
     }
 }
@@ -4876,12 +4837,12 @@ pub fn output_modules(compiler: *Compiler_Context) !void {
 
         const build_path = package.get_build_path(compiler.allocator());
         _ = std.fs.openDirAbsolute(build_path, .{}) catch {
-            std.fs.makeDirAbsolute(build_path) catch return error.MakeDirError;
+            std.fs.makeDirAbsolute(build_path) catch unreachable;
         };
 
         const types_path = package.get_types_path(compiler.allocator());
         _ = std.fs.openDirAbsolute(types_path, .{}) catch {
-            std.fs.makeDirAbsolute(types_path) catch return error.MakeDirError;
+            std.fs.makeDirAbsolute(types_path) catch unreachable;
         };
 
         try output_types(&package.type_set, types_path, compiler.allocator());
@@ -6836,7 +6797,6 @@ const Error: type = error{
     CompileError,
     FileNotFound,
     OutOfMemory,
-    MakeDirError,
 };
 
 arena: std.heap.ArenaAllocator,
@@ -7138,7 +7098,7 @@ fn create_core(compiler: *Compiler_Context) !void {
     repo_.ensure_packages_dir_exists(compiler.allocator());
     core_package_name = repo_.get_repo_dir("core", compiler.allocator());
     _ = std.fs.openDirAbsolute(core_package_name, .{}) catch {
-        std.fs.makeDirAbsolute(core_package_name) catch return error.MakeDirError;
+        std.fs.makeDirAbsolute(core_package_name) catch unreachable;
     };
 
     var core_module_abs_path = std.array_list.Managed(u8).init(compiler.allocator());
@@ -8012,35 +7972,7 @@ fn cc(
     allocator: std.mem.Allocator,
 ) !void {
     const cc_cmd = try self.construct_obj_cc_cmd(c_file, o_file, packages, allocator);
-    print_cmd(&cc_cmd);
-
-    var cwd_string = std.array_list.Managed(u8).init(allocator);
-    cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
-
-    const run_res = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = cc_cmd.items,
-        .cwd = cwd_string.items,
-    }) catch |err| switch (err) {
-        else => std.debug.panic("compile error: on cc invoke: {}", .{err}),
-    };
-
-    var retcode: u8 = 0;
-    switch (run_res.term) {
-        .Exited => |c| {
-            retcode = c;
-        },
-        .Signal => return error.CompileError,
-        else => {
-            std.debug.print("{s}\n", .{run_res.stderr});
-            return error.CompileError;
-        },
-    }
-
-    if (retcode != 0) {
-        std.debug.print("{s}", .{run_res.stderr});
-        return error.CompileError;
-    }
+    try self.invoke_cmd(cc_cmd, allocator);
 }
 
 /// Constructs the command to call zig cc to compile a modules .o file
@@ -8154,33 +8086,7 @@ fn ar(self: *Package, obj_files: std.StringArrayHashMap(void), allocator: std.me
     // Add all the object files
     cmd.appendSlice(obj_files.keys()) catch unreachable;
 
-    // Set cwd
-    var cwd_string = std.array_list.Managed(u8).init(allocator);
-    cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
-
-    print_cmd(&cmd);
-    const run_res = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = cmd.items,
-        .cwd = cwd_string.items,
-    }) catch unreachable;
-
-    var retcode: u8 = 0;
-    switch (run_res.term) {
-        .Exited => |c| {
-            retcode = c;
-        },
-        .Signal => return error.CompileError,
-        else => {
-            std.debug.print("{s}\n", .{run_res.stderr});
-            return error.CompileError;
-        },
-    }
-
-    if (retcode != 0) {
-        std.debug.print("ar error: {s}\n", .{run_res.stderr});
-        return error.CompileError;
-    }
+    try self.invoke_cmd(cmd, allocator);
 }
 
 pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
@@ -8202,8 +8108,10 @@ pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
 /// Runs the command to link the object files of a package into an executable
 fn link_executable(self: *Package, obj_files: std.StringArrayHashMap(void), packages: std.StringArrayHashMap(*Package), allocator: std.mem.Allocator) !void {
     const cmd = try self.construct_exe_cc_cmd(obj_files, packages, allocator);
+    try self.invoke_cmd(cmd, allocator);
+}
 
-    // Set cwd
+fn invoke_cmd(self: *Package, cmd: std.array_list.Managed([]const u8), allocator: std.mem.Allocator) !void {
     var cwd_string = std.array_list.Managed(u8).init(allocator);
     cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
 
@@ -8212,7 +8120,9 @@ fn link_executable(self: *Package, obj_files: std.StringArrayHashMap(void), pack
         .allocator = allocator,
         .argv = cmd.items,
         .cwd = cwd_string.items,
-    }) catch unreachable;
+    }) catch |err| switch (err) {
+        else => std.debug.panic("compile error: on cmd invoke: {}", .{err}),
+    };
 
     var retcode: u8 = 0;
     switch (run_res.term) {
@@ -8775,7 +8685,7 @@ const lval_ = @import("../ir/lval.zig");
 const repo_ = @import("../util/repo.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 
-const Error: type = error{ LexerError, ParseError, CompileError, FileNotFound, OutOfMemory, MakeDirError };
+const Error: type = error{ LexerError, ParseError, CompileError, FileNotFound, OutOfMemory };
 
 const Package_Find_Result = struct { package_adrs: i64, package_dirname: []const u8 };
 
@@ -14927,8 +14837,8 @@ fn build(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
     defer compiler.deinit();
     const package_abs_path = try construct_package_dag(compiler);
     compiler.propagate_include_directories(package_abs_path);
-    compiler.collect_package_local_modules();
-    compiler.determine_if_modified(package_abs_path);
+    try compiler.collect_package_local_modules();
+    try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
     try compiler.compile(package_abs_path);
@@ -14980,10 +14890,10 @@ fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.
     var compiler = try Compiler_Context.init(errs_.get_std_err(), allocator);
     defer compiler.deinit();
     const package_abs_path = try construct_package_dag(compiler);
-    compiler.set_package_kind(package_abs_path, .test_executable);
+    try compiler.set_package_kind(package_abs_path, .test_executable);
     compiler.propagate_include_directories(package_abs_path);
-    compiler.collect_package_local_modules();
-    compiler.determine_if_modified(package_abs_path);
+    try compiler.collect_package_local_modules();
+    try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
     try compiler.compile(package_abs_path);
@@ -15003,7 +14913,7 @@ fn make_package(
         1 => package_kind = .static_library,
         else => std.debug.panic("unimplemented", .{}),
     }
-    compiler.register_package(package_absolute_path, package_kind);
+    try compiler.register_package(package_absolute_path, package_kind);
 
     const entry_name: ?[]const u8 = if (package_kind == .executable) "main" else null;
 
@@ -15018,10 +14928,10 @@ fn make_package(
         const required_package_dir = required_package.get_field(core_.package_type, "dir").string.data;
 
         const new_working_directory_buffer = try compiler.allocator().alloc(u8, std.fs.max_path_bytes);
-        const new_working_directory = std.fs.cwd().realpath(required_package_dir, new_working_directory_buffer) catch return error.PathError;
+        const new_working_directory = std.fs.cwd().realpath(required_package_dir, new_working_directory_buffer) catch unreachable;
         _ = try make_package(required_package, compiler, interpreter, new_working_directory);
 
-        compiler.make_package_requirement_link(package_absolute_path, required_package_name, required_package_dir);
+        try compiler.make_package_requirement_link(package_absolute_path, required_package_name, required_package_dir);
     }
 
     try set_package_include_dirs(package, compiler, package_absolute_path);
@@ -15206,7 +15116,7 @@ fn construct_package_dag(compiler: *Compiler_Context) Command_Error![]const u8 {
     const package_dag = try run_build_orng(compiler, &interpreter, build_path);
 
     const cwd_buffer = try compiler.allocator().alloc(u8, std.fs.max_path_bytes);
-    const package_abs_path = std.fs.cwd().realpath(".", cwd_buffer) catch return error.PathError;
+    const package_abs_path = std.fs.cwd().realpath(".", cwd_buffer) catch unreachable;
     _ = try make_package(package_dag, compiler, &interpreter, package_abs_path);
 
     return package_abs_path;
@@ -15724,7 +15634,7 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             }
             return Type_AST.create_type_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "Untagged")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return Type_AST.create_untagged_sum_type(token, args.items[0], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -16095,48 +16005,48 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
         // TODO: Would be nice to make a table of this, somehow!
         if (std.mem.eql(u8, token.data, "default")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "sizeof")) {
-            const args = try self.call_type_args_range(1, 1);
+            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_size_of(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "write")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             const writer = args.items[0];
             const fmt_str = args.items[1];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_write(token, writer, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "print")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             const fmt_str = args.items[0];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             const children = try fmt_string_parser.parse_fmt_string();
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "println")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             const fmt_str = args.items[0];
             var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
             var children = try fmt_string_parser.parse_fmt_string();
             try children.append(ast_.AST.create_string(token, "\n", self.allocator));
             return ast_.AST.create_print(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_and(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_or(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_args_range(2, std.math.maxInt(usize));
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
             return ast_.AST.create_bit_xor(token, args, self.allocator);
         } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_args_range(1, 1);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "left_shift")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "right_shift")) {
-            const args = try self.call_args_range(2, 2);
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
@@ -16263,24 +16173,6 @@ fn call_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     return retval;
 }
 
-fn call_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
-    const prev_token = self.peek();
-    const args = try self.call_args();
-    if (upper < args.items.len or args.items.len < lower) {
-        self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-            .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
-            .takes = upper,
-            .given = args.items.len,
-            .thing_name = "built-in function",
-            .takes_name = "parameter",
-            .given_name = "argument",
-        } });
-        return error.ParseError;
-    } else {
-        return args;
-    }
-}
-
 fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     _ = try self.expect(.left_square);
     var retval = std.array_list.Managed(*Type_AST).init(self.allocator);
@@ -16308,9 +16200,9 @@ fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AS
     return retval;
 }
 
-fn call_type_args_range(self: *Self, lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+fn call_validate_args_range(self: *Self, comptime T: type, f: *const fn (*Self) Parser_Error_Enum!std.array_list.Managed(*T), lower: usize, upper: usize) Parser_Error_Enum!std.array_list.Managed(*T) {
     const prev_token = self.peek();
-    const args = try self.call_type_args();
+    const args = try f(self);
     if (upper < args.items.len or args.items.len < lower) {
         self.errors.add_error(errs_.Error{ .mismatch_arity = .{
             .span = if (args.items.len == 0) prev_token.span else args.items[0].token().span,
@@ -16820,7 +16712,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.@"const")) {
             const_decls.append(try self.const_declaration()) catch unreachable;
         } else {
-            method_decls.append(try self.method_declaration()) catch unreachable;
+            method_decls.append(try self.method_definition()) catch unreachable;
         }
         self.newlines();
     }
@@ -16876,39 +16768,6 @@ fn test_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     );
 }
 
-fn method_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const virtual = self.accept(.virtual);
-    const introducer = try self.expect(.@"fn");
-    const name: *ast_.AST = ast_.AST.create_identifier(try self.expect(.identifier), self.allocator);
-
-    const params_and_receiver = try self.method_paramlist();
-    const params = params_and_receiver.params;
-    const _receiver = params_and_receiver.receiver;
-    var ret_type: ?*Type_AST = null;
-    if (self.accept(.skinny_arrow) != null) {
-        ret_type = try self.type_expr();
-    }
-
-    const refinement: ?*ast_.AST = null;
-    if (self.accept(.where)) |_| {
-        _ = try self.bool_expr();
-    }
-    const contexts_decls = try self.context_paramlist();
-
-    return ast_.AST.create_method_decl(
-        introducer,
-        name,
-        virtual != null,
-        _receiver,
-        params,
-        ret_type orelse Type_AST.create_unit_type(introducer, self.allocator),
-        contexts_decls,
-        refinement,
-        null, // Won't have an init!
-        self.allocator,
-    );
-}
-
 fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     const virtual = self.accept(.virtual);
     const introducer = try self.expect(.@"fn");
@@ -16928,9 +16787,12 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
     const contexts_decls = try self.context_paramlist();
 
-    const _init = try self.block_expr();
+    var _init: ?*ast_.AST = null;
+    if (self.peek_kind(.left_brace)) {
+        _init = try self.block_expr();
+    }
 
-    return ast_.AST.create_method_decl( // TODO: create `method_def` ast
+    return ast_.AST.create_method_decl(
         introducer,
         name,
         virtual != null,
@@ -20439,7 +20301,15 @@ const Debug_Allocator = std.heap.DebugAllocator(.{
     .enable_memory_limit = true,
 });
 
-const Test_Error = error{ CompileError, FileNotFound, LexerError, InvalidRange, OutOfMemory, ParseError, WriteFailed, JsonError, PathError, CreateFileError, MakeDirError };
+const Test_Error = error{
+    CompileError,
+    FileNotFound,
+    LexerError,
+    InvalidRange,
+    OutOfMemory,
+    ParseError,
+    WriteFailed,
+};
 const Test_File_Fn = fn ([]const u8, Test_Mode, *Debug_Allocator) Test_Error!bool;
 
 // This is for compatability with Windows, since stdout for Windows isn't known at compile-time
@@ -20547,7 +20417,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
 
 fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
@@ -20619,7 +20489,7 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
-    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch return error.PathError;
+    const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
     // Try to compile Orange (make sure no errors)
     var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();
@@ -21013,6 +20883,7 @@ const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const unification_ = @import("unification.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 pub const Type_AST_Common = struct {
     /// Token that defined the type
@@ -21493,92 +21364,50 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn common(self: *const Type_AST) *const Type_AST_Common {
-        return get_field_const_ref(self, "common");
+        return union_fields_.get_field_const_ref(self, "common");
     }
 
     pub fn set_alignof(self: *Type_AST, _alignof: i64) void {
-        get_field_ref(self, "common")._alignof = _alignof;
+        union_fields_.get_field_ref(self, "common")._alignof = _alignof;
     }
 
     pub fn set_sizeof(self: *Type_AST, _sizeof: i64) void {
-        get_field_ref(self, "common")._size = _sizeof;
+        union_fields_.get_field_ref(self, "common")._size = _sizeof;
     }
 
     pub fn set_expanded_type(self: *Type_AST, _expanded_type: *Type_AST) void {
-        get_field_ref(self, "common")._expanded_type = _expanded_type;
+        union_fields_.get_field_ref(self, "common")._expanded_type = _expanded_type;
     }
 
     pub fn set_unexpanded_type(self: *Type_AST, _unexpanded_type: *Type_AST) void {
-        get_field_ref(self, "common")._unexpanded_type = _unexpanded_type;
+        union_fields_.get_field_ref(self, "common")._unexpanded_type = _unexpanded_type;
     }
 
     pub fn token(self: *const Type_AST) Token {
         return self.common()._token;
     }
 
-    /// Returns the type of the field with a given name in a Zig union type
-    fn Unwrapped(comptime Union: type, comptime field: []const u8) type {
-        return inline for (std.meta.fields(Union)) |variant| {
-            const Struct = variant.type;
-            const s: Struct = undefined;
-            if (@hasField(Struct, field)) break @TypeOf(@field(s, field));
-        } else @compileError("No such field in any of the variants!");
-    }
-
-    /// Generically retrieve the value of a field in a Zig union type
-    fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeOf(u), field) {
-        return switch (u) {
-            inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
-        } catch {
-            std.debug.panic("compiler error: `{s}` does not have field `{s}` {}", .{ @tagName(u), field, Unwrapped(@TypeOf(u), field) });
-        };
-    }
-
-    /// Generically retrieve a reference to a field in a Zig union type
-    fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    fn get_field_const_ref(u: anytype, comptime field: []const u8) *const Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    /// Generically set a field in a Zig union type
-    fn set_field(u: anytype, comptime field: []const u8, val: Unwrapped(@TypeOf(u.*), field)) void {
-        switch (u.*) {
-            inline else => |*v| if (@hasField(@TypeOf(v.*), field)) {
-                @field(v, field) = val;
-            } else {
-                std.debug.panic("compiler error: `{s}` does not have field `{s}`", .{ @tagName(u.*), field });
-            },
-        }
-    }
-
     pub fn expr(self: Type_AST) *AST {
-        return get_struct_field(self, "_expr");
+        return union_fields_.get_struct_field(self, "_expr");
     }
 
     pub fn child(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_child");
+        return union_fields_.get_struct_field(self, "_child");
     }
 
     pub fn mut(self: Type_AST) bool {
-        return get_struct_field(self, "mut");
+        return union_fields_.get_struct_field(self, "mut");
     }
 
     pub fn set_mut(self: *Type_AST, val: bool) void {
-        set_field(self, "mut", val);
+        union_fields_.set_field(self, "mut", val);
     }
 
     pub fn symbol(self: Type_AST) ?*Symbol {
         if (self == .access) {
             return self.access.inner_access.symbol();
         }
-        return get_struct_field(self, "_symbol");
+        return union_fields_.get_struct_field(self, "_symbol");
     }
 
     pub fn set_symbol(self: *Type_AST, val: ?*Symbol) void {
@@ -21586,23 +21415,23 @@ pub const Type_AST = union(enum) {
             self.access.inner_access.set_symbol(val);
             return;
         }
-        set_field(self, "_symbol", val);
+        union_fields_.set_field(self, "_symbol", val);
     }
 
     pub fn lhs(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_lhs");
+        return union_fields_.get_struct_field(self, "_lhs");
     }
 
     pub fn set_lhs(self: *Type_AST, val: *Type_AST) void {
-        set_field(self, "_lhs", val);
+        union_fields_.set_field(self, "_lhs", val);
     }
 
     pub fn rhs(self: Type_AST) *Type_AST {
-        return get_struct_field(self, "_rhs");
+        return union_fields_.get_struct_field(self, "_rhs");
     }
 
     pub fn set_rhs(self: *Type_AST, val: *Type_AST) void {
-        set_field(self, "_rhs", val);
+        union_fields_.set_field(self, "_rhs", val);
     }
 
     pub fn children(self: *const Type_AST) *const std.array_list.Managed(*Type_AST) {
@@ -24397,6 +24226,52 @@ pub fn uid(self: *@This()) usize {
     const retval = self.scope_uid;
     self.scope_uid += 1;
     return retval;
+}
+
+
+
+const std = @import("std");
+
+/// Returns the type of the field with a given name in a Zig union type
+fn Unwrapped(comptime Union: type, comptime field: []const u8) type {
+    return inline for (std.meta.fields(Union)) |variant| {
+        const Struct = variant.type;
+        const s: Struct = undefined;
+        if (@hasField(Struct, field)) break @TypeOf(@field(s, field));
+    } else @compileError("No such field in any of the variants!");
+}
+
+/// Generically retrieve the value of a field in a Zig union type
+pub fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeOf(u), field) {
+    return switch (u) {
+        inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
+    } catch {
+        std.debug.panic("compiler error: `{s}` does not have field `{s}` {}", .{ @tagName(u), field, Unwrapped(@TypeOf(u), field) });
+    };
+}
+
+/// Generically retrieve a reference to a field in a Zig union type
+pub fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
+    return switch (u.*) {
+        inline else => |*v| &@field(v, field),
+    };
+}
+
+pub fn get_field_const_ref(u: anytype, comptime field: []const u8) *const Unwrapped(@TypeOf(u.*), field) {
+    return switch (u.*) {
+        inline else => |*v| &@field(v, field),
+    };
+}
+
+/// Generically set a field in a Zig union type
+pub fn set_field(u: anytype, comptime field: []const u8, val: Unwrapped(@TypeOf(u.*), field)) void {
+    switch (u.*) {
+        inline else => |*v| if (@hasField(@TypeOf(v.*), field)) {
+            @field(v, field) = val;
+        } else {
+            std.debug.panic("compiler error: `{s}` does not have field `{s}`", .{ @tagName(u.*), field });
+        },
+    }
 }
 
 
