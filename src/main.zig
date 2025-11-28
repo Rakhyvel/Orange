@@ -11,7 +11,7 @@ const Span = @import("util/span.zig");
 const Symbol = @import("symbol/symbol.zig");
 
 const version_year: usize = 25;
-const version_month: usize = 11;
+const version_month: usize = 12;
 const version_minor: ?usize = null;
 
 pub const Command_Error: type = error{ LexerError, ParseError, CompileError, FileError, FileNotFound, OutOfMemory, WriteFailed };
