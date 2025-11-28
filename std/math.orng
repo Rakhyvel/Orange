@@ -30,6 +30,10 @@ impl for Float {
         retval.bits
     }
 
+    fn near(self, other: Float, epsilon: Float = 0.00001) -> Bool {
+        (self - other).>abs() <= epsilon
+    }
+
     fn floor(self) -> Float {
         extern("floor") const c_floor: Float -> Float
         c_floor(self)
@@ -54,17 +58,35 @@ impl for Float {
         self - self.>trunc()
     }
 
-    // pow, sqrt, cbrt
+    fn pow(self, exponent: Float) -> Float {
+        extern("pow") const c_pow: (Float, Float) -> Float
+        c_pow(self, exponent)
+    }
+
+    fn sqrt(self) -> Float {
+        extern("sqrt") const c_sqrt: Float -> Float
+        c_sqrt(self)
+    }
+
+    fn cbrt(self) -> Float {
+        extern("cbrt") const c_cbrt: Float -> Float
+        c_cbrt(self)
+    }
+
     // exp, ln, log10, log2, log
     // sin, cos, tan
     // asin, acos, atan, atan2
     // sinh, cosh, tanh
     // asinh, acosh, atanh
     // min, max, clamp, abs, signum, sign, copysign, recip, is_sign_positive, is_sign_negative
+    fn abs(self) -> Float {
+        extern("fabs") const fabs: Float -> Float
+        fabs(self)
+    }
 }
 
 impl for Int {
-    // pow
+    // min, max, clamp, abs, signum, sign, copysign
 }
 
 fn as_int(x: Float) -> Int {
@@ -103,39 +125,54 @@ test "is_inf" {
 }
 
 test "floor" {
-    try testing::expect((14.5).>floor() == 14.0)
+    try testing::expect(14.5.>floor() == 14.0)
     try testing::expect((-14.5).>floor() == -15.0)
     .ok
 }
 
 test "ceil" {
-    try testing::expect((14.5).>ceil() == 15.0)
+    try testing::expect(14.5.>ceil() == 15.0)
     try testing::expect((-14.5).>ceil() == -14.0)
     .ok
 }
 
 test "round" {
-    try testing::expect((5.0).>round() == 5.0)
-    try testing::expect((-5.0).>round() == -5.0)
-    try testing::expect((1.2).>round() == 1.0)
-    try testing::expect((-1.2).>round() == -1.0)
-    try testing::expect((1.7).>round() == 2.0)
-    try testing::expect((-1.7).>round() == -2.0)
-    try testing::expect((1.5).>round() == 2.0)
-    try testing::expect((-1.5).>round() == -2.0)
+    try testing::expect(5.0.>round() == 5.0)
+    try testing::expect(-5.0.>round() == -5.0)
+    try testing::expect(1.2.>round() == 1.0)
+    try testing::expect(-1.2.>round() == -1.0)
+    try testing::expect(1.7.>round() == 2.0)
+    try testing::expect(-1.7.>round() == -2.0)
+    try testing::expect(1.5.>round() == 2.0)
+    try testing::expect(-1.5.>round() == -2.0)
     .ok
 }
 
 test "trunc" {
-    try testing::expect((1.7).>trunc() == 1.0)
-    try testing::expect((-1.7).>trunc() == -1.0)
-    try testing::expect((3.2).>trunc() == 3.0)
+    try testing::expect(1.7.>trunc() == 1.0)
+    try testing::expect(-1.7.>trunc() == -1.0)
+    try testing::expect(3.2.>trunc() == 3.0)
     .ok
 }
 
 test "fract" {
-    try testing::expect((3.5).>fract() == 0.5)
-    try testing::expect((-3.5).>fract() == -0.5)
-    try testing::expect((-5.0).>fract() == -0.0)
+    try testing::expect(3.5.>fract() == 0.5)
+    try testing::expect(-3.5.>fract() == -0.5)
+    try testing::expect(-5.0.>fract() == -0.0)
+    .ok
+}
+
+test "Float::pow" {
+    try testing::expect(2.0.>pow(10.0) == 1024.0)
+    .ok
+}
+
+test "Float::sqrt" {
+    try testing::expect(9.0.>sqrt() == 3.0)
+    .ok
+}
+
+test "Float::cbrt" {
+    try testing::expect(Float::near((-27.0).>cbrt(), -3.0))
     .ok
 }
