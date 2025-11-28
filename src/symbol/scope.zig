@@ -1,4 +1,5 @@
 const std = @import("std");
+const anon_name_ = @import("../util/anon_name.zig");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
@@ -323,7 +324,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
         // impl'd for an anon trait, create a new anon trait for it
         var token = new_impl.token();
         token.kind = .identifier;
-        token.data = Symbol_Tree.next_anon_name("Trait", compiler.allocator());
+        token.data = anon_name_.next_anon_name("Trait", compiler.allocator());
         const anon_trait = ast_.AST.create_trait(
             token,
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),

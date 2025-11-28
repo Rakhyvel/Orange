@@ -143,18 +143,6 @@ pub fn coalesce_operator(lhs_expanded_type: *Type_AST, ast: *ast_.AST, span: Spa
     }
 }
 
-fn put_many_annot_map(
-    asts: *std.array_list.Managed(*Type_AST),
-    new_terms: *std.array_list.Managed(*Type_AST),
-    map: *std.StringArrayHashMap(*Type_AST),
-    errors: *errs_.Errors,
-) Validate_Error_Enum!void {
-    for (asts.items) |term| {
-        try args_.put_ast_map(term.annotation.type, term.annotation.pattern.token().data, term.token().span, map, errors);
-        new_terms.append(term) catch unreachable;
-    }
-}
-
 pub fn find_select_pos(_type: *Type_AST, field: []const u8, span: Span, errors: *errs_.Errors) Validate_Error_Enum!usize {
     if (_type.* != .struct_type and _type.* != .enum_type and _type.* != .untagged_sum_type and _type.* != .context_type) {
         return throw_not_selectable(_type, span, errors);

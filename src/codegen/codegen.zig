@@ -47,7 +47,7 @@ pub fn output_modules(compiler: *Compiler_Context) !void {
         while (dfs_iter.next()) |module| {
             if (std.mem.eql(u8, module.get_package_abs_path(), package.absolute_path)) {
                 try output_module(module, &compiler.module_interned_strings, build_path, compiler.allocator());
-                modules.append(module) catch unreachable;
+                try modules.append(module);
 
                 if (package.kind == .test_executable) {
                     try output_tests(module, &compiler.module_interned_strings, build_path, compiler.allocator());
@@ -84,8 +84,8 @@ fn output_module(
     var source_emitter = Source_Emitter.init(module, module_interned_strings, &c_buffer);
     source_emitter.generate() catch return error.CompileError;
 
-    output_c_file.writeAll(c_buffer.items) catch unreachable;
-    output_h_file.writeAll(h_buffer.items) catch unreachable;
+    output_c_file.writeAll(c_buffer.items) catch return error.WriteFailed;
+    output_h_file.writeAll(h_buffer.items) catch return error.WriteFailed;
 }
 
 fn output_types(
@@ -122,10 +122,10 @@ fn output_type(
 
     var output_filename = std.array_list.Managed(u8).init(allocator);
     defer output_filename.deinit();
-    output_filename.print("{f}.h", .{Canonical_Type_Fmt{ .type = dep.base }}) catch unreachable;
+    try output_filename.print("{f}.h", .{Canonical_Type_Fmt{ .type = dep.base }});
 
     const out_paths = [_][]const u8{ types_path, output_filename.items };
-    const out_path = std.fs.path.join(allocator, &out_paths) catch unreachable;
+    const out_path = try std.fs.path.join(allocator, &out_paths);
 
     const output_type_h_file = std.fs.createFileAbsolute(out_path, .{}) catch unreachable;
     var type_h_buffer = std.array_list.Managed(u8).init(allocator);
@@ -134,7 +134,7 @@ fn output_type(
     var test_emitter = Typedef_Emitter.init(dep, &type_h_buffer);
     test_emitter.generate() catch return error.CompileError;
 
-    output_type_h_file.writeAll(type_h_buffer.items) catch unreachable;
+    output_type_h_file.writeAll(type_h_buffer.items) catch return error.WriteFailed;
 }
 
 /// Takes in a statically correct module, writes the tests out to C source and header files
@@ -157,8 +157,8 @@ fn output_tests(
     var test_emitter = Test_Emitter.init(module, module_interned_strings, &c_buffer, &h_buffer);
     test_emitter.generate() catch return error.CompileError;
 
-    output_c_file.writeAll(c_buffer.items) catch unreachable;
-    output_h_file.writeAll(h_buffer.items) catch unreachable;
+    output_c_file.writeAll(c_buffer.items) catch return error.WriteFailed;
+    output_h_file.writeAll(h_buffer.items) catch return error.WriteFailed;
 }
 
 fn output_start(
@@ -168,7 +168,7 @@ fn output_start(
     allocator: std.mem.Allocator,
 ) !void {
     const paths = [_][]const u8{ build_path, "start.c" };
-    const path = std.fs.path.join(allocator, &paths) catch unreachable;
+    const path = try std.fs.path.join(allocator, &paths);
 
     var start_file = std.fs.createFileAbsolute(path, .{}) catch unreachable;
     defer start_file.close();
@@ -193,7 +193,7 @@ fn output_start(
 
     source_emitter.output_main_function() catch return error.CompileError;
 
-    start_file.writeAll(buf.items) catch unreachable;
+    start_file.writeAll(buf.items) catch return error.WriteFailed;
 }
 
 fn output_testrunner(
@@ -202,7 +202,7 @@ fn output_testrunner(
     allocator: std.mem.Allocator,
 ) !void {
     const paths = [_][]const u8{ build_path, "test-runner.c" };
-    const path = std.fs.path.join(allocator, &paths) catch unreachable;
+    const path = try std.fs.path.join(allocator, &paths);
 
     var testrunner_file = std.fs.createFileAbsolute(path, .{}) catch unreachable;
     defer testrunner_file.close();
@@ -221,7 +221,7 @@ fn output_testrunner(
     , .{}) catch return error.CompileError;
 
     for (modules.items) |module| {
-        buf.print("#include \"{s}-{s}-tests.h\"\n", .{ module.package_name, module.name() }) catch unreachable;
+        try buf.print("#include \"{s}-{s}-tests.h\"\n", .{ module.package_name, module.name() });
     }
 
     var mod_0_emitter = Emitter.init(&buf);
@@ -313,16 +313,16 @@ fn output_testrunner(
         \\
     , .{}) catch return error.CompileError;
 
-    testrunner_file.writeAll(buf.items) catch unreachable;
+    testrunner_file.writeAll(buf.items) catch return error.WriteFailed;
 }
 
 fn open_file(package_name: []const u8, module_name: []const u8, ext: []const u8, build_path: []const u8, allocator: std.mem.Allocator) !std.fs.File {
     var output_filename = std.array_list.Managed(u8).init(allocator);
     defer output_filename.deinit();
-    output_filename.print("{s}-{s}{s}", .{ package_name, module_name, ext }) catch unreachable;
+    try output_filename.print("{s}-{s}{s}", .{ package_name, module_name, ext });
 
     const out_paths = [_][]const u8{ build_path, output_filename.items };
-    const out_path = std.fs.path.join(allocator, &out_paths) catch unreachable;
+    const out_path = try std.fs.path.join(allocator, &out_paths);
 
     const output_file = std.fs.createFileAbsolute(out_path, .{}) catch unreachable;
     return output_file;

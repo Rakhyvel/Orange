@@ -47,26 +47,6 @@ pub const Primitive_Info = struct {
     default_value: ?*ast_.AST,
     size: i64,
     _align: i64,
-
-    pub fn is_eq(self: Primitive_Info) bool {
-        return self.type_class == .eq or self.is_ord();
-    }
-
-    pub fn is_ord(self: Primitive_Info) bool {
-        return self.type_class == .ord or self.is_num();
-    }
-
-    pub fn is_num(self: Primitive_Info) bool {
-        return self.type_class == .num or self.is_int();
-    }
-
-    pub fn is_int(self: Primitive_Info) bool {
-        return self.type_class == .int;
-    }
-
-    pub fn is_bits(self: Primitive_Info) bool {
-        return self.type_kind == .unsigned_integer;
-    }
 };
 
 pub const Bounds = struct {
@@ -145,15 +125,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     const default_float64 = ast_.AST.create_float(Token.init_simple("0.0"), 0.0, compiler.allocator());
     // TODO: De-duplicate the following
     const default_bool = ast_.AST.create_false(Token.init_simple("false"), compiler.allocator());
-    // const default_char = ast_.AST.create_char(Token.init_simple("'\\\\0'"), compiler.allocator());
-    const default_int8 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_int16 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_int32 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_int64 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_word8 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_word16 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_word32 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
-    const default_word64 = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
+    const default_int = ast_.AST.create_int(Token.init_simple("0"), 0, compiler.allocator());
 
     // Setup primitive map
     primitives = std.StringArrayHashMap(Primitive_Info).init(compiler.allocator());
@@ -169,18 +141,6 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         1,
         compiler.allocator(),
     );
-    // create_info(
-    //     "Char",
-    //     null,
-    //     "uint32_t",
-    //     "u32",
-    //     char_type,
-    //     .ord,
-    //     .unsigned_integer,
-    //     default_char,
-    //     4,
-    //     compiler.allocator(),
-    // );
     create_info(
         "Float32",
         null,
@@ -213,7 +173,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         int8_type,
         .int,
         .signed_integer,
-        default_int8,
+        default_int,
         1,
         compiler.allocator(),
     );
@@ -225,7 +185,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         int16_type,
         .int,
         .signed_integer,
-        default_int16,
+        default_int,
         2,
         compiler.allocator(),
     );
@@ -237,7 +197,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         int32_type,
         .int,
         .signed_integer,
-        default_int32,
+        default_int,
         4,
         compiler.allocator(),
     );
@@ -249,7 +209,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         int64_type,
         .int,
         .signed_integer,
-        default_int64,
+        default_int,
         8,
         compiler.allocator(),
     );
@@ -273,7 +233,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         word8_type,
         .int,
         .unsigned_integer,
-        default_word8,
+        default_int,
         2,
         compiler.allocator(),
     );
@@ -285,7 +245,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         word16_type,
         .int,
         .unsigned_integer,
-        default_word16,
+        default_int,
         2,
         compiler.allocator(),
     );
@@ -297,7 +257,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         word32_type,
         .int,
         .unsigned_integer,
-        default_word32,
+        default_int,
         4,
         compiler.allocator(),
     );
@@ -309,7 +269,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         word64_type,
         .int,
         .unsigned_integer,
-        default_word64,
+        default_int,
         8,
         compiler.allocator(),
     );
@@ -324,7 +284,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
 
     var prelude_abs_path = std.array_list.Managed(u8).init(compiler.allocator());
     prelude_abs_path.print("/prelude{c}prelude.orng", .{std.fs.path.sep}) catch unreachable;
-    const module = module_.Module.init(prelude_abs_path.toOwnedSlice() catch unreachable, compiler.allocator());
+    const module = try module_.Module.init(prelude_abs_path.toOwnedSlice() catch unreachable, compiler.allocator());
     const symbol = Symbol.init(
         prelude.?,
         "prelude",
@@ -480,12 +440,8 @@ fn bounds_from_identifier(ident_type: *Type_AST) ?Bounds {
 }
 
 pub fn info_from_ast(expanded_type: *Type_AST) ?Primitive_Info {
-    var unwrapped = expanded_type;
-    while (unwrapped.* == .annotation) {
-        unwrapped = unwrapped.child();
-    }
-    if (unwrapped.* != .identifier) { // Cannot be a primitive!
+    if (expanded_type.* != .identifier) { // Cannot be a primitive!
         return null;
     }
-    return info_from_name(unwrapped.token().data);
+    return info_from_name(expanded_type.token().data);
 }

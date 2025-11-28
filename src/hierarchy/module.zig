@@ -93,8 +93,8 @@ pub const Module = struct {
 
     modified: ?bool,
 
-    pub fn init(absolute_path: []const u8, allocator: std.mem.Allocator) *Module {
-        var retval = allocator.create(Module) catch unreachable;
+    pub fn init(absolute_path: []const u8, allocator: std.mem.Allocator) !*Module {
+        var retval = try allocator.create(Module);
         retval.uid = module_uids;
         retval.uid_gen = UID_Gen.init();
         module_uids += 1;
@@ -133,7 +133,7 @@ pub const Module = struct {
         }
 
         // Create the symbol for this module
-        const module = Module.init(absolute_path, compiler.allocator());
+        const module = try Module.init(absolute_path, compiler.allocator());
         var file_root = Scope.init(compiler.prelude, &module.uid_gen, compiler.allocator());
         const symbol = Symbol.init(
             compiler.prelude,
@@ -187,12 +187,12 @@ pub const Module = struct {
         fuzz_tokens: bool,
         compiler: *Compiler_Context,
     ) Module_Errors!void {
-        compiler.register_interned_string_set(module.uid);
-        compiler.register_module(module.absolute_path, module_symbol);
+        try compiler.register_interned_string_set(module.uid);
+        try compiler.register_module(module.absolute_path, module_symbol);
 
         if (compiler.core != null) {
             // Can be null if you're compiling the core module itself!
-            module.local_imported_modules.put(compiler.core.?.module.?, void{}) catch unreachable;
+            try module.local_imported_modules.put(compiler.core.?.module.?, void{});
             const core_import_symbol = Symbol.init(
                 file_root,
                 "core",
@@ -332,7 +332,7 @@ pub const Module = struct {
             const symbol = test_ast.symbol().?;
             const interned_strings = compiler.lookup_interned_string_set(self.uid).?;
             const cfg = try compiler.cfg_store.get_cfg(symbol, interned_strings);
-            self.tests.append(cfg) catch unreachable;
+            try self.tests.append(cfg);
             cfg.assert_needed_at_runtime();
             self.collect_cfgs(cfg);
         }
@@ -359,7 +359,7 @@ pub const Module = struct {
     /// A module is modified if:
     /// - Its source hash differs from what is stored in the package's json file
     /// - Any of the module it imports have been modified
-    pub fn determine_if_module_modified(self: *Module, compiler: *Compiler_Context) void {
+    pub fn determine_if_module_modified(self: *Module, compiler: *Compiler_Context) !void {
         if (self.modified != null) {
             return;
         }
@@ -367,18 +367,18 @@ pub const Module = struct {
         const package_abs_path = self.get_package_abs_path();
         const module_hashes = compiler.lookup_package(package_abs_path).?.module_hash;
         const old_hash = module_hashes.get_module_stored_hash(self.name());
-        const local_module_number_string = std.fmt.allocPrint(compiler.allocator(), "{X}", .{self.hash}) catch unreachable;
+        const local_module_number_string = try std.fmt.allocPrint(compiler.allocator(), "{X}", .{self.hash});
         defer compiler.allocator().free(local_module_number_string);
         self.modified = (old_hash == null) or !std.mem.eql(u8, local_module_number_string, old_hash.?);
 
         for (self.local_imported_modules.keys()) |imported_module| {
-            imported_module.determine_if_module_modified(compiler);
+            try imported_module.determine_if_module_modified(compiler);
             self.modified = imported_module.modified.? or self.modified.?;
         }
     }
 
-    pub fn update_module_hash(self: *const Module, module_hash: *Module_Hash, allocator: std.mem.Allocator) void {
-        const local_module_number_string = std.fmt.allocPrint(allocator, "{X}", .{self.hash}) catch unreachable;
+    pub fn update_module_hash(self: *const Module, module_hash: *Module_Hash, allocator: std.mem.Allocator) !void {
+        const local_module_number_string = try std.fmt.allocPrint(allocator, "{X}", .{self.hash});
         module_hash.set_module_hash(self.name(), local_module_number_string, allocator);
     }
 };

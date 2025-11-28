@@ -1,0 +1,11 @@
+// 414
+fn main() -> Int {
+    match (400, 10, 4) {
+        (
+            hundreds,
+            tens,
+            ones,
+        ) => hundreds + tens + ones
+        _ => unreachable
+    }
+}

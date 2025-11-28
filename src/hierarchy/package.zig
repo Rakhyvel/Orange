@@ -124,7 +124,7 @@ fn get_required_package(self: *Package, requirement_name: []const u8, packages: 
 /// A package is modified if:
 /// - Any of its modules are modified
 /// - Any of its dependencies are modified
-pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHashMap(*Package), compiler: *Compiler_Context) void {
+pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHashMap(*Package), compiler: *Compiler_Context) !void {
     if (self.modified != null) {
         return;
     }
@@ -133,21 +133,21 @@ pub fn determine_if_package_modified(self: *Package, packages: std.StringArrayHa
     // Check if any requirements are modified
     for (self.requirements.keys()) |requirement_name| {
         const required_package = self.get_required_package(requirement_name, packages);
-        required_package.determine_if_package_modified(packages, compiler);
+        try required_package.determine_if_package_modified(packages, compiler);
         self.modified = required_package.modified.? or self.modified.?;
     }
 
     // Check if the build module was modified, if it was, entire package will be rebuilt
     if (self.get_build_module(compiler)) |build_module| {
-        build_module.determine_if_module_modified(compiler);
-        build_module.update_module_hash(&self.module_hash, compiler.allocator());
+        try build_module.determine_if_module_modified(compiler);
+        try build_module.update_module_hash(&self.module_hash, compiler.allocator());
         self.modified = build_module.modified.? or self.modified.?;
     }
 
     // Check if any modules are modified
     for (self.local_modules.items) |local_module| {
-        local_module.determine_if_module_modified(compiler);
-        local_module.update_module_hash(&self.module_hash, compiler.allocator());
+        try local_module.determine_if_module_modified(compiler);
+        try local_module.update_module_hash(&self.module_hash, compiler.allocator());
         self.modified = local_module.modified.? or self.modified.?;
     }
 
@@ -350,35 +350,7 @@ fn cc(
     allocator: std.mem.Allocator,
 ) !void {
     const cc_cmd = try self.construct_obj_cc_cmd(c_file, o_file, packages, allocator);
-    print_cmd(&cc_cmd);
-
-    var cwd_string = std.array_list.Managed(u8).init(allocator);
-    cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
-
-    const run_res = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = cc_cmd.items,
-        .cwd = cwd_string.items,
-    }) catch |err| switch (err) {
-        else => std.debug.panic("compile error: on cc invoke: {}", .{err}),
-    };
-
-    var retcode: u8 = 0;
-    switch (run_res.term) {
-        .Exited => |c| {
-            retcode = c;
-        },
-        .Signal => return error.CompileError,
-        else => {
-            std.debug.print("{s}\n", .{run_res.stderr});
-            return error.CompileError;
-        },
-    }
-
-    if (retcode != 0) {
-        std.debug.print("{s}", .{run_res.stderr});
-        return error.CompileError;
-    }
+    try self.invoke_cmd(cc_cmd, allocator);
 }
 
 /// Constructs the command to call zig cc to compile a modules .o file
@@ -492,33 +464,7 @@ fn ar(self: *Package, obj_files: std.StringArrayHashMap(void), allocator: std.me
     // Add all the object files
     cmd.appendSlice(obj_files.keys()) catch unreachable;
 
-    // Set cwd
-    var cwd_string = std.array_list.Managed(u8).init(allocator);
-    cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
-
-    print_cmd(&cmd);
-    const run_res = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = cmd.items,
-        .cwd = cwd_string.items,
-    }) catch unreachable;
-
-    var retcode: u8 = 0;
-    switch (run_res.term) {
-        .Exited => |c| {
-            retcode = c;
-        },
-        .Signal => return error.CompileError,
-        else => {
-            std.debug.print("{s}\n", .{run_res.stderr});
-            return error.CompileError;
-        },
-    }
-
-    if (retcode != 0) {
-        std.debug.print("ar error: {s}\n", .{run_res.stderr});
-        return error.CompileError;
-    }
+    try self.invoke_cmd(cmd, allocator);
 }
 
 pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
@@ -540,8 +486,10 @@ pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
 /// Runs the command to link the object files of a package into an executable
 fn link_executable(self: *Package, obj_files: std.StringArrayHashMap(void), packages: std.StringArrayHashMap(*Package), allocator: std.mem.Allocator) !void {
     const cmd = try self.construct_exe_cc_cmd(obj_files, packages, allocator);
+    try self.invoke_cmd(cmd, allocator);
+}
 
-    // Set cwd
+fn invoke_cmd(self: *Package, cmd: std.array_list.Managed([]const u8), allocator: std.mem.Allocator) !void {
     var cwd_string = std.array_list.Managed(u8).init(allocator);
     cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
 
@@ -550,7 +498,9 @@ fn link_executable(self: *Package, obj_files: std.StringArrayHashMap(void), pack
         .allocator = allocator,
         .argv = cmd.items,
         .cwd = cwd_string.items,
-    }) catch unreachable;
+    }) catch |err| switch (err) {
+        else => std.debug.panic("compile error: on cmd invoke: {}", .{err}),
+    };
 
     var retcode: u8 = 0;
     switch (run_res.term) {

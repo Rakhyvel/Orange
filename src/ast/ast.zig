@@ -18,6 +18,7 @@ const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
 const validation_state_ = @import("../util/validation_state.zig");
 const unification_ = @import("../types/unification.zig");
 const fmt_ = @import("../util/fmt.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 pub const AST_Validation_State = validation_state_.Validation_State;
 
@@ -1914,7 +1915,7 @@ pub const AST = union(enum) {
     }
 
     pub fn common(self: *AST) *AST_Common {
-        return get_field_ref(self, "common");
+        return union_fields_.get_field_ref(self, "common");
     }
 
     pub fn token(self: *AST) Token {
@@ -1922,11 +1923,11 @@ pub const AST = union(enum) {
     }
 
     pub fn expr(self: AST) *AST {
-        return get_struct_field(self, "_expr");
+        return union_fields_.get_struct_field(self, "_expr");
     }
 
     pub fn set_expr(self: *AST, val: *AST) void {
-        set_field(self, "_expr", val);
+        union_fields_.set_field(self, "_expr", val);
     }
 
     pub fn @"type"(self: AST) *Type_AST {
@@ -1939,35 +1940,35 @@ pub const AST = union(enum) {
     }
 
     pub fn symbol(self: AST) ?*Symbol {
-        return get_struct_field(self, "_symbol");
+        return union_fields_.get_struct_field(self, "_symbol");
     }
 
     pub fn set_symbol(self: *AST, val: ?*Symbol) void {
-        set_field(self, "_symbol", val);
+        union_fields_.set_field(self, "_symbol", val);
     }
 
     pub fn scope(self: AST) ?*Scope {
-        return get_struct_field(self, "_scope");
+        return union_fields_.get_struct_field(self, "_scope");
     }
 
     pub fn set_scope(self: *AST, val: ?*Scope) void {
-        set_field(self, "_scope", val);
+        union_fields_.set_field(self, "_scope", val);
     }
 
     pub fn lhs(self: AST) *AST {
-        return get_struct_field(self, "_lhs");
+        return union_fields_.get_struct_field(self, "_lhs");
     }
 
     pub fn set_lhs(self: *AST, val: *AST) void {
-        set_field(self, "_lhs", val);
+        union_fields_.set_field(self, "_lhs", val);
     }
 
     pub fn rhs(self: AST) *AST {
-        return get_struct_field(self, "_rhs");
+        return union_fields_.get_struct_field(self, "_rhs");
     }
 
     pub fn set_rhs(self: *AST, val: *AST) void {
-        set_field(self, "_rhs", val);
+        union_fields_.set_field(self, "_rhs", val);
     }
 
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
@@ -2156,79 +2157,43 @@ pub const AST = union(enum) {
     }
 
     pub fn pos(self: AST) ?usize {
-        return get_struct_field(self, "_pos");
+        return union_fields_.get_struct_field(self, "_pos");
     }
 
     pub fn set_pos(self: *AST, val: ?usize) void {
-        set_field(self, "_pos", val);
+        union_fields_.set_field(self, "_pos", val);
     }
 
     pub fn statement(self: AST) *AST {
-        return get_struct_field(self, "_statement");
+        return union_fields_.get_struct_field(self, "_statement");
     }
 
     pub fn set_statement(self: *AST, val: *AST) void {
-        set_field(self, "_statement", val);
+        union_fields_.set_field(self, "_statement", val);
     }
 
     pub fn body_block(self: AST) *AST {
-        return get_struct_field(self, "_body_block");
+        return union_fields_.get_struct_field(self, "_body_block");
     }
 
     pub fn set_body_block(self: *AST, val: *AST) void {
-        set_field(self, "_body_block", val);
+        union_fields_.set_field(self, "_body_block", val);
     }
 
     pub fn else_block(self: AST) ?*AST {
-        return get_struct_field(self, "_else_block");
+        return union_fields_.get_struct_field(self, "_else_block");
     }
 
     pub fn set_else_block(self: *AST, val: ?*AST) void {
-        set_field(self, "_else_block", val);
+        union_fields_.set_field(self, "_else_block", val);
     }
 
     pub fn mut(self: AST) bool {
-        return get_struct_field(self, "mut");
+        return union_fields_.get_struct_field(self, "mut");
     }
 
     pub fn set_mut(self: *AST, val: bool) void {
-        set_field(self, "mut", val);
-    }
-
-    /// Returns the type of the field with a given name in a Zig union type
-    fn Unwrapped(comptime Union: type, comptime field: []const u8) type {
-        return inline for (std.meta.fields(Union)) |variant| {
-            const Struct = variant.type;
-            const s: Struct = undefined;
-            if (@hasField(Struct, field)) break @TypeOf(@field(s, field));
-        } else @compileError("No such field in any of the variants!");
-    }
-
-    /// Generically retrieve the value of a field in a Zig union type
-    fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeOf(u), field) {
-        return switch (u) {
-            inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
-        } catch {
-            std.debug.panic("compiler error: `{s}` does not have field `{s}` {}", .{ @tagName(u), field, Unwrapped(@TypeOf(u), field) });
-        };
-    }
-
-    /// Generically retrieve a reference to a field in a Zig union type
-    fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
-        return switch (u.*) {
-            inline else => |*v| &@field(v, field),
-        };
-    }
-
-    /// Generically set a field in a Zig union type
-    fn set_field(u: anytype, comptime field: []const u8, val: Unwrapped(@TypeOf(u.*), field)) void {
-        switch (u.*) {
-            inline else => |*v| if (@hasField(@TypeOf(v.*), field)) {
-                @field(v, field) = val;
-            } else {
-                std.debug.panic("compiler error: `{s}` does not have field `{s}`", .{ @tagName(u.*), field });
-            },
-        }
+        union_fields_.set_field(self, "mut", val);
     }
 
     // Expr must be an array value of length `l`. Slice value is `(&expr[0], l)`.
@@ -2623,13 +2588,6 @@ pub const AST = union(enum) {
     }
 
     pub fn format(self: AST, writer: *std.io.Writer) !void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator); // page alloc ok, immediately deinit'd
-        defer arena.deinit();
-
-        // TODO: Generic pprinter that makes the arena and string and passes the writer to a pprint method
-
-        const out = self.pprint(arena.allocator()) catch unreachable;
-
-        try writer.print("{s}", .{out});
+        try fmt_.indirect_format(self, writer);
     }
 };

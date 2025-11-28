@@ -6,7 +6,7 @@ import os
 import subprocess
 
 
-def collect_files_args(args, base):
+def collect_files_args(args, base, ext=".orng"):
     # Extract paths in the args.test list, if there are any
     # Prepend with base
     if (
@@ -17,14 +17,14 @@ def collect_files_args(args, base):
         full_path = [os.path.join(base, path) for path in args.count]
     else:
         full_path = [base]
-    return collect_files(full_path)
+    return collect_files(full_path, ext)
 
 
-def collect_files(full_path):
+def collect_files(full_path, ext=".orng"):
     # Collect all .orng files recursively in any directories
     files = []
     for path in full_path:
-        files += collect_files_recursive(path)
+        files += collect_files_recursive(path, ext)
     return list(dict.fromkeys(files))
 
 
@@ -41,11 +41,11 @@ def collect_modified_files(args, base):
     return res
 
 
-def collect_files_recursive(root_filename):
+def collect_files_recursive(root_filename, ext):
     files = []
     if os.path.isdir(root_filename):
         dir_list = os.listdir(root_filename)
-    elif root_filename.endswith(".orng"):
+    elif root_filename.endswith(ext):
         return [root_filename]
     else:
         return []
@@ -54,8 +54,8 @@ def collect_files_recursive(root_filename):
         root_and_filename = os.path.join(root_filename, file_name)
         if os.path.isdir(root_and_filename):
             # Directory
-            files += collect_files_recursive(root_and_filename)
-        elif root_and_filename.endswith(".orng"):
+            files += collect_files_recursive(root_and_filename, ext)
+        elif root_and_filename.endswith(ext):
             # File
             files.append(root_and_filename)
     files.sort()

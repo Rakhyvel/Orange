@@ -1,6 +1,6 @@
-// unexpected_end_after_arg.orng:7:25: error: unexpected end of format string
+// unexpected_end_after_arg.orng:7:30: error: unexpected end of format string
 //     try @print("Hello, {name")
-//                        ^
+//                             ^
 // 
 fn main() -> ()!() with core::IO {
     let name = "World"

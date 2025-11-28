@@ -11,10 +11,10 @@ const Span = @import("util/span.zig");
 const Symbol = @import("symbol/symbol.zig");
 
 const version_year: usize = 25;
-const version_month: usize = 11;
+const version_month: usize = 12;
 const version_minor: ?usize = null;
 
-pub const Command_Error: type = error{ LexerError, ParseError, CompileError, FileError, FileNotFound, OutOfMemory };
+pub const Command_Error: type = error{ LexerError, ParseError, CompileError, FileError, FileNotFound, OutOfMemory, WriteFailed };
 
 const Command: type = *const fn (name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) Command_Error!void;
 
@@ -43,8 +43,8 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     // Get second command line argument
-    var args = std.process.ArgIterator.initWithAllocator(allocator) catch unreachable;
-    const location = args.next() orelse unreachable;
+    var args = try std.process.ArgIterator.initWithAllocator(allocator);
+    const location = args.next().?;
     _ = location; // autofix
 
     // Parse the command arg
@@ -74,8 +74,8 @@ fn build(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
     defer compiler.deinit();
     const package_abs_path = try construct_package_dag(compiler);
     compiler.propagate_include_directories(package_abs_path);
-    compiler.collect_package_local_modules();
-    compiler.determine_if_modified(package_abs_path);
+    try compiler.collect_package_local_modules();
+    try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
     try compiler.compile(package_abs_path);
@@ -107,7 +107,7 @@ fn run(compiler: *Compiler_Context, package_abs_path: []const u8, args: *std.pro
     }
 
     var output_name = std.array_list.Managed(u8).init(allocator);
-    output_name.print("{s}", .{curr_package.output_absolute_path}) catch unreachable;
+    try output_name.print("{s}", .{curr_package.output_absolute_path});
 
     var argv = std.array_list.Managed([]const u8).init(allocator);
     defer argv.deinit();
@@ -127,10 +127,10 @@ fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.
     var compiler = try Compiler_Context.init(errs_.get_std_err(), allocator);
     defer compiler.deinit();
     const package_abs_path = try construct_package_dag(compiler);
-    compiler.set_package_kind(package_abs_path, .test_executable);
+    try compiler.set_package_kind(package_abs_path, .test_executable);
     compiler.propagate_include_directories(package_abs_path);
-    compiler.collect_package_local_modules();
-    compiler.determine_if_modified(package_abs_path);
+    try compiler.collect_package_local_modules();
+    try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
     try compiler.compile(package_abs_path);
@@ -150,7 +150,7 @@ fn make_package(
         1 => package_kind = .static_library,
         else => std.debug.panic("unimplemented", .{}),
     }
-    compiler.register_package(package_absolute_path, package_kind);
+    try compiler.register_package(package_absolute_path, package_kind);
 
     const entry_name: ?[]const u8 = if (package_kind == .executable) "main" else null;
 
@@ -164,20 +164,20 @@ fn make_package(
         const required_package = try interpreter.extract_ast(required_package_addr, core_.package_type, Span.phony);
         const required_package_dir = required_package.get_field(core_.package_type, "dir").string.data;
 
-        const new_working_directory_buffer = compiler.allocator().alloc(u8, std.fs.max_path_bytes) catch unreachable;
+        const new_working_directory_buffer = try compiler.allocator().alloc(u8, std.fs.max_path_bytes);
         const new_working_directory = std.fs.cwd().realpath(required_package_dir, new_working_directory_buffer) catch unreachable;
         _ = try make_package(required_package, compiler, interpreter, new_working_directory);
 
-        compiler.make_package_requirement_link(package_absolute_path, required_package_name, required_package_dir);
+        try compiler.make_package_requirement_link(package_absolute_path, required_package_name, required_package_dir);
     }
 
-    set_package_include_dirs(package, compiler, package_absolute_path);
-    set_package_lib_dirs(package, compiler, package_absolute_path);
-    set_package_libs(package, compiler, package_absolute_path);
+    try set_package_include_dirs(package, compiler, package_absolute_path);
+    try set_package_lib_dirs(package, compiler, package_absolute_path);
+    try set_package_libs(package, compiler, package_absolute_path);
 
     const root_filename = package.get_field(core_.package_type, "root").string.data;
     const root_file_paths = [_][]const u8{ package_absolute_path, root_filename };
-    const root_file_path = std.fs.path.join(compiler.allocator(), &root_file_paths) catch unreachable;
+    const root_file_path = try std.fs.path.join(compiler.allocator(), &root_file_paths);
 
     const package_root = compiler.compile_module(
         root_file_path,
@@ -194,13 +194,13 @@ fn set_package_include_dirs(
     package: *ast_.AST,
     compiler: *Compiler_Context,
     package_absolute_path: []const u8,
-) void {
+) !void {
     for (package.get_field(core_.package_type, "include_dirs").children().items) |maybe_include_dir_addr| {
         if (maybe_include_dir_addr.enum_value._pos != 0) {
             continue;
         }
         const include_dir = maybe_include_dir_addr.enum_value.init.?;
-        compiler.lookup_package(package_absolute_path).?.include_directories.put(include_dir.string.data, void{}) catch unreachable;
+        try compiler.lookup_package(package_absolute_path).?.include_directories.put(include_dir.string.data, void{});
     }
 }
 
@@ -209,13 +209,13 @@ fn set_package_lib_dirs(
     package: *ast_.AST,
     compiler: *Compiler_Context,
     package_absolute_path: []const u8,
-) void {
+) !void {
     for (package.get_field(core_.package_type, "lib_dirs").children().items) |maybe_lib_dir_addr| {
         if (maybe_lib_dir_addr.enum_value._pos != 0) {
             continue;
         }
         const include_dir = maybe_lib_dir_addr.enum_value.init.?;
-        compiler.lookup_package(package_absolute_path).?.library_directories.put(include_dir.string.data, void{}) catch unreachable;
+        try compiler.lookup_package(package_absolute_path).?.library_directories.put(include_dir.string.data, void{});
     }
 }
 
@@ -224,13 +224,13 @@ fn set_package_libs(
     package: *ast_.AST,
     compiler: *Compiler_Context,
     package_absolute_path: []const u8,
-) void {
+) !void {
     for (package.get_field(core_.package_type, "libs").children().items) |maybe_lib_addr| {
         if (maybe_lib_addr.enum_value._pos != 0) {
             continue;
         }
         const include_dir = maybe_lib_addr.enum_value.init.?;
-        compiler.lookup_package(package_absolute_path).?.libraries.put(include_dir.string.data, void{}) catch unreachable;
+        try compiler.lookup_package(package_absolute_path).?.libraries.put(include_dir.string.data, void{});
     }
 }
 
@@ -240,11 +240,11 @@ fn print_version(name: []const u8, args: *std.process.ArgIterator, allocator: st
     _ = args;
     const out = std.fs.File.stdout();
     var writer = out.writer(&.{}).interface;
-    writer.print("Orange {}.{:0>2}", .{ version_year, version_month }) catch unreachable;
+    try writer.print("Orange {}.{:0>2}", .{ version_year, version_month });
     if (version_minor != null) {
-        writer.print(".{}", .{version_minor.?}) catch unreachable;
+        try writer.print(".{}", .{version_minor.?});
     }
-    writer.print("\n", .{}) catch unreachable;
+    try writer.print("\n", .{});
 }
 
 fn help(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) Command_Error!void {
@@ -253,20 +253,20 @@ fn help(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.All
     _ = args;
     var out = std.fs.File.stdout();
     var writer = out.writer(&.{}).interface;
-    writer.print("Usage: orng [command] [options]\n\nCommands:\n", .{}) catch unreachable;
+    try writer.print("Usage: orng [command] [options]\n\nCommands:\n", .{});
     for (command_table) |command_entry| {
         if (command_entry.name[0] == '_') {
             // Skip internal commands
             continue;
         }
-        writer.print("  {s}", .{command_entry.name}) catch unreachable;
+        try writer.print("  {s}", .{command_entry.name});
         const num_spaces = 12 - command_entry.name.len;
         for (0..num_spaces) |_| {
-            writer.print(" ", .{}) catch unreachable;
+            try writer.print(" ", .{});
         }
-        writer.print("{s}\n", .{command_entry.help}) catch unreachable;
+        try writer.print("{s}\n", .{command_entry.help});
     }
-    writer.print("\n", .{}) catch unreachable;
+    try writer.print("\n", .{});
 }
 
 pub fn init_project(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Allocator) Command_Error!void {
@@ -334,7 +334,7 @@ fn clean(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
 }
 
 fn construct_package_dag(compiler: *Compiler_Context) Command_Error![]const u8 {
-    const build_path_buffer = std.heap.page_allocator.alloc(u8, std.fs.max_path_bytes) catch unreachable;
+    const build_path_buffer = try std.heap.page_allocator.alloc(u8, std.fs.max_path_bytes);
 
     var stderr_writer = errs_.get_std_err().writer(&.{}).interface;
     const build_path: []const u8 = std.fs.cwd().realpath("build.orng", build_path_buffer) catch |err| switch (err) {
@@ -352,7 +352,7 @@ fn construct_package_dag(compiler: *Compiler_Context) Command_Error![]const u8 {
 
     const package_dag = try run_build_orng(compiler, &interpreter, build_path);
 
-    const cwd_buffer = compiler.allocator().alloc(u8, std.fs.max_path_bytes) catch unreachable;
+    const cwd_buffer = try compiler.allocator().alloc(u8, std.fs.max_path_bytes);
     const package_abs_path = std.fs.cwd().realpath(".", cwd_buffer) catch unreachable;
     _ = try make_package(package_dag, compiler, &interpreter, package_abs_path);
 

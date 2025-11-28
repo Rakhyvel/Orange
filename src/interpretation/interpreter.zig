@@ -171,10 +171,6 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
             }
             self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), @intFromPtr(instr.data.symbol));
         },
-        .load_AST => {
-            // std.debug.print("loading: {}\n", .{instr.data.ast});
-            self.memory.store_int(try self.effective_address(instr.dest.?), 8, @intFromPtr(instr.data.ast));
-        },
         .load_struct => try self.move_lval_list(try self.effective_address(instr.dest.?), &instr.data.lval_list),
         .load_union => {
             if (instr.src1 != null) {

@@ -6,6 +6,7 @@ const Symbol = @import("../symbol/symbol.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol_Version = @import("symbol_version.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const fmt_ = @import("../util/fmt.zig");
 
 /// Represents different forms of l-values in an l-value tree.
 ///
@@ -179,13 +180,7 @@ pub const L_Value = union(enum) {
     }
 
     pub fn format(self: L_Value, writer: *std.io.Writer) !void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-
-        // TODO: Generic pprinter that makes the arena and string and passes the writer to a pprint method
-        const out = self.pprint(arena.allocator()) catch unreachable;
-
-        try writer.print("{s}", .{out});
+        try fmt_.indirect_format(self, writer);
     }
 
     pub fn extract_symbver(self: *L_Value) *Symbol_Version {
@@ -216,12 +211,12 @@ pub const L_Value = union(enum) {
         }
     }
 
-    pub fn lval_precedence(self: *L_Value) i64 {
+    pub fn lval_precedence(self: *L_Value) Instruction.Precedence {
         return switch (self.*) {
             .symbver => Instruction.Kind.precedence(Instruction.Kind.load_symbol),
-            .dereference => 2,
-            .index => 2,
-            .select => 1,
+            .dereference => Instruction.Precedence.prefix,
+            .index => Instruction.Precedence.prefix,
+            .select => Instruction.Precedence.postfix,
             .raw_address => std.debug.panic("compiler error: raw addresses do not have precedence", .{}),
         };
     }
