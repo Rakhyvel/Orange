@@ -187,7 +187,10 @@ impl for Float {
 }
 
 impl for Int {
-    // abs, signum, sign, copysign
+    fn abs(self) -> Int {
+        extern("abs") const c_abs: Int -> Int
+        c_abs(self)
+    }
 }
 
 fn as_int(x: Float) -> Int {
@@ -316,5 +319,11 @@ test "signed stuff" {
     try testing::expect(Float::near((-2.5).>copysign(1.0), 2.5))
     try testing::expect(Float::near((42.0).>copysign(0.0), 42.0))
 
+    .ok
+}
+
+test "int abs" {
+    try testing::expect((-15).>abs() == 15)
+    try testing::expect(15.>abs() == 15)
     .ok
 }
