@@ -1,0 +1,5 @@
+// some
+fn main() -> String {
+    let x: ?Int = .some(4)
+    @variant_name(x)
+}

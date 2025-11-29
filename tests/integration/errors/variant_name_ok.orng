@@ -1,0 +1,5 @@
+// ok
+fn main() -> String {
+    let x: ()!Int = .ok(4)
+    @variant_name(x)
+}

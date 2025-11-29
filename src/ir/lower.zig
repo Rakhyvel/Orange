@@ -374,6 +374,18 @@ fn lower_AST_inner(
             self.instructions.append(load_struct) catch unreachable;
             return temp;
         },
+        .variant_tag => {
+            const expr = (try self.lower_AST(ast.expr(), labels)) orelse return null;
+            const temp = self.create_temp_lvalue(prelude_.word64_type);
+            self.instructions.append(Instruction.init_get_tag(temp, expr, ast.token().span, self.ctx.allocator())) catch unreachable;
+            return temp;
+        },
+        .variant_name => {
+            const expr = (try self.lower_AST(ast.expr(), labels)) orelse return null;
+            const temp = self.create_temp_lvalue(prelude_.string_type);
+            self.instructions.append(Instruction.init_get_name(temp, expr, ast.token().span, self.ctx.allocator())) catch unreachable;
+            return temp;
+        },
         .enum_value => {
             var _init: ?*lval_.L_Value = null;
             const pos: usize = ast.pos().?;

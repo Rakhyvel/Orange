@@ -1,0 +1,5 @@
+// none
+fn main() -> String {
+    let x: ?Int = .none
+    @variant_name(x)
+}

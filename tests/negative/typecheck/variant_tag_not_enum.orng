@@ -1,0 +1,7 @@
+// variant_tag_not_enum.orng:6:17: error: expected enum type for enum value, got `Int`
+//     @variant_tag(4)
+//                ^
+// 
+fn main() -> Word64 {
+    @variant_tag(4)
+}

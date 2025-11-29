@@ -803,6 +803,12 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         } else if (std.mem.eql(u8, token.data, "right_shift")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "variant_tag")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+            return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "variant_name")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+            return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
         } else {
             self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
             return error.ParseError;

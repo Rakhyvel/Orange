@@ -253,3 +253,13 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
         }
     }
 }
+
+pub fn output_enum_variant_name_prototype(self: *Self, enum_decl_symbol: *Symbol) CodeGen_Error!void {
+    try self.output_type(prelude_.string_type);
+    try self.writer.print(" ", .{});
+    try self.output_symbol(enum_decl_symbol);
+    try self.writer.print("__variant_name", .{});
+    try self.writer.print("(", .{});
+    try self.output_type(prelude_.word64_type);
+    try self.writer.print(" tag)", .{});
+}

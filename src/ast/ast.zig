@@ -286,6 +286,14 @@ pub const AST = union(enum) {
         common: AST_Common,
         _children: std.array_list.Managed(*AST),
     },
+    variant_tag: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
+    variant_name: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
 
     // Control-flow expressions
     @"if": struct {
@@ -608,6 +616,20 @@ pub const AST = union(enum) {
         return AST.box(AST{ .print = .{
             .common = AST_Common{ ._token = _token },
             ._children = _children,
+        } }, allocator);
+    }
+
+    pub fn create_variant_tag(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .variant_tag = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
+        } }, allocator);
+    }
+
+    pub fn create_variant_name(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .variant_name = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
         } }, allocator);
     }
 
@@ -1286,13 +1308,15 @@ pub const AST = union(enum) {
         _generic_params: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
-        return AST.box(AST{ .enum_decl = .{
+        var retval = AST.box(AST{ .enum_decl = .{
             .common = AST_Common{ ._token = _token },
             .name = name,
             .fields = fields,
             ._generic_params = _generic_params,
             ._type = Type_AST.create_enum_type(_token, fields, allocator),
         } }, allocator);
+        retval.enum_decl._type.enum_type.decl = retval;
+        return retval;
     }
 
     pub fn create_type_alias(
@@ -1446,6 +1470,9 @@ pub const AST = union(enum) {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
                 return create_print(self.token(), cloned_args, allocator);
             },
+            .variant_tag => return create_variant_tag(self.token(), self.expr().clone(substs, allocator), allocator),
+            .variant_name => return create_variant_name(self.token(), self.expr().clone(substs, allocator), allocator),
+
             .@"comptime" => return create_comptime(self.token(), self.expr().clone(substs, allocator), allocator),
 
             .assign => return create_assign(
@@ -2142,7 +2169,7 @@ pub const AST = union(enum) {
     pub fn top_level(self: *AST) bool {
         return switch (self.*) {
             .decl, .context_value_decl => false,
-            .fn_decl, .method_decl, .@"test" => true,
+            .fn_decl, .method_decl, .@"test", .enum_decl => true,
             else => std.debug.panic("compiler error: cannot call `.top_level()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }
@@ -2318,6 +2345,8 @@ pub const AST = union(enum) {
                 try out.print(")", .{});
             },
             .size_of => try out.print("size_of({f})", .{self.type()}),
+            .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
+            .variant_name => try out.print("variant_name({f})", .{self.expr()}),
             .@"comptime" => try out.print("comptime({f})", .{self.expr()}),
 
             .assign => {

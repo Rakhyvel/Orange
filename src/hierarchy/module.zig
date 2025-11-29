@@ -79,6 +79,9 @@ pub const Module = struct {
     /// List of all impls defined in this module. Used by codegen to output the vtable implementations.
     impls: std.array_list.Managed(*ast_.AST),
 
+    /// List of all enums defined in this module. Used by codegen to output the variant_name function implementations.
+    enums: std.array_list.Managed(*ast_.AST),
+
     /// List of all tests defined in this module. Used by codegen to output the vtable implementations.
     tests: std.array_list.Managed(*CFG),
 
@@ -107,6 +110,7 @@ pub const Module = struct {
         retval.instructions = std.array_list.Managed(*Instruction).init(allocator);
         retval.traits = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
         retval.impls = std.array_list.Managed(*ast_.AST).init(allocator);
+        retval.enums = std.array_list.Managed(*ast_.AST).init(allocator);
         retval.tests = std.array_list.Managed(*CFG).init(allocator);
         retval.cfgs = std.array_list.Managed(*CFG).init(allocator);
         retval.type_set = Type_Set.init(allocator);
@@ -226,7 +230,7 @@ pub const Module = struct {
 
         // Perform checks and collections on the module
         try compiler.validate_module.validate_module(module);
-        compiler.module_scope(module.absolute_path).?.collect_traits_and_impls(&module.traits, &module.impls);
+        compiler.module_scope(module.absolute_path).?.collect_traits_and_impls_and_enums(&module.traits, &module.impls, &module.enums);
         try module.add_all_cfgs(entry_name, compiler);
         if (module.entry) |entry| {
             entry.assert_needed_at_runtime();

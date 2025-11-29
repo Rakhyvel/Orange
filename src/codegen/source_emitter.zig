@@ -45,6 +45,7 @@ pub fn init(
 pub fn generate(self: *Self) CodeGen_Error!void {
     try self.output_header_include();
     try self.output_impls();
+    try self.output_variant_names();
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Monomorphed function declarations", output_monomprphed_decl);
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Monomorphed function definitions", output_monomprphed_def);
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Function definitions", output_non_monomorphed_def);
@@ -244,6 +245,25 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
             \\}}
             \\
         , .{});
+    }
+}
+
+fn output_variant_names(self: *Self) CodeGen_Error!void {
+    if (self.module.enums.items.len > 0) {
+        try self.writer.print("\n/* Enum variant name tables */\n", .{});
+    }
+    for (self.module.enums.items, 0..) |enum_decl, i| {
+        if (i != 0) try self.writer.print("\n", .{});
+        try self.writer.print("const ", .{});
+        try self.emitter.output_type(prelude_.string_type);
+        try self.writer.print(" ", .{});
+        try self.emitter.output_symbol(enum_decl.symbol().?);
+        try self.writer.print("__variant_names[{}] = {{\n", .{enum_decl.enum_decl.fields.items.len});
+        for (enum_decl.enum_decl.fields.items) |field| {
+            const variant_name = field.annotation.pattern.token().data;
+            try self.writer.print("    {{(uint8_t *)\"{s}\", {}}},\n", .{ variant_name, variant_name.len });
+        }
+        try self.writer.print("}};\n", .{});
     }
 }
 
@@ -490,6 +510,35 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.output_var_assign(instr.dest.?);
             try self.output_rvalue(instr.src1.?, instr.kind.precedence());
             try self.writer.print(".tag;\n", .{});
+        },
+        .get_name => {
+            const enum_type = instr.src1.?.get_expanded_type();
+            if (enum_type.enum_type.from == .optional) {
+                try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
+                try self.writer.print("((", .{});
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(".tag == 0) ? ((", .{});
+                try self.emitter.output_type(instr.dest.?.get_expanded_type());
+                try self.writer.print("){{(uint8_t *)\"some\", 4}}) : ((", .{});
+                try self.emitter.output_type(instr.dest.?.get_expanded_type());
+                try self.writer.print("){{(uint8_t *)\"none\", 4}}));\n", .{});
+            } else if (enum_type.enum_type.from == .@"error") {
+                try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
+                try self.writer.print("((", .{});
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(".tag == 0) ? ((", .{});
+                try self.emitter.output_type(instr.dest.?.get_expanded_type());
+                try self.writer.print("){{(uint8_t *)\"ok\", 2}}) : ((", .{});
+                try self.emitter.output_type(instr.dest.?.get_expanded_type());
+                try self.writer.print("){{(uint8_t *)\"err\", 3}}));\n", .{});
+            } else {
+                try self.output_var_assign(instr.dest.?);
+                try self.emitter.output_symbol(enum_type.enum_type.decl.?.symbol().?);
+                try self.writer.print("__variant_names[", .{});
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(".tag", .{});
+                try self.writer.print("];\n", .{});
+            }
         },
         .cast => {
             if (instr.dest.?.get_expanded_type().* == .dyn_type) {

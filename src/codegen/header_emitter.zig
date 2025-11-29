@@ -8,6 +8,7 @@ const module_ = @import("../hierarchy/module.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Type_Set = @import("../types/type_set.zig");
 const Dependency_Node = @import("../types/dependency_node.zig");
+const prelude_ = @import("../hierarchy/prelude.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");
 
@@ -32,6 +33,7 @@ pub fn generate(self: *Self) CodeGen_Error!void {
     try self.output_typedefs();
     try self.output_traits();
     try self.output_impls();
+    try self.output_variant_names();
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Function declarations", output_forward_function);
     try self.output_include_guard_end();
 }
@@ -254,6 +256,19 @@ fn output_impls(self: *Self) CodeGen_Error!void {
             self.module.name(),
             impl.scope().?.uid,
         });
+    }
+}
+
+fn output_variant_names(self: *Self) CodeGen_Error!void {
+    if (self.module.enums.items.len > 0) {
+        try self.writer.print("\n/* Enum variant name table declarations */\n", .{});
+    }
+    for (self.module.enums.items) |enum_decl| {
+        try self.writer.print("extern const ", .{});
+        try self.emitter.output_type(prelude_.string_type);
+        try self.writer.print(" ", .{});
+        try self.emitter.output_symbol(enum_decl.symbol().?);
+        try self.writer.print("__variant_names[{}];\n", .{enum_decl.enum_decl.fields.items.len});
     }
 }
 

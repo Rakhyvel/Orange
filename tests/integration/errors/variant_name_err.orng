@@ -1,0 +1,5 @@
+// err
+fn main() -> String {
+    let x: ()!Int = .err({})
+    @variant_name(x)
+}
