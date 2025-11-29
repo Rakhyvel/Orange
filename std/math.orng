@@ -165,15 +165,29 @@ impl for Float {
         c_atanh(self)
     }
 
-    // min, max, clamp, abs, signum, sign, copysign, recip, is_sign_positive, is_sign_negative
     fn abs(self) -> Float {
         extern("fabs") const fabs: Float -> Float
         fabs(self)
     }
+
+    fn signum(self) -> Float {
+        if self > 0.0 {
+            1.0
+        } else if self < 0.0 {
+            -1.0
+        } else {
+            0.0
+        }
+    }
+
+    fn copysign(self, y: Float) -> Float {
+        extern("copysign") const c_copysign: (Float, Float) -> Float
+        c_copysign(self, y)
+    }
 }
 
 impl for Int {
-    // min, max, clamp, abs, signum, sign, copysign
+    // abs, signum, sign, copysign
 }
 
 fn as_int(x: Float) -> Int {
@@ -286,5 +300,21 @@ test "hyperbolic trig" {
     try testing::expect(Float::near(1.0.>asinh(), 0.8813735870195430))
     try testing::expect(Float::near(2.0.>acosh(), 1.3169578969248166))
     try testing::expect(Float::near(0.5.>atanh(), 0.5493061443340548))
+    .ok
+}
+
+test "signed stuff" {
+    try testing::expect(Float::near((-15.4).>abs(), 15.4))
+    try testing::expect(Float::near(15.4.>abs(), 15.4))
+
+    try testing::expect((-15.4).>signum() == -1.0)
+    try testing::expect(15.4.>signum() == 1.0)
+    try testing::expect(0.0.>signum() == 0.0)
+    try testing::expect(-0.0.>signum() == 0.0)
+
+    try testing::expect(Float::near(3.14.>copysign(-1.0), -3.14))
+    try testing::expect(Float::near((-2.5).>copysign(1.0), 2.5))
+    try testing::expect(Float::near((42.0).>copysign(0.0), 42.0))
+
     .ok
 }
