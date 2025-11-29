@@ -23,7 +23,7 @@ children: std.array_list.Managed(*Self),
 symbols: std.StringArrayHashMap(*Symbol),
 traits: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), // Set of all `trait`s in this scope. Added to in the `decorate` phase.
 impls: std.array_list.Managed(*ast_.AST), // List of all `impl`s in this scope Added to in the `decorate` phase.
-enums: std.array_list.Managed(*ast_.AST), // List of all `enums`s in this scope Added to in the `decorate` phase. This is so we can generate the variant_name functions.
+enums: std.array_list.Managed(*ast_.AST), // List of all `enum`s in this scope Added to in the `decorate` phase. This is so we can generate the variant_name functions.
 tests: std.array_list.Managed(*ast_.AST), // List of all `test`s in this scope Added to in the `decorate` phase.
 module: ?*module_.Module, // Enclosing module
 uid: usize,
