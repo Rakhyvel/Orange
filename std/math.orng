@@ -3,6 +3,8 @@ cinclude "../math.h"
 import testing
 
 impl for Float {
+    const pi: Self = 3.14159265358979323846
+
     fn is_nan(self) -> Bool {
         self != self
     }
@@ -15,6 +17,10 @@ impl for Float {
         exp == 0x7FF and mant == 0
     }
 
+    fn is_finite(self) -> Bool {
+        not self.>is_inf()
+    }
+
     fn as_bits(self) -> Word64 {
         enum Float_Or_Bits_Tagged {
             float(Float)
@@ -25,11 +31,171 @@ impl for Float {
         retval.float = self
         retval.bits
     }
+
+    fn near(self, other: Float, epsilon: Float = 0.00001) -> Bool {
+        (self - other).>abs() <= epsilon
+    }
+
+    fn floor(self) -> Float {
+        extern("floor") const c_floor: Float -> Float
+        c_floor(self)
+    }
+
+    fn ceil(self) -> Float {
+        extern("ceil") const c_ceil: Float -> Float
+        c_ceil(self)
+    }
+
+    fn round(self) -> Float {
+        extern("round") const c_round: Float -> Float
+        c_round(self)
+    }
+
+    fn trunc(self) -> Float {
+        extern("trunc") const c_trunc: Float -> Float
+        c_trunc(self)
+    }
+
+    fn fract(self) -> Float {
+        self - self.>trunc()
+    }
+
+    fn pow(self, exponent: Float) -> Float {
+        extern("pow") const c_pow: (Float, Float) -> Float
+        c_pow(self, exponent)
+    }
+
+    fn sqrt(self) -> Float {
+        extern("sqrt") const c_sqrt: Float -> Float
+        c_sqrt(self)
+    }
+
+    fn cbrt(self) -> Float {
+        extern("cbrt") const c_cbrt: Float -> Float
+        c_cbrt(self)
+    }
+
+    fn exp(self) -> Float {
+        extern("exp") const c_exp: Float -> Float
+        c_exp(self)
+    }
+
+    fn exp2(self) -> Float {
+        extern("exp2") const c_exp2: Float -> Float
+        c_exp2(self)
+    }
+
+    fn log(self) -> Float {
+        extern("log") const c_log: Float -> Float
+        c_log(self)
+    }
+
+    fn log2(self) -> Float {
+        extern("log2") const c_log2: Float -> Float
+        c_log2(self)
+    }
+
+    fn log10(self) -> Float {
+        extern("log10") const c_log10: Float -> Float
+        c_log10(self)
+    }
+
+    fn sin(self) -> Float {
+        extern("sin") const c_sin: Float -> Float
+        c_sin(self)
+    }
+
+    fn cos(self) -> Float {
+        extern("cos") const c_cos: Float -> Float
+        c_cos(self)
+    }
+
+    fn tan(self) -> Float {
+        extern("tan") const c_tan: Float -> Float
+        c_tan(self)
+    }
+
+    fn asin(self) -> Float {
+        extern("asin") const c_asin: Float -> Float
+        c_asin(self)
+    }
+
+    fn acos(self) -> Float {
+        extern("acos") const c_acos: Float -> Float
+        c_acos(self)
+    }
+
+    fn atan(self) -> Float {
+        extern("atan") const c_atan: Float -> Float
+        c_atan(self)
+    }
+
+    fn atan2(self, x: Float) -> Float {
+        extern("atan2") const c_atan2: (Float, Float) -> Float
+        c_atan2(self, x)
+    }
+
+    fn sinh(self) -> Float {
+        extern("sinh") const c_sinh: Float -> Float
+        c_sinh(self)
+    }
+
+    fn cosh(self) -> Float {
+        extern("cosh") const c_cosh: Float -> Float
+        c_cosh(self)
+    }
+
+    fn tanh(self) -> Float {
+        extern("tanh") const c_tanh: Float -> Float
+        c_tanh(self)
+    }
+
+    fn asinh(self) -> Float {
+        extern("asinh") const c_asinh: Float -> Float
+        c_asinh(self)
+    }
+
+    fn acosh(self) -> Float {
+        extern("acosh") const c_acosh: Float -> Float
+        c_acosh(self)
+    }
+
+    fn atanh(self) -> Float {
+        extern("atanh") const c_atanh: Float -> Float
+        c_atanh(self)
+    }
+
+    fn abs(self) -> Float {
+        extern("fabs") const fabs: Float -> Float
+        fabs(self)
+    }
+
+    fn signum(self) -> Float {
+        if self > 0.0 {
+            1.0
+        } else if self < 0.0 {
+            -1.0
+        } else {
+            0.0
+        }
+    }
+
+    fn copysign(self, y: Float) -> Float {
+        extern("copysign") const c_copysign: (Float, Float) -> Float
+        c_copysign(self, y)
+    }
 }
 
-fn truncate(x: Float) -> Int {
-    extern const truncate_float: Float -> Int
-    truncate_float(x)
+impl for Int {
+    fn abs(self) -> Int {
+        extern("abs") const c_abs: Int -> Int
+        c_abs(self)
+    }
+}
+
+fn as_int(x: Float) -> Int {
+    extern const as_int_helper: Float -> Int
+    as_int_helper(x)
 }
 
 fn as_float(x: Int) -> Float {
@@ -59,5 +225,105 @@ test "is_inf" {
 
     try testing::expect(x.>is_inf())
 
+    .ok
+}
+
+test "floor" {
+    try testing::expect(14.5.>floor() == 14.0)
+    try testing::expect((-14.5).>floor() == -15.0)
+    .ok
+}
+
+test "ceil" {
+    try testing::expect(14.5.>ceil() == 15.0)
+    try testing::expect((-14.5).>ceil() == -14.0)
+    .ok
+}
+
+test "round" {
+    try testing::expect(5.0.>round() == 5.0)
+    try testing::expect(-5.0.>round() == -5.0)
+    try testing::expect(1.2.>round() == 1.0)
+    try testing::expect(-1.2.>round() == -1.0)
+    try testing::expect(1.7.>round() == 2.0)
+    try testing::expect(-1.7.>round() == -2.0)
+    try testing::expect(1.5.>round() == 2.0)
+    try testing::expect(-1.5.>round() == -2.0)
+    .ok
+}
+
+test "trunc" {
+    try testing::expect(1.7.>trunc() == 1.0)
+    try testing::expect(-1.7.>trunc() == -1.0)
+    try testing::expect(3.2.>trunc() == 3.0)
+    .ok
+}
+
+test "fract" {
+    try testing::expect(3.5.>fract() == 0.5)
+    try testing::expect(-3.5.>fract() == -0.5)
+    try testing::expect(-5.0.>fract() == -0.0)
+    .ok
+}
+
+test "power" {
+    try testing::expect(2.0.>pow(10.0) == 1024.0)
+    try testing::expect(9.0.>sqrt() == 3.0)
+    try testing::expect(Float::near((-27.0).>cbrt(), -3.0))
+    .ok
+}
+
+test "exponentials" {
+    try testing::expect(Float::near(2.0.>exp(), 7.389056))
+    try testing::expect(Float::near(2.0.>log(), 0.69314))
+    try testing::expect(Float::near(2.0.>log2(), 1.0))
+    try testing::expect(Float::near(2.0.>log10(), 0.301030))
+    .ok
+}
+
+test "trig" {
+    try testing::expect(Float::near((Float::pi / 6.0).>sin(), 0.5))
+    try testing::expect(Float::near((Float::pi / 3.0).>cos(), 0.5))
+    try testing::expect(Float::near((Float::pi / 4.0).>tan(), 1.0))
+    .ok
+}
+
+test "inverse trig" {
+    try testing::expect(Float::near(0.5.>asin(), Float::pi / 6.0))
+    try testing::expect(Float::near(0.5.>acos(), Float::pi / 3.0))
+    try testing::expect(Float::near(1.0.>atan(), Float::pi / 4.0))
+    try testing::expect(Float::near(Float::atan2(-1.0, -1.0), -3.0 * Float::pi / 4.0))
+    .ok
+}
+
+test "hyperbolic trig" {
+    try testing::expect(Float::near(1.0.>sinh(), 1.1752011936438014))
+    try testing::expect(Float::near(1.0.>cosh(), 1.5430806348152437))
+    try testing::expect(Float::near(1.0.>tanh(), 0.7615941559557649))
+    try testing::expect(Float::near(1.0.>asinh(), 0.8813735870195430))
+    try testing::expect(Float::near(2.0.>acosh(), 1.3169578969248166))
+    try testing::expect(Float::near(0.5.>atanh(), 0.5493061443340548))
+    .ok
+}
+
+test "signed stuff" {
+    try testing::expect(Float::near((-15.4).>abs(), 15.4))
+    try testing::expect(Float::near(15.4.>abs(), 15.4))
+
+    try testing::expect((-15.4).>signum() == -1.0)
+    try testing::expect(15.4.>signum() == 1.0)
+    try testing::expect(0.0.>signum() == 0.0)
+    try testing::expect(-0.0.>signum() == 0.0)
+
+    try testing::expect(Float::near(3.14.>copysign(-1.0), -3.14))
+    try testing::expect(Float::near((-2.5).>copysign(1.0), 2.5))
+    try testing::expect(Float::near((42.0).>copysign(0.0), 42.0))
+
+    .ok
+}
+
+test "int abs" {
+    try testing::expect((-15).>abs() == 15)
+    try testing::expect(15.>abs() == 15)
     .ok
 }

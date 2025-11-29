@@ -182,7 +182,7 @@ fn output_start(
         &buf,
     );
     source_emitter.output_header_include() catch return error.CompileError;
-    buf.print("#include <stdio.h>\n\n", .{}) catch return error.CompileError;
+    buf.print("#include <stdio.h>\n#include \"debug.inc\"\n\n", .{}) catch return error.CompileError;
 
     var contexts_used = Type_Map(void).init(allocator);
     defer contexts_used.deinit();
@@ -216,6 +216,8 @@ fn output_testrunner(
         \\#include <stdio.h>
         \\#include <stdlib.h>
         \\#include <string.h>
+        \\
+        \\#include "debug.inc"
         \\
         \\
     , .{}) catch return error.CompileError;
@@ -273,7 +275,7 @@ fn output_testrunner(
             const test_name = @"test".symbol.decl.?.@"test".name.?.string.data;
 
             buf.print(
-                \\    if (substr == NULL || strstr("{1s}", substr))
+                \\    if (substr == NULL || strstr("{0s}.orng: {1s}", substr))
                 \\    {{
                 \\        if (prev_filename == NULL)
                 \\        {{
@@ -298,6 +300,7 @@ fn output_testrunner(
                 \\        }}
                 \\        else
                 \\        {{
+                \\            orange_debug__dump_error_trace("unhandled error");
                 \\            printf("[     FAILED ]\n");
                 \\            failed_tests += 1;
                 \\        }}

@@ -590,13 +590,23 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
                 try spaces.print(" ", .{});
             }
             try self.writer.print("    orange_debug__lines[orange_debug__line_idx++] = ", .{});
-
             try instr.span.print_debug_line(self.writer, Span.c_format);
             try self.writer.print(";\n", .{});
+
+            for (1..instr.span.col - 1) |_| {
+                try spaces.print(" ", .{});
+            }
+            try self.writer.print("    orange_debug__err_line_idx = orange_debug__line_idx;\n", .{});
         },
         .pop_stack_trace => {
             try self.writer.print(
                 \\    orange_debug__line_idx--;
+                \\
+            , .{});
+        },
+        .pop_err_trace => {
+            try self.writer.print(
+                \\    orange_debug__err_line_idx = orange_debug__line_idx;
                 \\
             , .{});
         },
