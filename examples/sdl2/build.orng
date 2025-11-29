@@ -1,0 +1,8 @@
+fn build() -> core::Package {
+    let mut retval = core::Package::executable(.root="main.orng")
+    retval.>add_include_directory("C:\\Users\\Joseph\\Documents\\SDL2\\x86_64-w64-mingw32\\include")
+    retval.>add_library_directory("C:\\Users\\Joseph\\Documents\\SDL2\\x86_64-w64-mingw32\\lib")
+    retval.>add_library("SDL2.dll")
+    retval.>add_library("SDL2main")
+    retval
+}

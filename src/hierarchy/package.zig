@@ -397,6 +397,7 @@ fn construct_obj_cc_cmd(
             "-Wpedantic",
             "-pedantic-errors",
             "-Wconversion",
+            "-Wno-pointer-sign", // C `char *` isnt' the same as `uint8_t *`, but like it is
             "-Wsign-conversion",
             "-Wfloat-conversion",
             "-Wcast-qual",
@@ -477,9 +478,9 @@ pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
         std.fs.path.sep,
     }) catch unreachable;
     switch (self.kind) {
-        .executable => try output_absolute_path.print("{s}", .{self.name}),
-        .test_executable => try output_absolute_path.print("{s}-test", .{self.name}),
-        .static_library => try output_absolute_path.print("lib{s}.a", .{self.name}),
+        .executable => try output_absolute_path.print("{s}.exe", .{self.name}),
+        .test_executable => try output_absolute_path.print("{s}-test.exe", .{self.name}),
+        .static_library => try output_absolute_path.print("{s}.lib", .{self.name}),
         .shared_library => try output_absolute_path.print("{s}.so", .{self.name}),
     }
     self.output_absolute_path = output_absolute_path.items;
@@ -595,7 +596,7 @@ fn append_library_flags(
     }
 }
 
-const debug: bool = false;
+const debug: bool = true;
 fn print_cmd(cmd: *const std.array_list.Managed([]const u8)) void {
     if (debug) {
         for (cmd.items) |item| {

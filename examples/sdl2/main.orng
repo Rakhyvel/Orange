@@ -1,0 +1,33 @@
+cinclude "SDL2/SDL.h"
+
+extern("SDL_Init") const init: Word32 -> Int32
+extern("SDL_INIT_EVERYTHING") const init_everything: Word32
+
+extern ("SDL_CreateWindow") const create_window: ([*]Byte, Int32, Int32, Int32, Int32, Word32) -> &Int
+extern ("SDL_WINDOWPOS_CENTERED") const windowpos_centered: Int32
+
+extern ("SDL_Delay") const delay: Int32 -> ()
+
+extern("SDL_PollEvent") const poll_event: [*]Event -> Int32
+
+extern ("SDL_Event") type Event
+
+extern ("SDL_Quit") const quit: () -> ()
+
+fn main() -> ()!() with core::IO {
+    _ = init(init_everything)
+    _ = create_window("My SDL app".data, windowpos_centered, windowpos_centered, 800, 600, 0)
+
+    let mut event_buffer: [56]Byte
+    let mut running = true
+    while running {
+        while poll_event(([]event_buffer).data as [*]Event) != 0 {
+            let event_type = (([]event_buffer)[0..4].data as [*]Word32)[0]
+            if event_type == 0x100 {
+                running = false
+            }
+        }
+        delay(16)
+    }
+    .ok
+}

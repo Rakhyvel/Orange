@@ -90,7 +90,7 @@ inline static int64_t orange_debug__negate_int64_t(const int64_t x, const char *
     if (x == INT64_MIN)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "-(%ld)\n", x);
+        fprintf(stderr, "-(%lld)\n", x);
         orange_debug__panic("Int64 negation overflow");
     }
     return -x;
@@ -138,7 +138,7 @@ inline static int64_t orange_debug__add_int64_t(const int64_t lhs, const int64_t
         ((rhs < 0) && (lhs < (INT64_MIN - rhs))))
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld + %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld + %lld\n", lhs, rhs);
         orange_debug__panic("addition overflow");
     }
     return lhs + rhs;
@@ -186,7 +186,7 @@ inline static int64_t orange_debug__sub_int64_t(const int64_t lhs, const int64_t
         (rhs < 0 && lhs > INT64_MAX + rhs))
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld - %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld - %lld\n", lhs, rhs);
         orange_debug__panic("subtraction overflow");
     }
     return lhs - rhs;
@@ -253,7 +253,7 @@ inline static int64_t orange_debug__mult_int64_t(const int64_t lhs, const int64_
              (lhs < 0 && ((rhs > 0 && lhs < INT64_MIN / rhs) || (rhs < 0 && rhs < INT64_MAX / lhs))))
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld * %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld * %lld\n", lhs, rhs);
         orange_debug__panic("multiplication overflow");
     }
 
@@ -319,13 +319,13 @@ inline static int64_t orange_debug__div_int64_t(const int64_t lhs, const int64_t
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld / %lld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT64_MIN && rhs == -1)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld / %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld / %lld\n", lhs, rhs);
         orange_debug__panic("division overflow");
     }
 
@@ -391,13 +391,13 @@ inline static int64_t orange_debug__mod_int64_t(const int64_t lhs, const int64_t
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld %% %lld\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
     else if (lhs == INT64_MIN && rhs == -1)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%ld %% %ld\n", lhs, rhs);
+        fprintf(stderr, "%lld %% %lld\n", lhs, rhs);
         orange_debug__panic("modulus overflow");
     }
 
@@ -445,7 +445,7 @@ inline static uint64_t orange_debug__mod_uint64_t(const uint64_t lhs, const uint
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%lu %% %lu\n", lhs, rhs);
+        fprintf(stderr, "%llu %% %llu\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
 
