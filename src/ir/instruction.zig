@@ -174,6 +174,12 @@ pub fn init_stack_pop(span: Span, allocator: std.mem.Allocator) *Self {
     return retval;
 }
 
+pub fn init_stack_err_pop(span: Span, allocator: std.mem.Allocator) *Self {
+    var retval = Self.init(.pop_err_trace, null, null, null, span, allocator);
+    retval.data = Data.none;
+    return retval;
+}
+
 pub fn init_panic(message: []const u8, span: Span, allocator: std.mem.Allocator) *Self {
     var retval = Self.init(.panic, null, null, null, span, allocator);
     retval.data = Data{ .string = message };
@@ -531,6 +537,7 @@ pub const Kind = enum {
     // Errors
     push_stack_trace, // Pushes a static span/code to the lines array if debug mode is on
     pop_stack_trace, // Pops a message off the stack after a function is successfully called
+    pop_err_trace,
     panic, // if debug mode is on, panics with a message, unrolls lines stack, exits
 
     pub fn is_checked(self: Kind) bool {

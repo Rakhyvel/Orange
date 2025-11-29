@@ -115,7 +115,6 @@ impl for Float {
         c_tan(self)
     }
 
-    // asin, acos, atan, atan2
     fn asin(self) -> Float {
         extern("asin") const c_asin: Float -> Float
         c_asin(self)
@@ -136,8 +135,36 @@ impl for Float {
         c_atan2(self, x)
     }
 
-    // sinh, cosh, tanh
-    // asinh, acosh, atanh
+    fn sinh(self) -> Float {
+        extern("sinh") const c_sinh: Float -> Float
+        c_sinh(self)
+    }
+
+    fn cosh(self) -> Float {
+        extern("cosh") const c_cosh: Float -> Float
+        c_cosh(self)
+    }
+
+    fn tanh(self) -> Float {
+        extern("tanh") const c_tanh: Float -> Float
+        c_tanh(self)
+    }
+
+    fn asinh(self) -> Float {
+        extern("asinh") const c_asinh: Float -> Float
+        c_asinh(self)
+    }
+
+    fn acosh(self) -> Float {
+        extern("acosh") const c_acosh: Float -> Float
+        c_acosh(self)
+    }
+
+    fn atanh(self) -> Float {
+        extern("atanh") const c_atanh: Float -> Float
+        c_atanh(self)
+    }
+
     // min, max, clamp, abs, signum, sign, copysign, recip, is_sign_positive, is_sign_negative
     fn abs(self) -> Float {
         extern("fabs") const fabs: Float -> Float
@@ -249,5 +276,15 @@ test "inverse trig" {
     try testing::expect(Float::near(0.5.>acos(), Float::pi / 3.0))
     try testing::expect(Float::near(1.0.>atan(), Float::pi / 4.0))
     try testing::expect(Float::near(Float::atan2(-1.0, -1.0), -3.0 * Float::pi / 4.0))
+    .ok
+}
+
+test "hyperbolic trig" {
+    try testing::expect(Float::near(1.0.>sinh(), 1.1752011936438014))
+    try testing::expect(Float::near(1.0.>cosh(), 1.5430806348152437))
+    try testing::expect(Float::near(1.0.>tanh(), 0.7615941559557649))
+    try testing::expect(Float::near(1.0.>asinh(), 0.8813735870195430))
+    try testing::expect(Float::near(2.0.>acosh(), 1.3169578969248166))
+    try testing::expect(Float::near(0.5.>atanh(), 0.5493061443340548))
     .ok
 }

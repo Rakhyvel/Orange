@@ -223,6 +223,7 @@ fn compile_local_modules(self: *Package, obj_files: *std.StringArrayHashMap(void
 }
 
 /// Appends the object files for a module to a set of object files
+/// TODO: Should de-couple this from Module so that we can compile arbitrary C files
 fn add_module_obj_files(self: *Package, obj_files: *std.StringArrayHashMap(void), local_module: *Module, allocator: std.mem.Allocator) std.array_list.Managed(u8) {
     // Append the o filename to the obj files list, even if this isn't compiled!
     var o_file = std.array_list.Managed(u8).init(allocator);
@@ -250,6 +251,7 @@ fn add_module_obj_files(self: *Package, obj_files: *std.StringArrayHashMap(void)
 }
 
 /// Compiles the sources for a module
+/// TODO: Should de-couple this from Module so that we can compile arbitrary C files
 fn compile_module_sources(self: *Package, o_file: std.array_list.Managed(u8), packages: std.StringArrayHashMap(*Package), local_module: *Module, allocator: std.mem.Allocator) !void {
     var c_file = std.array_list.Managed(u8).init(allocator);
     defer c_file.deinit();
@@ -498,6 +500,7 @@ fn invoke_cmd(self: *Package, cmd: std.array_list.Managed([]const u8), allocator
         .allocator = allocator,
         .argv = cmd.items,
         .cwd = cwd_string.items,
+        .max_output_bytes = 1024 * 1024,
     }) catch |err| switch (err) {
         else => std.debug.panic("compile error: on cmd invoke: {}", .{err}),
     };

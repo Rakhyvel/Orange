@@ -62,7 +62,7 @@ pub fn output_common_includes(self: *Self) CodeGen_Error!void {
         \\#include <stdint.h>
         \\#include <stdlib.h>
         \\
-        \\#include "debug.inc"
+        \\#include "debug.h"
         \\
     , .{});
 }

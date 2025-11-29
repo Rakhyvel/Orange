@@ -59,6 +59,7 @@ pub fn lower_AST_into_cfg(self: *Self) Lower_Errors!void {
     if (eval != null) {
         self.instructions.append(Instruction.init_simple_copy(return_version, eval.?, self.cfg.symbol.span(), self.ctx.allocator())) catch unreachable;
     }
+    self.instructions.append(Instruction.init_stack_err_pop(self.cfg.symbol.span(), self.ctx.allocator())) catch unreachable;
     self.instructions.append(Instruction.init_jump(null, self.cfg.symbol.span(), self.ctx.allocator())) catch unreachable;
 
     if (false) {
@@ -541,6 +542,7 @@ fn lower_AST_inner(
             }
             if (ast.block.final) |final| {
                 _ = try self.lower_AST(final, current_labels);
+                self.instructions.append(Instruction.init_stack_err_pop(ast.token().span, self.ctx.allocator())) catch unreachable;
             } else if (temp) |_temp| {
                 self.wrap_error_return(_temp, ast.token().span, current_labels);
             }

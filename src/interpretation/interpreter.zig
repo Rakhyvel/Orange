@@ -353,6 +353,7 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
         .pop_stack_trace => { // Pops a message off the stack after a function is successfully called
             _ = self.debug_call_stack.pop();
         },
+        .pop_err_trace => {}, // TODO: Implement error trace for interpreter
         .panic => { // if debug mode is on, panics with a message, unrolls lines stack, exits
             return self.interpreter_panic("interpreter error: reached unreachable code\n", .{});
         },
