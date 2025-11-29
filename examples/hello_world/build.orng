@@ -1,0 +1,3 @@
+fn build() -> core::Package {
+    core::Package::executable(.root="main.orng")
+}

@@ -1,0 +1,24 @@
+import std::io
+import std::string_buffer::String_Buffer
+
+fn main() -> ()!() with (core::IO, core::Allocating) {
+    // `String_Buffer::init()` implicitly uses the allocator from the surrounding context
+    let mut first_name_buf = String_Buffer::init()
+    defer first_name_buf.>deinit()
+    let mut last_name_buf = String_Buffer::init()
+    defer last_name_buf.>deinit()
+    
+    try get_names[String_Buffer](&mut first_name_buf, &mut last_name_buf)
+
+    try @println("Hello, {first_name_buf.>str()} {last_name_buf.>str()}!")
+
+    .ok
+}
+
+fn get_names[T: core::Writer](first_name_buf: &mut T, last_name_buf: &mut T) -> ()!() with core::IO {
+    try @print("Enter your first name: ")
+    try io::read_until_delimeter(core::IO.reader, &mut first_name_buf, '\n')
+    try @print("Enter your last name: ")
+    try io::read_until_delimeter(core::IO.reader, &mut last_name_buf, '\n')
+    .ok
+}

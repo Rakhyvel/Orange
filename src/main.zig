@@ -113,7 +113,7 @@ fn run(compiler: *Compiler_Context, package_abs_path: []const u8, args: *std.pro
     defer argv.deinit();
 
     try argv.append(output_name.items);
-    if (args.next()) |arg| {
+    while (args.next()) |arg| {
         try argv.append(arg);
     }
 

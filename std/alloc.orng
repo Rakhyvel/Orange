@@ -1,0 +1,38 @@
+import mem
+
+struct Fixed_Buffer_Allocator {
+    buf: [mut]Byte
+    cursor: Int
+}
+
+impl for Fixed_Buffer_Allocator {
+    fn init(buf: [mut]Byte) -> Self {
+        Self(buf, 0)
+    }
+
+    fn reset(&mut self) {
+        self.cursor = 0
+    }
+}
+
+impl core::Allocator for Fixed_Buffer_Allocator {
+    virtual fn alloc(&mut self, nbytes: Int) -> ?[*mut]Byte {
+        if nbytes + self.cursor > self.buf.length {
+            return .none
+        }
+        let retval = self.buf[self.cursor..].data
+        self.cursor += nbytes
+        .some(retval)
+    }
+
+    virtual fn realloc(&mut self, allocation: [*mut]Byte, newsize: Int) -> ?[*mut]Byte {
+        // not implemented
+        _ = (self, allocation, newsize)
+        .none
+    }
+
+    virtual fn free(&mut self, allocation: [*mut]Byte) {
+        _ = (self, allocation)
+        // not implemented
+    }
+}

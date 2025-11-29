@@ -1,0 +1,13 @@
+cinclude "SDL.h"
+
+extern("SDL_Init") const init: Word32 -> Int32
+extern("SDL_INIT_EVERYTHING") const init_everything: Word32
+
+extern ("SDL_CreateWindow") const create_window: (&Byte, Int32, Int32, Int32, Int32, Word32) -> &Int
+extern ("SDL_WINDOWPOS_CENTERED") const windowpos_centered: Int32
+
+extern ("SDL_Quit") const quit: () -> ()
+
+fn main() {
+
+}

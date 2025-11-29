@@ -1,0 +1,3 @@
+fn main() -> ()!() with core::IO {
+    @println("Hello, World!") // @println must be called from within a core::IO context
+}

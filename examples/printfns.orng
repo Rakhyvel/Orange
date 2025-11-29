@@ -1,7 +1,0 @@
-extern const putchar: Byte -> Int32
-
-fn print(s: String) -> () {
-    while let mut i = 0; i < s.length; i += 1 {
-        _ = putchar(s[i])
-    }
-}
