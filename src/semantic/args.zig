@@ -88,14 +88,16 @@ fn args_are_named(self: *Self) Validate_Error_Enum!bool {
 
     var has_named_arg = false;
     var has_pos_arg = false;
-    for (self.args.items) |term| {
+    for (self.args.items, 0..) |term, i| {
         if (term.* == .assign) {
             has_named_arg = true;
-        } else {
+        } else if (self.thing != .method or i != 0) {
             has_pos_arg = true;
         }
     }
-    std.debug.assert(has_named_arg or has_pos_arg);
+    if (!has_pos_arg and !has_named_arg) {
+        has_pos_arg = true;
+    }
     if (has_named_arg and has_pos_arg) {
         const arg_span = self.args.items[0].token().span;
         self.errors.add_error(errs_.Error{ .basic = .{ .span = arg_span, .msg = "mixed positional and named arguments are not allowed" } });
@@ -218,6 +220,12 @@ fn named_args(self: *Self) (Validate_Error_Enum || error{NoDefault})!std.array_l
 }
 
 fn put_assign(self: *Self, ast: *ast_.AST, arg_map: *std.StringArrayHashMap(*ast_.AST)) Validate_Error_Enum!void {
+    if (ast.* != .assign) {
+        // methods don't have their self as a named arg, just put it as self
+        std.debug.assert(self.thing == .method);
+        try self.put_ast_map(ast, "self", ast.token().span, arg_map);
+        return;
+    }
     if (ast.lhs().* != .enum_value) {
         self.errors.add_error(errs_.Error{ .expected_basic_token = .{ .expected = "an named argument", .got = ast.lhs().token() } });
         return error.CompileError;

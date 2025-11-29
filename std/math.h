@@ -15,4 +15,9 @@ inline double as_float_helper(int64_t x)
     return (double)x;
 }
 
+inline double float_from_word32_helper(uint32_t x)
+{
+    return (double)x;
+}
+
 #endif

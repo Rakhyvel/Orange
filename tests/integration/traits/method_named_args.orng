@@ -1,0 +1,9 @@
+// 415
+impl for Int {
+    fn add(self, addend: Int = 300) -> Int { self + addend }
+}
+
+fn main() -> Int {
+    let x = 15
+    x.>add(.addend = 400)
+}
