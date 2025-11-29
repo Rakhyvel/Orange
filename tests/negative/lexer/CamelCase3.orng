@@ -1,4 +1,4 @@
-// CamelCase.orng:6:14: error: camelCase is not supported
+// CamelCase3.orng:6:14: error: camelCase is not supported
 //     let CamelCase = 0
 //             ^
 // 
