@@ -1,0 +1,12 @@
+// variant_4
+enum My_Enum {
+    variant_1,
+    variant_2,
+    variant_3,
+    variant_4,
+    variant_5,
+}
+
+fn main() -> String {
+    @variant_name(My_Enum.variant_4)
+}

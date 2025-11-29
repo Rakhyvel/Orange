@@ -156,6 +156,11 @@ pub fn init_get_tag(dest: *lval_.L_Value, src1: *lval_.L_Value, span: Span, allo
     return retval;
 }
 
+pub fn init_get_name(dest: *lval_.L_Value, src1: *lval_.L_Value, span: Span, allocator: std.mem.Allocator) *Self {
+    const retval = Self.init(.get_name, dest, src1, null, span, allocator);
+    return retval;
+}
+
 pub fn init_union(dest: *lval_.L_Value, _init: ?*lval_.L_Value, tag: i128, span: Span, allocator: std.mem.Allocator) *Self {
     var retval = Self.init(.load_union, dest, _init, null, span, allocator);
     retval.data = Data{ .int = tag };
@@ -525,6 +530,7 @@ pub const Kind = enum {
     div_float,
     mod,
     get_tag, // dest = src1.tag
+    get_name, // dest = variant_name_from_tag(src1.tag)
     cast,
 
     // Control-flow
@@ -635,6 +641,7 @@ pub const Kind = enum {
 
             .call,
             .get_tag,
+            .get_name,
             => Precedence.postfix,
 
             .negate_int,

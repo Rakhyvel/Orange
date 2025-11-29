@@ -85,6 +85,7 @@ pub const Type_AST = union(enum) {
         _terms: std.array_list.Managed(*Type_AST),
         from: Sum_From = .none,
         all_unit: ?bool = null,
+        decl: ?*AST = null,
 
         /// Checks if all terms in the sum are unit-typed
         pub fn is_all_unit(self: *@This()) bool {

@@ -272,6 +272,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
         .generic_apply => return self.monomorphize_generic_apply(ast),
         .trait => try self.scope.traits.put(ast, void{}),
+        .enum_decl => try self.scope.enums.append(ast),
         .@"test" => try self.scope.tests.append(ast),
     }
 }
