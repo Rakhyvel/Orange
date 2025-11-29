@@ -1,0 +1,12 @@
+// mixing_method_arg_names.orng:11:6: error: mixed positional and named arguments are not allowed
+//     x.>add(.addend = 400, 34)
+//     ^
+// 
+impl for Int {
+    fn add(self, addend: Int = 300, addend2: Int = 40) -> Int { self + addend + addend2 }
+}
+
+fn main() -> Int {
+    let x = 15
+    x.>add(.addend = 400, 34)
+}

@@ -203,6 +203,11 @@ fn as_float(x: Int) -> Float {
     as_float_helper(x)
 }
 
+fn float_from_word32(x: Word32) -> Float {
+    extern const float_from_word32_helper: Word32 -> Float
+    float_from_word32_helper(x)
+}
+
 test "as_bits" {
     let x = 1.0
 

@@ -1,0 +1,132 @@
+import debug
+import fmt
+import math
+import testing
+
+struct Xoshiro128 {
+    state: [4]Word32
+}
+
+impl for Xoshiro128 {
+    fn from_seed(the_seed: Word32) -> Self {
+        let mut retval = Xoshiro128([0, 0, 0, 0])
+        retval.>seed(the_seed)
+        retval
+    }
+
+    fn seed(&mut self, the_seed: Word32) {
+        fn splitmix32(the_seed: &mut Word32) -> Word32 {
+            the_seed^ += 0x9E3779B9
+            let mut z = the_seed^
+            z = @bit_xor(z, @right_shift(z, 16)) * 0x85EBCA6B
+            z = @bit_xor(z, @right_shift(z, 13)) * 0xC2B2AE35
+            @bit_xor(z, @right_shift(z, 16))
+        }
+
+        let mut tmp = the_seed
+        while let mut i = 0; i < 4; i += 1 {
+            self.state[i] = splitmix32(&mut tmp)
+            if self.state[i] == 0 {
+                self.state[i] = 0xDEADBEEF
+            }
+        }
+    }
+
+    fn next(&mut self) -> Word32 {
+        let result = self.state[0] + self.state[3]
+
+        let t: Word32 = @left_shift(self.state[1], 9)
+
+        self.state[2] = @bit_xor(self.state[2], self.state[0])
+        self.state[3] = @bit_xor(self.state[3], self.state[1])
+        self.state[1] = @bit_xor(self.state[1], self.state[2])
+        self.state[0] = @bit_xor(self.state[0], self.state[3])
+
+        self.state[2] = @bit_xor(self.state[2], t)
+        self.state[3] = @bit_xor(self.state[3], rotl(self.state[3], 11))
+
+        result
+    }
+
+    fn next_float(&mut self) -> Float {
+        let result = self.>next()
+        math::float_from_word32(result) / 4294967296.0
+    }
+
+    fn uniform(&mut self, lower: Float, upper: Float) -> Float {
+        debug::assert(lower < upper)
+        self.>next_float() * (upper - lower) + lower
+    }
+
+    fn normal(&mut self, loc: Float = 0.0, scale: Float = 1.0) -> Float {
+        let u1 = self.>next_float()   
+        let u2 = self.>next_float()
+
+        let z0 = (-2.0 * u1.>log()).>sqrt() * (2.0 * Float::pi * u2).>cos()
+        z0 * scale + loc
+    }
+}
+
+fn rotl(x: Word32, k: Word32) -> Word32 {
+    @bit_or(
+        @left_shift(x, k),
+        @right_shift(x, (32 - k))
+    )
+}
+
+test "rand" {
+    let mut rng = Xoshiro128::from_seed(0)
+    let mut histogram: [10]Int = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    const iterations = 1_000_000
+    const tolerance = 0.05
+
+    while let mut i = 0; i < iterations; i += 1 {
+        let x = rng.>next_float()
+        let idx = math::as_int(x * 10.0)
+        histogram[idx] += 1
+    }
+
+    let expected = math::as_float(iterations) / 10.0
+
+    while let mut i = 0; i < 10; i += 1 {
+        let lower = math::as_int(expected * (1.0 - tolerance))
+        let upper = math::as_int(expected * (1.0 + tolerance))
+        try testing::expect(histogram[i] >= lower)
+        try testing::expect(histogram[i] <= upper)
+    }
+    .ok
+}
+
+test "uniform" {
+    const iterations = 1_000_000
+    const lower = -10.0
+    const upper = 10.0
+
+    let mut rng = Xoshiro128::from_seed(0)
+
+    while let mut i = 0; i < iterations; i += 1 {
+        let value = rng.>uniform(lower, upper)
+        
+        try testing::expect(value >= lower)
+        try testing::expect(value <= upper)
+    }
+    .ok
+}
+
+test "normal" with core::IO {
+    let mut rng = Xoshiro128::from_seed(0)
+
+    let mut min = 1000.0
+    let mut max = -1000.0
+
+    while let mut i = 0; i < 1_000_000; i += 1 {
+        let x = rng.>normal()
+        if x < min { min = x }
+        if x > max { max = x }
+    }
+    
+    try testing::expect(min < 0.0)
+    try testing::expect(max > 0.0)
+
+    .ok
+}

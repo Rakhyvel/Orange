@@ -478,6 +478,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             ast.invoke.method_decl = method_decl.?;
             const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
             const expanded_true_lhs_type = true_lhs_type.expand_identifier();
+
             if (method_decl.?.method_decl.receiver != null and !ast.invoke.prepended) {
                 const receiver_kind: ?ast_.Receiver_Kind = method_decl.?.method_decl.receiver.?.receiver.kind;
                 // Trait method takes a receiver...
