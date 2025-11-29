@@ -10,11 +10,11 @@ struct Xoshiro128 {
 impl for Xoshiro128 {
     fn from_seed(the_seed: Word32) -> Self {
         let mut retval = Xoshiro128([0, 0, 0, 0])
-        retval.>seed(the_seed)
+        retval.>reseed(the_seed)
         retval
     }
 
-    fn seed(&mut self, the_seed: Word32) {
+    fn reseed(&mut self, the_seed: Word32) {
         fn splitmix32(the_seed: &mut Word32) -> Word32 {
             the_seed^ += 0x9E3779B9
             let mut z = the_seed^
@@ -59,7 +59,10 @@ impl for Xoshiro128 {
     }
 
     fn normal(&mut self, loc: Float = 0.0, scale: Float = 1.0) -> Float {
-        let u1 = self.>next_float()   
+        let mut u1 = self.>next_float()
+        while u1 == 0.0 {
+            u1 = self.>next_float() // to prevent log(0.0)
+        }
         let u2 = self.>next_float()
 
         let z0 = (-2.0 * u1.>log()).>sqrt() * (2.0 * Float::pi * u2).>cos()
@@ -125,8 +128,8 @@ test "normal" with core::IO {
         if x > max { max = x }
     }
     
-    try testing::expect(min < 0.0)
-    try testing::expect(max > 0.0)
+    try testing::expect(min < -1.0)
+    try testing::expect(max > 1.0)
 
     .ok
 }

@@ -221,6 +221,8 @@ fn named_args(self: *Self) (Validate_Error_Enum || error{NoDefault})!std.array_l
 
 fn put_assign(self: *Self, ast: *ast_.AST, arg_map: *std.StringArrayHashMap(*ast_.AST)) Validate_Error_Enum!void {
     if (ast.* != .assign) {
+        // methods don't have their self as a named arg, just put it as self
+        std.debug.assert(self.thing == .method);
         try self.put_ast_map(ast, "self", ast.token().span, arg_map);
         return;
     }
