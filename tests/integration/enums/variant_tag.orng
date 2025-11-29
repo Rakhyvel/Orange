@@ -1,0 +1,12 @@
+// 414
+enum My_Enum {
+    variant_1,
+    variant_2,
+    variant_3,
+    variant_4,
+    variant_5,
+}
+
+fn main() -> Word64 {
+    410 + @variant_tag(My_Enum.variant_5)
+}

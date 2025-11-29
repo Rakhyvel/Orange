@@ -725,7 +725,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             }
             return expanded_super_type;
         },
-
+        .variant_tag => {
+            const expr_type: *Type_AST = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
+            const expanded_expr_type = expr_type.expand_identifier();
+            if (expanded_expr_type.* != .enum_type) {
+                return typing_.throw_wrong_from("enum", "enum value", expanded_expr_type, ast.token().span, &self.ctx.errors);
+            }
+            return prelude_.word64_type;
+        },
         .enum_value => {
             if (ast.enum_value.base == null and expected == null) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type for initializer" } });

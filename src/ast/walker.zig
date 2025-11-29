@@ -117,6 +117,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .dyn_value,
         .bit_not,
         .cinclude,
+        .variant_tag,
         => try walk_ast(ast.expr(), new_context),
 
         .as => {

@@ -286,6 +286,10 @@ pub const AST = union(enum) {
         common: AST_Common,
         _children: std.array_list.Managed(*AST),
     },
+    variant_tag: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
 
     // Control-flow expressions
     @"if": struct {
@@ -608,6 +612,13 @@ pub const AST = union(enum) {
         return AST.box(AST{ .print = .{
             .common = AST_Common{ ._token = _token },
             ._children = _children,
+        } }, allocator);
+    }
+
+    pub fn create_variant_tag(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .variant_tag = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
         } }, allocator);
     }
 
@@ -1446,6 +1457,8 @@ pub const AST = union(enum) {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
                 return create_print(self.token(), cloned_args, allocator);
             },
+            .variant_tag => return create_variant_tag(self.token(), self.expr().clone(substs, allocator), allocator),
+
             .@"comptime" => return create_comptime(self.token(), self.expr().clone(substs, allocator), allocator),
 
             .assign => return create_assign(
@@ -2318,6 +2331,7 @@ pub const AST = union(enum) {
                 try out.print(")", .{});
             },
             .size_of => try out.print("size_of({f})", .{self.type()}),
+            .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
             .@"comptime" => try out.print("comptime({f})", .{self.expr()}),
 
             .assign => {
