@@ -1,0 +1,8 @@
+// 419
+fn main() -> Int {
+    call_me_maybe()
+}
+
+fn call_me_maybe(value: ?Int = .some(419)) -> Int {
+    value orelse unreachable
+}

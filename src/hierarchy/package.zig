@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const Module = @import("../hierarchy/module.zig").Module;
 const CFG = @import("../ir/cfg.zig");
@@ -478,11 +479,20 @@ pub fn set_executable_name(self: *Package, allocator: std.mem.Allocator) !void {
         std.fs.path.sep,
         std.fs.path.sep,
     }) catch unreachable;
-    switch (self.kind) {
-        .executable => try output_absolute_path.print("{s}.exe", .{self.name}),
-        .test_executable => try output_absolute_path.print("{s}-test.exe", .{self.name}),
-        .static_library => try output_absolute_path.print("{s}.lib", .{self.name}),
-        .shared_library => try output_absolute_path.print("{s}.so", .{self.name}),
+    if (builtin.os.tag == .windows) {
+        switch (self.kind) {
+            .executable => try output_absolute_path.print("{s}.exe", .{self.name}),
+            .test_executable => try output_absolute_path.print("{s}-test.exe", .{self.name}),
+            .static_library => try output_absolute_path.print("{s}.lib", .{self.name}),
+            .shared_library => try output_absolute_path.print("{s}.dll", .{self.name}),
+        }
+    } else {
+        switch (self.kind) {
+            .executable => try output_absolute_path.print("{s}", .{self.name}),
+            .test_executable => try output_absolute_path.print("{s}-test", .{self.name}),
+            .static_library => try output_absolute_path.print("lib{s}.a", .{self.name}),
+            .shared_library => try output_absolute_path.print("lib{s}.so", .{self.name}),
+        }
     }
     self.output_absolute_path = output_absolute_path.items;
 }

@@ -1,0 +1,26 @@
+// variant_4
+fn get_name1() -> String {
+    enum My_Enum {
+        variant_1,
+        variant_2,
+        variant_3,
+        variant_4,
+        variant_5,
+    }
+    @variant_name(My_Enum.variant_4)
+}
+
+fn get_name2() -> String {
+    enum My_Enum {
+        variant_1,
+        variant_2,
+        variant_3,
+        variant_4,
+        variant_5,
+    }
+    @variant_name(My_Enum.variant_4)
+}
+
+fn main() -> String {
+    get_name1()
+}

@@ -1,0 +1,19 @@
+// 415
+
+cinclude "helper.h"
+extern struct Some_Type {
+    x: Int
+    y: Int
+}
+
+impl for Int {
+    fn cab_dist_addend(self, some_type: &Some_Type) -> Int {
+        self + some_type.x + some_type.y
+    }
+}
+
+fn main() -> Int {
+    let x = Some_Type(400, 10)
+    let i = 5
+    i.>cab_dist_addend(&x)
+}

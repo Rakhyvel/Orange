@@ -80,7 +80,6 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
             if (!arg.is_c_void_type()) {
                 // Do not output `void` parameters
                 try self.emitter.output_type(arg);
-                try self.writer.print("/*{t}*/ ", .{arg.*});
                 if (i + 1 < self.dep.base.function.args.items.len and !self.dep.base.function.args.items[i + 1].is_c_void_type()) {
                     try self.writer.print(", ", .{});
                 }

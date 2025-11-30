@@ -534,7 +534,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             } else {
                 try self.output_var_assign(instr.dest.?);
                 try self.emitter.output_symbol(enum_type.enum_type.decl.?.symbol().?);
-                try self.writer.print("__variant_names[", .{});
+                try self.writer.print("__{}_variant_names[", .{enum_type.enum_type.decl.?.symbol().?.scope.uid});
                 try self.output_rvalue(instr.src1.?, instr.kind.precedence());
                 try self.writer.print(".tag", .{});
                 try self.writer.print("];\n", .{});

@@ -1,0 +1,5 @@
+// 417
+fn main() -> Int {
+    let @"struct" = 417
+    @"struct"
+}

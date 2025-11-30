@@ -1,0 +1,21 @@
+// 419
+struct A {
+    x: Int
+}
+
+impl for A {
+    fn get_value(&self) -> Int { self.x }
+}
+
+struct B {
+    x: Int
+}
+
+impl for B {
+    fn get_value(a: &A) -> Int { a.x }
+}
+
+fn main() -> Int {
+    let a = A(419)
+    B::get_value(&a)
+}
