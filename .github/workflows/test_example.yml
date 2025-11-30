@@ -41,8 +41,14 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd examples/file_io
+        cd ../cli_args
         ../../zig-out/bin/orng run joseph shimel
+        cd ../file_io
+        ../../zig-out/bin/orng run joseph shimel
+        cd ../greet
+        printf 'joseph\nshimel\n' | ../../zig-out/bin/orng run
+        cd ../hello_world
+        ../../zig-out/bin/orng run
     
     - name: Build and test example project (Windows)
       if: runner.os == 'Windows'
@@ -50,8 +56,14 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd examples/file_io
+        cd ../cli_args
         ../../zig-out/bin/orng run joseph shimel
+        cd ../file_io
+        ../../zig-out/bin/orng run joseph shimel
+        cd ../greet
+        printf 'joseph\nshimel\n' | ../../zig-out/bin/orng run
+        cd ../hello_world
+        ../../zig-out/bin/orng run
 
     # Optional: Upload artifacts if build fails
     - uses: actions/upload-artifact@v4
