@@ -607,7 +607,7 @@ fn append_library_flags(
     }
 }
 
-const debug: bool = true;
+const debug: bool = false;
 fn print_cmd(cmd: *const std.array_list.Managed([]const u8)) void {
     if (debug) {
         for (cmd.items) |item| {
