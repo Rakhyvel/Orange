@@ -41,7 +41,7 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd examples
+        cd examples/file_io
         printf 'joseph\nshimel\n' | ../zig-out/bin/orng run
         ../zig-out/bin/orng clean
         ../zig-out/bin/orng test
@@ -52,7 +52,7 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd examples
+        cd examples/file_io
         printf 'joseph\nshimel\n' | ../zig-out/bin/orng run
         ../zig-out/bin/orng clean
         ../zig-out/bin/orng test
