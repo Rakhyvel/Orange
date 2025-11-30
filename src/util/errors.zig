@@ -404,7 +404,11 @@ pub const Error = union(enum) {
             .not_inside_loop => writer.print("`{s}` is not inside a loop\n", .{err.not_inside_loop.name}) catch unreachable,
             .not_inside_function => writer.print("`{s}` is not inside a function\n", .{err.not_inside_function.name}) catch unreachable,
             .import_file_not_found => writer.print("file `{s}.orng` not found\n", .{err.import_file_not_found.filename}) catch unreachable,
-            .unapplied_generic => writer.print("symbol `{s}` requires {} generic arguments\n", .{ err.unapplied_generic.symbol_name, err.unapplied_generic.num_generics }) catch unreachable,
+            .unapplied_generic => writer.print("symbol `{s}` requires {} generic argument{s}\n", .{
+                err.unapplied_generic.symbol_name,
+                err.unapplied_generic.num_generics,
+                if (err.unapplied_generic.num_generics != 1) "s" else "",
+            }) catch unreachable,
 
             // Traits
             .reimpl => if (err.reimpl.name != null) {
@@ -728,7 +732,7 @@ pub const Errors = struct {
 
     pub fn add_error(self: *Errors, err: Error) void {
         self.errors_list.append(err) catch unreachable;
-        // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
     }
 
     /// Prints out all errors in the Errors list

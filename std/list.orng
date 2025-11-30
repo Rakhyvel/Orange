@@ -13,7 +13,7 @@ enum Error {
 
 impl[T] for List[T] {
     fn init() -> Self with core::Allocating {
-        Self(mem::slice_from_parts[T](0 as [*mut]T, 0), 0, core::Allocating.alloc)
+        Self(mem::mut_slice_from_parts[T](0 as [*mut]T, 0), 0, core::Allocating.alloc)
     }
 
     fn init_from_slice(items: []T) -> Error!Self with core::Allocating {

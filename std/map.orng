@@ -16,9 +16,9 @@ enum Error {
 impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn init() -> Self with core::Allocating {
         Self(
-            .hashes = mem::slice_from_parts[Word64](0 as [*mut]Word64, 0),
-            .keys = mem::slice_from_parts[K](0 as [*mut]K, 0),
-            .values = mem::slice_from_parts[V](0 as [*mut]V, 0),
+            .hashes = mem::mut_slice_from_parts[Word64](0 as [*mut]Word64, 0),
+            .keys = mem::mut_slice_from_parts[K](0 as [*mut]K, 0),
+            .values = mem::mut_slice_from_parts[V](0 as [*mut]V, 0),
             .capacity = 0,
             .alloc = core::Allocating.alloc,
         )

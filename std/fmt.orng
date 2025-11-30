@@ -47,6 +47,33 @@ impl core::Format for Int {
     }
 }
 
+impl core::Format for Word32 {    
+    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+        let mut value = self^
+        let mut buf: [20]Byte
+        let mut i = 0
+
+        if value == 0 {
+            try writer.>write("0")
+            return .ok
+        }
+
+        // Extract digits in reverse order
+        while value > 0 {
+            let digit = (value % 10) as Byte
+            buf[i] = '0' + digit
+            i += 1
+            value /= 10
+        }
+
+        // Write digits in correct order
+        let mut buf_slice = [mut]buf
+        buf_slice.length = i
+        mem::reverse(buf_slice)
+        writer.>write(buf_slice)
+    }
+}
+
 impl core::Format for Float {
     virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
         let mut value = self^

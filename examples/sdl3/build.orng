@@ -1,0 +1,12 @@
+fn build() -> core::Package {
+    let mut retval = core::Package::executable(.root="main.orng")
+
+    retval.>requires("std", core::Package::find(.relative("../../std")))
+
+    // Replace the following with paths to your own SDL3
+    retval.>add_include_directory("C:\\Users\\Joseph\\Documents\\SDL3-3.2.26\\x86_64-w64-mingw32\\include")
+    retval.>add_library_directory("C:\\Users\\Joseph\\Documents\\SDL3-3.2.26\\x86_64-w64-mingw32\\lib")
+
+    retval.>add_library("SDL3.dll")
+    retval
+}

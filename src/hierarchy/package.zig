@@ -398,6 +398,7 @@ fn construct_obj_cc_cmd(
             "-pedantic-errors",
             "-Wconversion",
             "-Wno-pointer-sign", // C `char *` isnt' the same as `uint8_t *`, but like it is
+            "-Wno-incompatible-pointer-types-discards-qualifiers", // same thing here ^
             "-Wsign-conversion",
             "-Wfloat-conversion",
             "-Wcast-qual",

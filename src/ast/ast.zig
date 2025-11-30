@@ -1292,13 +1292,15 @@ pub const AST = union(enum) {
         _generic_params: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
-        return AST.box(AST{ .struct_decl = .{
+        var retval = AST.box(AST{ .struct_decl = .{
             .common = AST_Common{ ._token = _token },
             .name = name,
             .fields = fields,
             ._generic_params = _generic_params,
             ._type = Type_AST.create_struct_type(_token, fields, allocator),
         } }, allocator);
+        retval.struct_decl._type.struct_type.decl = retval;
+        return retval;
     }
 
     pub fn create_enum_decl(

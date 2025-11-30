@@ -1,0 +1,219 @@
+cinclude "SDL3/SDL.h"
+
+import std::ffi
+import std::fmt
+import std::mem
+
+fn init(
+    init_audio: Bool = false,
+    init_video: Bool = false,
+    init_joystick: Bool = false,
+    init_haptic: Bool = false,
+    init_gamepad: Bool = false,
+    init_events: Bool = false,
+    init_sensor: Bool = false,
+    init_camera: Bool = false,
+) -> ()!() {
+    extern("SDL_Init") const sdl_init: Word32 -> Bool
+
+    extern("SDL_INIT_AUDIO") const sdl_init_audio: Word32
+    extern("SDL_INIT_VIDEO") const sdl_init_video: Word32
+    extern("SDL_INIT_JOYSTICK") const sdl_init_joystick: Word32
+    extern("SDL_INIT_HAPTIC") const sdl_init_haptic: Word32
+    extern("SDL_INIT_GAMEPAD") const sdl_init_gamepad: Word32
+    extern("SDL_INIT_EVENTS") const sdl_init_events: Word32
+    extern("SDL_INIT_SENSOR") const sdl_init_sensor: Word32
+    extern("SDL_INIT_CAMERA") const sdl_init_camera: Word32
+
+    let mut flags: Word32 = 0x0
+    if init_audio {
+        flags = @bit_or(flags, sdl_init_audio)
+    }
+    if init_video {
+        flags = @bit_or(flags, sdl_init_video)
+    }
+    if init_joystick {
+        flags = @bit_or(flags, sdl_init_joystick)
+    }
+    if init_haptic {
+        flags = @bit_or(flags, sdl_init_haptic)
+    }
+    if init_gamepad {
+        flags = @bit_or(flags, sdl_init_gamepad)
+    }
+    if init_events {
+        flags = @bit_or(flags, sdl_init_events)
+    }
+    if init_sensor {
+        flags = @bit_or(flags, sdl_init_sensor)
+    }
+    if init_camera {
+        flags = @bit_or(flags, sdl_init_camera)
+    }
+
+    if not sdl_init(flags) {
+        .err
+    } else {
+        .ok
+    }
+}
+
+extern ("SDL_Quit") const quit: () -> ()
+
+extern ("SDL_Window") type Sdl_Window
+struct Window {
+    ptr: &mut Sdl_Window
+}
+
+impl for Window {
+    fn create(title: String, width: Int32, height: Int32) -> ()!Window {
+        extern ("SDL_CreateWindow") const sdl_create_window: ([*]Byte, Int32, Int32, Word32) -> [*mut]Sdl_Window
+        let ptr = try ffi::ref_from_ptr_mut[Sdl_Window](sdl_create_window(title.data, width, height, 0))
+        .ok(Window(ptr))
+    }
+
+    fn destroy(&mut self) {
+        extern ("SDL_DestroyWindow") const sdl_destroy_window: &mut Sdl_Window -> ()
+        sdl_destroy_window(self.ptr)
+    }
+}
+
+extern ("SDL_Renderer") type Sdl_Renderer
+
+struct Renderer {
+    ptr: &mut Sdl_Renderer
+}
+
+impl for Renderer {
+    fn create(window: &mut Window, name: ?String = .none) -> ()!Renderer {
+        extern ("SDL_CreateRenderer") const sdl_create_renderer: (&mut Sdl_Window, [*]Byte) -> [*mut]Sdl_Renderer
+        let ptr = try ffi::ref_from_ptr_mut[Sdl_Renderer](
+            sdl_create_renderer(
+                window.ptr,
+                match name {
+                    .some(driver_name) => driver_name.data
+                    .none => 0 as [*]Byte
+                }
+            )
+        )
+        .ok(Renderer(ptr))
+    }
+
+    fn destroy(&mut self) {
+        extern ("SDL_DestroyRenderer") const sdl_destroy_renderer: &mut Sdl_Renderer -> ()
+        sdl_destroy_renderer(self.ptr)
+    }
+
+    fn create_texture_from_surface(&mut self, surface: Surface) -> ()!Texture {
+        extern ("SDL_CreateTextureFromSurface") const sdl_create_texture_from_surface: (&mut Sdl_Renderer, &mut Sdl_Surface) -> [*mut]Sdl_Texture
+        let ptr = try ffi::ref_from_ptr_mut[Sdl_Texture](sdl_create_texture_from_surface(self.ptr, surface.ptr))
+        .ok(Texture(ptr))
+    }
+
+    fn clear(&mut self) -> ()!() {
+        extern ("SDL_RenderClear") const sdl_render_clear: &mut Sdl_Renderer -> Bool
+        if sdl_render_clear(self.ptr) {
+            .ok
+        } else {
+            .err
+        }
+    }
+
+    fn render_texture(&mut self, texture: Texture, srcrect: Rect, destrect: Rect) -> ()!() {
+        _ = (srcrect, destrect)
+        extern ("SDL_RenderTexture") const sdl_render_texture: (&mut Sdl_Renderer, &mut Sdl_Texture, [*]Rect, [*]Rect) -> Bool
+        if sdl_render_texture(self.ptr, texture.ptr, 0 as [*]Rect, 0 as [*]Rect) {
+            .ok
+        } else {
+            .err
+        }
+    }
+
+    fn present(&mut self) -> ()!() {
+        extern ("SDL_RenderPresent") const sdl_render_present: &mut Sdl_Renderer -> Bool
+        if sdl_render_present(self.ptr) {
+            .ok
+        } else {
+            .err
+        }
+    }
+}
+
+extern ("SDL_Surface") type Sdl_Surface
+
+struct Surface {
+    ptr: &mut Sdl_Surface
+}
+
+impl for Surface {
+    fn from_bmp(path: String) -> ()!Surface {
+        extern ("SDL_LoadBMP") const sdl_load_bmp: [*]Byte -> [*mut]Sdl_Surface
+        let ptr = try ffi::ref_from_ptr_mut[Sdl_Surface](sdl_load_bmp(path.data))
+        .ok(Surface(ptr))
+    }
+
+    fn destroy(&mut self) {
+        extern ("SDL_DestroySurface") const sdl_destroy_surface: &mut Sdl_Surface -> ()
+        sdl_destroy_surface(self.ptr)
+    }
+}
+
+extern ("SDL_Texture") type Sdl_Texture
+
+struct Texture {
+    ptr: &mut Sdl_Texture
+}
+
+impl for Texture {
+    fn destroy(&mut self) {
+        extern ("SDL_DestroyTexture") const sdl_destroy_texture: &mut Sdl_Texture -> ()
+        sdl_destroy_texture(self.ptr)
+    }
+}
+
+extern ("SDL_FRect") struct Rect {
+    x: Float32
+    y: Float32
+    w: Float32
+    h: Float32
+}
+
+extern ("SDL_Delay") const delay: Int32 -> ()
+extern ("SDL_PollEvent") const poll_event: &mut Event -> Bool
+extern ("SDL_Event") struct Event {
+    @"type": Word32
+}
+
+fn main() -> ()!() with core::IO {
+    try init(.video = true)
+    defer quit()
+
+    let mut window = try Window::create("Hello World", 800, 600)
+    defer window.>destroy()
+
+    let mut renderer = try Renderer::create(&mut window)
+    defer renderer.>destroy()
+
+    let mut surface = try Surface::from_bmp("orange.bmp")
+    defer surface.>destroy()
+
+    let mut bitmap_tex = try renderer.>create_texture_from_surface(surface)
+    defer bitmap_tex.>destroy()
+
+    let mut running = true
+    while running {
+        let mut event: Event
+        while poll_event(&mut event) {
+            if event.@"type" == 0x100 {
+                running = false
+            }
+        }
+        
+        try renderer.>clear()
+        try renderer.>render_texture(bitmap_tex, Rect(0.0, 0.0, 400.0, 400.0), Rect(0.0, 0.0, 400.0, 400.0))
+        try renderer.>present()
+        delay(32)
+    }
+
+    .ok
+}

@@ -67,7 +67,7 @@ impl for String_Buffer {
                 let string = self.>str()
                 match self.allocator.>alloc(string.length) {
                     .some(bytes) => {
-                        let new_str = mem::slice_from_parts[Byte](bytes, string.length)
+                        let new_str = mem::mut_slice_from_parts[Byte](bytes, string.length)
                         mem::copy[Byte](new_str, string)
                         .ok(.some(new_str))
                     }
@@ -145,7 +145,7 @@ impl for String_Buffer {
                 let realloc: [*mut]Byte = self.allocator.>realloc(buffer.data, bytes) orelse {
                     return .err(.out_of_memory)
                 }
-                let slice = mem::slice_from_parts[Byte](realloc, bytes)
+                let slice = mem::mut_slice_from_parts[Byte](realloc, bytes)
                 self.buffer = .some(slice)
             }
 
@@ -153,7 +153,7 @@ impl for String_Buffer {
                 let alloc = self.allocator.>alloc(bytes) orelse {
                     return .err(.out_of_memory)
                 }
-                let slice = mem::slice_from_parts[Byte](alloc, bytes)
+                let slice = mem::mut_slice_from_parts[Byte](alloc, bytes)
                 self.buffer = .some(slice)
             }
         }
@@ -295,7 +295,7 @@ impl for String_Buffer {
                 let alloc = self.allocator.>alloc(size) orelse {
                     return .err(.out_of_memory)
                 }
-                let slice = mem::slice_from_parts[Byte](alloc, size)
+                let slice = mem::mut_slice_from_parts[Byte](alloc, size)
                 self.buffer = .some(slice)
                 self.size = size
 

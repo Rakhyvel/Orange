@@ -31,6 +31,11 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
     }
     var _type = old_type.expand_identifier();
 
+    if (_type.* == .struct_type and _type.struct_type.decl != null and _type.struct_type.decl.?.symbol() != null and _type.struct_type.decl.?.symbol().?.storage == .@"extern") {
+        try self.writer.print("{s}", .{_type.struct_type.decl.?.symbol().?.storage.@"extern".c_name.?.string.data});
+        return;
+    }
+
     switch (_type.*) {
         .identifier => if (_type.common()._expanded_type != null and _type.common()._expanded_type.? != _type) {
             try self.output_type(_type.common()._expanded_type.?);

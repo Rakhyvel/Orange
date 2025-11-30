@@ -6,7 +6,6 @@ pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 
 // Attempt to match the rhs with the lhs
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_.AST), subst: *Substitutions) !void {
-    // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
     if (lhs.* == .identifier and lhs.symbol().?.init_typedef() != null) {
         return try unify(lhs.symbol().?.init_typedef().?, rhs, withs, subst);
     } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
@@ -47,6 +46,14 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
             if (rhs.* != .annotation) {
                 return error.TypesMismatch;
             }
+
+            try unify(lhs.child(), rhs.child(), withs, subst);
+        },
+
+        .addr_of => {
+            if (rhs.* != .addr_of) return error.TypesMismatch;
+            if (lhs.addr_of.mut != rhs.addr_of.mut) return error.TypesMismatch;
+            if (lhs.addr_of.multiptr != rhs.addr_of.multiptr) return error.TypesMismatch;
 
             try unify(lhs.child(), rhs.child(), withs, subst);
         },
