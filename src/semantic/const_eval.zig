@@ -15,6 +15,7 @@ const Self: type = @This();
 
 ctx: *Compiler_Context,
 map: std.AutoArrayHashMap(*ast_.AST, void),
+expected_type: ?*Type_AST = null,
 
 pub fn new(ctx: *Compiler_Context) Self {
     return Self{
@@ -32,19 +33,25 @@ fn const_eval_prefix(self: *Self, ast: *ast_.AST) walk_.Error!?Self {
         return null;
     }
 
-    try self.eval_internal(ast);
+    const new_self = try self.eval_internal(ast);
     self.map.put(ast, void{}) catch unreachable;
 
-    return self.*;
+    return new_self;
 }
 
-fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!void {
+fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
     switch (ast.*) {
         else => {},
 
+        .decl => {
+            var new_self = self.*;
+            new_self.expected_type = ast.decl.type;
+            return new_self;
+        },
+
         .@"comptime" => {
-            try self.eval_internal(ast.expr());
-            const expected_type = self.ctx.typecheck.typecheck_AST(ast, null) catch return error.CompileError;
+            _ = try self.eval_internal(ast.expr());
+            const expected_type = self.ctx.typecheck.typecheck_AST(ast, self.expected_type) catch return error.CompileError;
             ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, ast.scope().?)).*;
             _ = self.ctx.typecheck.typecheck_AST(ast, expected_type) catch return error.CompileError;
         },
@@ -61,6 +68,7 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!void {
             _ = self.ctx.typecheck.typecheck_AST(ast, null) catch return error.CompileError;
         },
     }
+    return self.*;
 }
 
 fn interpret_comptime_expr(

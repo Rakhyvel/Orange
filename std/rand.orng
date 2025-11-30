@@ -85,15 +85,15 @@ test "rand" {
 
     while let mut i = 0; i < iterations; i += 1 {
         let x = rng.>next_float()
-        let idx = math::as_int(x * 10.0)
+        let idx = math::int_from_float(x * 10.0)
         histogram[idx] += 1
     }
 
-    let expected = math::as_float(iterations) / 10.0
+    let expected = math::float_from_int(iterations) / 10.0
 
     while let mut i = 0; i < 10; i += 1 {
-        let lower = math::as_int(expected * (1.0 - tolerance))
-        let upper = math::as_int(expected * (1.0 + tolerance))
+        let lower = math::int_from_float(expected * (1.0 - tolerance))
+        let upper = math::int_from_float(expected * (1.0 + tolerance))
         try testing::expect(histogram[i] >= lower)
         try testing::expect(histogram[i] <= upper)
     }

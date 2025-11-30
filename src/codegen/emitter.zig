@@ -31,6 +31,11 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
     }
     var _type = old_type.expand_identifier();
 
+    if (_type.* == .struct_type and _type.struct_type.decl != null and _type.struct_type.decl.?.symbol() != null and _type.struct_type.decl.?.symbol().?.storage == .@"extern") {
+        try self.writer.print("{s}", .{_type.struct_type.decl.?.symbol().?.storage.@"extern".c_name.?.string.data});
+        return;
+    }
+
     switch (_type.*) {
         .identifier => if (_type.common()._expanded_type != null and _type.common()._expanded_type.? != _type) {
             try self.output_type(_type.common()._expanded_type.?);
@@ -252,14 +257,4 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
             try self.writer.print(", ", .{});
         }
     }
-}
-
-pub fn output_enum_variant_name_prototype(self: *Self, enum_decl_symbol: *Symbol) CodeGen_Error!void {
-    try self.output_type(prelude_.string_type);
-    try self.writer.print(" ", .{});
-    try self.output_symbol(enum_decl_symbol);
-    try self.writer.print("__variant_name", .{});
-    try self.writer.print("(", .{});
-    try self.output_type(prelude_.word64_type);
-    try self.writer.print(" tag)", .{});
 }

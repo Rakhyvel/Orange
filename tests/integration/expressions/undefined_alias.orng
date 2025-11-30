@@ -1,0 +1,10 @@
+// 416
+fn main() -> Int {
+    let mut x: Int = undefined
+    set_to_416(&mut x)
+    x
+}
+
+fn set_to_416(x: &mut Int) {
+    x^ = 416
+}

@@ -121,6 +121,7 @@ pub const Type_AST = union(enum) {
         common: Type_AST_Common,
         _terms: std.array_list.Managed(*Type_AST),
         was_slice: bool = false,
+        decl: ?*AST = null,
 
         pub fn get_offset_field(self: *@This(), field_name: []const u8) i64 {
             for (0.., self._terms.items) |i, term| {

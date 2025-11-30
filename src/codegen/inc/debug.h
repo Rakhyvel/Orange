@@ -445,7 +445,7 @@ inline static uint64_t orange_debug__mod_uint64_t(const uint64_t lhs, const uint
     if (rhs == 0)
     {
         orange_debug__lines[orange_debug__line_idx++] = line;
-        fprintf(stderr, "%lu %% %lu\n", lhs, rhs);
+        fprintf(stderr, "%llu %% %llu\n", lhs, rhs);
         orange_debug__panic("division by zero");
     }
 

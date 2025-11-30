@@ -1,0 +1,8 @@
+// CamelCase3.orng:6:14: error: camelCase is not supported
+//     let CamelCase = 0
+//             ^
+// 
+fn main() -> Int {
+    let CamelCase = 0
+    CamelCase
+}

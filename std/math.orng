@@ -186,6 +186,35 @@ impl for Float {
     }
 }
 
+impl for Float32 {
+    fn is_nan(self) -> Bool {
+        self != self
+    }
+
+    fn is_inf(self) -> Bool {
+        let bits = self.>as_bits()
+        let exp: Word32 = @bit_and(@right_shift(bits, 23), 0xFF)
+        let mant: Word32 = @bit_and(bits, 0x7FFFFF)
+
+        exp == 0xFF and mant == 0
+    }
+
+    fn is_finite(self) -> Bool {
+        not self.>is_inf()
+    }
+
+    fn as_bits(self) -> Word32 {
+        enum Float_Or_Bits_Tagged {
+            float(Float32)
+            bits(Word32)
+        }
+        type Float_Or_Bits = @Untagged(Float_Or_Bits_Tagged)
+        let mut retval: Float_Or_Bits = undefined
+        retval.float = self
+        retval.bits
+    }
+}
+
 impl for Int {
     fn abs(self) -> Int {
         extern("abs") const c_abs: Int -> Int
@@ -193,13 +222,23 @@ impl for Int {
     }
 }
 
-fn as_int(x: Float) -> Int {
+fn int_from_float(x: Float) -> Int {
     extern const as_int_helper: Float -> Int
     as_int_helper(x)
 }
 
-fn as_float(x: Int) -> Float {
+fn int_from_float32(x: Float32) -> Int {
+    extern const as_int_helper: Float32 -> Int
+    as_int_helper(x)
+}
+
+fn float_from_int(x: Int) -> Float {
     extern const as_float_helper: Int -> Float
+    as_float_helper(x)
+}
+
+fn float32_from_int(x: Int) -> Float32 {
+    extern const as_float_helper: Int -> Float32
     as_float_helper(x)
 }
 

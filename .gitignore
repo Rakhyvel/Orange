@@ -11,8 +11,6 @@ tests/fuzz/*.out
 orngdoc_old.md
 parser.py
 orng.out
-examples/out
-examples/out.c
 a.out
 *.pyc
 diff.txt

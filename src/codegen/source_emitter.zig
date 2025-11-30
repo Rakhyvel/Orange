@@ -150,7 +150,7 @@ pub fn output_function_definition(self: *Self, cfg: *CFG) CodeGen_Error!void {
     // Declare local variables
     for (cfg.symbvers.items) |symbver| {
         if (symbver.symbol.expanded_type().sizeof() == 0 or // symbol's C type is `void`
-            (symbver.symbol.uses == 0 and symbver.symbol.name[0] != '_') // non-bookkeeping symbol is not used
+            (symbver.symbol.uses == 0 and symbver.symbol.name[0] != '_' and symbver.symbol.aliases == 0) // non-bookkeeping symbol is not used
         ) {
             continue; // Do not output unit variables
         }
@@ -258,7 +258,7 @@ fn output_variant_names(self: *Self) CodeGen_Error!void {
         try self.emitter.output_type(prelude_.string_type);
         try self.writer.print(" ", .{});
         try self.emitter.output_symbol(enum_decl.symbol().?);
-        try self.writer.print("__variant_names[{}] = {{\n", .{enum_decl.enum_decl.fields.items.len});
+        try self.writer.print("__{}_variant_names[{}] = {{\n", .{ enum_decl.symbol().?.scope.uid, enum_decl.enum_decl.fields.items.len });
         for (enum_decl.enum_decl.fields.items) |field| {
             const variant_name = field.annotation.pattern.token().data;
             try self.writer.print("    {{(uint8_t *)\"{s}\", {}}},\n", .{ variant_name, variant_name.len });
@@ -534,7 +534,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             } else {
                 try self.output_var_assign(instr.dest.?);
                 try self.emitter.output_symbol(enum_type.enum_type.decl.?.symbol().?);
-                try self.writer.print("__variant_names[", .{});
+                try self.writer.print("__{}_variant_names[", .{enum_type.enum_type.decl.?.symbol().?.scope.uid});
                 try self.output_rvalue(instr.src1.?, instr.kind.precedence());
                 try self.writer.print(".tag", .{});
                 try self.writer.print("];\n", .{});

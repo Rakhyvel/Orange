@@ -1249,6 +1249,10 @@ fn paramlist(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
         params.append(try self.param()) catch unreachable;
 
         while (self.accept(.comma)) |_| {
+            if (self.peek_kind(.right_parenthesis)) {
+                // Trailing comma, break out
+                break;
+            }
             params.append(try self.param()) catch unreachable;
         }
     }

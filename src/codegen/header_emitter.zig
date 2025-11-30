@@ -268,7 +268,7 @@ fn output_variant_names(self: *Self) CodeGen_Error!void {
         try self.emitter.output_type(prelude_.string_type);
         try self.writer.print(" ", .{});
         try self.emitter.output_symbol(enum_decl.symbol().?);
-        try self.writer.print("__variant_names[{}];\n", .{enum_decl.enum_decl.fields.items.len});
+        try self.writer.print("__{}_variant_names[{}];\n", .{ enum_decl.symbol().?.scope.uid, enum_decl.enum_decl.fields.items.len });
     }
 }
 

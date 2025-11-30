@@ -140,6 +140,9 @@ pub fn collect_generated_symbvers(self: *Self) void {
             {
                 _ = instr.dest.?.extract_symbver().put_symbol_version_set(&self.symbvers);
             }
+            if (instr.kind == .mut_addr_of and instr.src1.?.extract_symbver().symbol.defs == 0 and !instr.src1.?.extract_symbver().symbol.param) {
+                _ = instr.src1.?.extract_symbver().put_symbol_version_set(&self.symbvers);
+            }
         }
     }
 }

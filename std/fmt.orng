@@ -47,6 +47,60 @@ impl core::Format for Int {
     }
 }
 
+impl core::Format for Byte {    
+    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+        let mut value = self^
+        let mut buf: [20]Byte
+        let mut i = 0
+
+        if value == 0 {
+            try writer.>write("0")
+            return .ok
+        }
+
+        // Extract digits in reverse order
+        while value > 0 {
+            let digit = (value % 10) as Byte
+            buf[i] = '0' + digit
+            i += 1
+            value /= 10
+        }
+
+        // Write digits in correct order
+        let mut buf_slice = [mut]buf
+        buf_slice.length = i
+        mem::reverse(buf_slice)
+        writer.>write(buf_slice)
+    }
+}
+
+impl core::Format for Word32 {    
+    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+        let mut value = self^
+        let mut buf: [20]Byte
+        let mut i = 0
+
+        if value == 0 {
+            try writer.>write("0")
+            return .ok
+        }
+
+        // Extract digits in reverse order
+        while value > 0 {
+            let digit = (value % 10) as Byte
+            buf[i] = '0' + digit
+            i += 1
+            value /= 10
+        }
+
+        // Write digits in correct order
+        let mut buf_slice = [mut]buf
+        buf_slice.length = i
+        mem::reverse(buf_slice)
+        writer.>write(buf_slice)
+    }
+}
+
 impl core::Format for Float {
     virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
         let mut value = self^
@@ -70,8 +124,8 @@ impl core::Format for Float {
             value = -value
         }
 
-        let int_part = math::as_int(value)
-        let frac_part = value - math::as_float(int_part)
+        let int_part = math::int_from_float(value)
+        let frac_part = value - math::float_from_int(int_part)
 
         try int_part.>format(writer)
 
@@ -84,12 +138,60 @@ impl core::Format for Float {
         let mut scaled = frac_part
         while let mut i = 0; i < precision; i += 1 {
             scaled *= 10.0
-            let digit = math::as_int(scaled)
+            let digit = math::int_from_float(scaled)
             buf[i] = ('0' + digit) as Byte
-            if digit != 0 {
+            if digit != 0 or i == 0 {
                 buf_slice.length = i + 1
             }
-            scaled -= math::as_float(digit)
+            scaled -= math::float_from_int(digit)
+        }
+        writer.>write(buf_slice)
+    }
+}
+
+impl core::Format for Float32 {
+    virtual fn format(&self, writer: &mut dyn core::Writer) -> ()!() {
+        let mut value = self^
+
+        // special cases
+        if value.>is_nan() {
+            try writer.>write("nan")
+            return .ok
+        } else if value.>is_inf() {
+            if value < 0.0 {
+                try writer.>write("-inf")
+            } else {
+                try writer.>write("inf")
+            }
+            return .ok
+        }
+
+        // handle sign
+        if value < 0.0 {
+            try writer.>write("-")
+            value = -value
+        }
+
+        let int_part = math::int_from_float32(value)
+        let frac_part = value - math::float32_from_int(int_part)
+
+        try int_part.>format(writer)
+
+        try writer.>write(".")
+
+        const precision = 6
+        let mut buf: [comptime{precision}]Byte
+        let mut buf_slice = [mut]buf
+        buf_slice.length = 0
+        let mut scaled = frac_part
+        while let mut i = 0; i < precision; i += 1 {
+            scaled *= 10.0
+            let digit = math::int_from_float32(scaled)
+            buf[i] = ('0' + digit) as Byte
+            if digit != 0 or i == 0 {
+                buf_slice.length = i + 1
+            }
+            scaled -= math::float32_from_int(digit)
         }
         writer.>write(buf_slice)
     }
@@ -212,7 +314,7 @@ fn parse_float(buffer: String) -> Float {
     while i < buffer.length; i += 1 {
         let c: Byte = buffer[i]
         if c.>is_digit() {
-            retval = retval * 10.0 + math::as_float(c as Int - '0')
+            retval = retval * 10.0 + math::float_from_int(c as Int - '0')
         } else {
             break
         }
@@ -225,7 +327,7 @@ fn parse_float(buffer: String) -> Float {
         while i < buffer.length; i += 1 {
             let c: Byte = buffer[i]
             if c.>is_digit() {
-                retval += math::as_float(c as Int - '0') / divisor
+                retval += math::float_from_int(c as Int - '0') / divisor
                 divisor *= 10.0
             } else {
                 break

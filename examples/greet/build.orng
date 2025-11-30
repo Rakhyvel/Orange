@@ -1,0 +1,5 @@
+fn build() -> core::Package {
+    let mut retval = core::Package::executable(.root="main.orng")
+    retval.>requires("std", core::Package::find(.relative("../../std")))
+    retval
+}

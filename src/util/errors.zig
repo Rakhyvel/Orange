@@ -404,7 +404,11 @@ pub const Error = union(enum) {
             .not_inside_loop => writer.print("`{s}` is not inside a loop\n", .{err.not_inside_loop.name}) catch unreachable,
             .not_inside_function => writer.print("`{s}` is not inside a function\n", .{err.not_inside_function.name}) catch unreachable,
             .import_file_not_found => writer.print("file `{s}.orng` not found\n", .{err.import_file_not_found.filename}) catch unreachable,
-            .unapplied_generic => writer.print("symbol `{s}` requires {} generic arguments\n", .{ err.unapplied_generic.symbol_name, err.unapplied_generic.num_generics }) catch unreachable,
+            .unapplied_generic => writer.print("symbol `{s}` requires {} generic argument{s}\n", .{
+                err.unapplied_generic.symbol_name,
+                err.unapplied_generic.num_generics,
+                if (err.unapplied_generic.num_generics != 1) "s" else "",
+            }) catch unreachable,
 
             // Traits
             .reimpl => if (err.reimpl.name != null) {

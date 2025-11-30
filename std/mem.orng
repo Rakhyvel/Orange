@@ -10,7 +10,7 @@ fn new[T]() -> ()!&mut T with core::Allocating {
 
 fn make[T](length: Int) -> ()![mut]T with core::Allocating {
     match core::Allocating.alloc.>alloc(@sizeof(T) * length) {
-        .some(bytes) => .ok(slice_from_parts[T](bytes as [*mut]T, length))
+        .some(bytes) => .ok(mut_slice_from_parts[T](bytes as [*mut]T, length))
         .none => .err
     }
 }
@@ -19,8 +19,15 @@ fn destroy[T](slice: [mut]T) with core::Allocating {
     core::Allocating.alloc.>free(slice.data as [*mut]Byte)
 }
 
-fn slice_from_parts[T](data: [*mut]T, length: Int) -> [mut]T {
+fn mut_slice_from_parts[T](data: [*mut]T, length: Int) -> [mut]T {
     let mut retval: [mut]T = undefined
+    retval.data = data
+    retval.length = length
+    retval
+}
+
+fn slice_from_parts[T](data: [*]T, length: Int) -> []T {
+    let mut retval: []T = undefined
     retval.data = data
     retval.length = length
     retval

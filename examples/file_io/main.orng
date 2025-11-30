@@ -1,0 +1,13 @@
+fn main() -> ()!() with (core::IO, core::Allocating, core::Args, core::File_IO) {
+    if core::Args.args.length != 3 {
+        try @println("give me a first name and last name!")
+        return .err
+    }
+
+    let f = core::File_IO.fs.>open("test.txt", .write) orelse {return .err}
+    defer f.>close()
+
+    try @write(f as &mut dyn core::Writer, "Hello, {core::Args.args[1]} {core::Args.args[2]}!\n")
+
+    .ok
+}

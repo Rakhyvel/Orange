@@ -19,6 +19,7 @@ const Read_File = @import("../lexer/read_file.zig");
 const Hash = @import("../lexer/hash.zig");
 const Split_Lines = @import("../lexer/split_lines.zig");
 const Tokenize = @import("../lexer/tokenize.zig");
+const Special_Identifier_Literals = @import("../lexer/special_identifier_literal.zig");
 const Apply_Layout = @import("../lexer/apply_layout.zig");
 const Parse = @import("../parser/parse.zig");
 const Apply_Ast_Walk = @import("../ast/walker.zig").Apply_Ast_Walk;
@@ -218,6 +219,7 @@ pub const Module = struct {
             Hash.init(&module.hash),
             Split_Lines.init(&compiler.errors, compiler.allocator()),
             Tokenize.init(in_name, 0, 1, &compiler.errors, fuzz_tokens, compiler.allocator()),
+            Special_Identifier_Literals.init(),
             Apply_Layout.init(),
             Parse.init(.top_level, &compiler.errors, compiler.allocator()),
             Apply_Ast_Walk(Expand).init(Expand.new(&compiler.errors, compiler.allocator())),

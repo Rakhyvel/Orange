@@ -177,6 +177,7 @@ pub fn err_if_undefd(self: *Self, errors: *errs_.Errors, use: Span) error{Compil
     // std.debug.print("{s} uses:{} defs:{}\n", .{ self.name, self.uses, self.defs });
     if (self.uses != 0 and // symbol has been used somewhere
         self.defs == 0 and // symbol hasn't been defined anywhere
+        self.aliases == 0 and // no aliases anywhere
         !self.param and // symbol isn't a parameter (these don't have defs!)
         self.storage != .@"extern" // symbol isn't an extern (these also don't have defs!)
     ) {

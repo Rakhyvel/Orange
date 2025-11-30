@@ -1,0 +1,11 @@
+// 418
+fn main() -> Int {
+    add(400, 18)
+}
+
+fn add(
+    x: Int,
+    y: Int,
+) -> Int {
+    x + y
+}
