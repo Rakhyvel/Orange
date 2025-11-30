@@ -62,17 +62,17 @@ jobs:
         python tests/test.py all
         zig build orng
         cd examples/cli_args
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../zig-out/bin/orng build
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../zig-out/bin/orng clean
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../../zig-out/bin/orng build
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../../zig-out/bin/orng clean
         cd ../file_io
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../zig-out/bin/orng build
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../zig-out/bin/orng clean
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../../zig-out/bin/orng build
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../../zig-out/bin/orng clean
         cd ../greet
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../zig-out/bin/orng build
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../zig-out/bin/orng clean
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../../zig-out/bin/orng build
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../../zig-out/bin/orng clean
         cd ../hello_world
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../zig-out/bin/orng build
-        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../zig-out/bin/orng clean
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp1" ../../zig-out/bin/orng build
+        kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp2" ../../zig-out/bin/orng clean
         cd ../../std
         kcov --include-path "$GITHUB_WORKSPACE/src" "$GITHUB_WORKSPACE/kcov-out-tmp4" ../zig-out/bin/orng test
         kcov --merge "$GITHUB_WORKSPACE/kcov-out-merged" "$GITHUB_WORKSPACE/kcov-out-integration" "$GITHUB_WORKSPACE/kcov-out-negative" "$GITHUB_WORKSPACE/kcov-out-tmp1" "$GITHUB_WORKSPACE/kcov-out-tmp2" "$GITHUB_WORKSPACE/kcov-out-tmp3" "$GITHUB_WORKSPACE/kcov-out-tmp4"
