@@ -119,10 +119,17 @@ impl for Renderer {
         }
     }
 
-    fn render_texture(&mut self, texture: Texture, srcrect: Rect, destrect: Rect) -> ()!() {
-        _ = (srcrect, destrect)
+    fn render_texture(&mut self, texture: Texture, src: ?Rect = .none, dest: ?Rect = .none) -> ()!() {
         extern ("SDL_RenderTexture") const sdl_render_texture: (&mut Sdl_Renderer, &mut Sdl_Texture, [*]Rect, [*]Rect) -> Bool
-        if sdl_render_texture(self.ptr, texture.ptr, 0 as [*]Rect, 0 as [*]Rect) {
+        let src_ptr = match src {
+            .some(r) => ([][r]).data
+            .none => 0 as [*]Rect
+        }
+        let dest_ptr = match dest {
+            .some(r) => ([][r]).data
+            .none => 0 as [*]Rect
+        }
+        if sdl_render_texture(self.ptr, texture.ptr, src_ptr, dest_ptr) {
             .ok
         } else {
             .err
@@ -180,9 +187,26 @@ extern ("SDL_FRect") struct Rect {
 
 extern ("SDL_Delay") const delay: Int32 -> ()
 extern ("SDL_PollEvent") const poll_event: &mut Event -> Bool
+// TODO: Treating SDL_Event like a struct technically works, but it should probably be an untagged union
 extern ("SDL_Event") struct Event {
     @"type": Word32
+    motion: Mouse_Motion_Event
+    button: Mouse_Button_Event
 }
+extern ("SDL_MouseMotionEvent") struct Mouse_Motion_Event {
+    x: Float32
+    y: Float32
+}
+extern ("SDL_MouseButtonEvent") struct Mouse_Button_Event {
+    button: Byte
+    x: Float32
+    y: Float32
+}
+
+extern ("SDL_EVENT_QUIT") const event_quit: Word32
+extern ("SDL_EVENT_MOUSE_MOTION") const event_mouse_motion: Word32
+extern ("SDL_EVENT_MOUSE_BUTTON_DOWN") const event_mouse_button_down: Word32
+extern ("SDL_EVENT_MOUSE_BUTTON_UP") const event_mouse_button_up: Word32
 
 fn main() -> ()!() with core::IO {
     try init(.video = true)
@@ -201,16 +225,22 @@ fn main() -> ()!() with core::IO {
     defer bitmap_tex.>destroy()
 
     let mut running = true
+    let mut pos: (Float32, Float32) = (0.0, 0.0)
     while running {
-        let mut event: Event
+        let mut event: Event = undefined
         while poll_event(&mut event) {
-            if event.@"type" == 0x100 {
+            if event.@"type" == event_quit {
                 running = false
+            } else if event.@"type" == event_mouse_motion {
+                pos[0] = event.motion.x
+                pos[1] = event.motion.y
+            } else if event.@"type" == event_mouse_button_down {
+                try @println("mouse {event.button.button} down")
             }
         }
         
         try renderer.>clear()
-        try renderer.>render_texture(bitmap_tex, Rect(0.0, 0.0, 400.0, 400.0), Rect(0.0, 0.0, 400.0, 400.0))
+        try renderer.>render_texture(bitmap_tex, .none, .some(Rect(pos[0] - 50.0, pos[1] - 50.0, 100.0, 100.0)))
         try renderer.>present()
         delay(32)
     }
