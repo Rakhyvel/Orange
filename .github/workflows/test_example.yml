@@ -42,12 +42,16 @@ jobs:
         #!/bin/bash
         zig build orng
         cd examples/cli_args
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run joseph shimel
         cd ../file_io
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run joseph shimel
         cd ../greet
+        ../../zig-out/bin/orng clean
         printf 'joseph\nshimel\n' | ../../zig-out/bin/orng run
         cd ../hello_world
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run
     
     - name: Build and test example project (Windows)
@@ -57,12 +61,16 @@ jobs:
         #!/bin/bash
         zig build orng
         cd examples/cli_args
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run joseph shimel
         cd ../file_io
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run joseph shimel
         cd ../greet
+        ../../zig-out/bin/orng clean
         printf 'joseph\nshimel\n' | ../../zig-out/bin/orng run
         cd ../hello_world
+        ../../zig-out/bin/orng clean
         ../../zig-out/bin/orng run
 
     # Optional: Upload artifacts if build fails
