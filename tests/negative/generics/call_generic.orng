@@ -1,4 +1,4 @@
-// call_generic.orng:6:15: error: symbol `generic_fn` requires 1 generic arguments
+// call_generic.orng:6:15: error: symbol `generic_fn` requires 1 generic argument
 //     generic_fn()
 //              ^
 // 

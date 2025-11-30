@@ -41,7 +41,7 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd ../cli_args
+        cd examples/cli_args
         ../../zig-out/bin/orng run joseph shimel
         cd ../file_io
         ../../zig-out/bin/orng run joseph shimel
@@ -56,7 +56,7 @@ jobs:
       run: |
         #!/bin/bash
         zig build orng
-        cd ../cli_args
+        cd examples/cli_args
         ../../zig-out/bin/orng run joseph shimel
         cd ../file_io
         ../../zig-out/bin/orng run joseph shimel
