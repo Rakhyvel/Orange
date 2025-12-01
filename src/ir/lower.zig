@@ -204,6 +204,9 @@ fn lower_AST_inner(
         .mult,
         .div,
         .mod,
+        .bit_and,
+        .bit_or,
+        .bit_xor,
         .left_shift,
         .right_shift,
         .greater,
@@ -216,18 +219,6 @@ fn lower_AST_inner(
 
         .@"catch", .@"orelse" => return try self.coalesce_op(ast, labels),
 
-        .bit_and, .bit_or, .bit_xor => {
-            var temp: *lval_.L_Value = undefined;
-            var src1 = (try self.lower_AST(ast.children().items[0], labels)) orelse return null;
-
-            for (1..ast.children().items.len) |i| {
-                temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
-                const src2 = (try self.lower_AST(ast.children().items[i], labels)) orelse continue;
-                self.instructions.append(Instruction.init(bit_ir_kind_from_ast_kind(ast), temp, src1, src2, ast.token().span, self.ctx.allocator())) catch unreachable;
-                src1 = temp;
-            }
-            return temp;
-        },
         .call => {
             const lhs = (try self.lower_AST(ast.lhs(), labels)) orelse return null;
             var temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
@@ -716,6 +707,9 @@ fn int_kind(ast: *ast_.AST) Instruction.Kind {
         .mult => .mult_int,
         .div => .div_int,
         .mod => .mod,
+        .bit_and => .bit_and,
+        .bit_xor => .bit_xor,
+        .bit_or => .bit_or,
         .left_shift => .left_shift,
         .right_shift => .right_shift,
         .greater => .greater_int,
@@ -741,6 +735,9 @@ fn float_kind(ast: *ast_.AST) Instruction.Kind {
         .lesser => .lesser_float,
         .greater_equal => .greater_equal_float,
         .lesser_equal => .lesser_equal_float,
+        .bit_and => .bit_and,
+        .bit_xor => .bit_xor,
+        .bit_or => .bit_or,
         .left_shift => .left_shift,
         .right_shift => .right_shift,
         else => unreachable,
@@ -878,15 +875,6 @@ fn coalesce_op(
 
     self.instructions.append(end_label) catch unreachable;
     return lval_.L_Value.create_unversioned_symbver(coalesce_symbol, self.ctx.allocator());
-}
-
-fn bit_ir_kind_from_ast_kind(ast: *ast_.AST) Instruction.Kind {
-    return switch (ast.*) {
-        .bit_and => Instruction.Kind.bit_and,
-        .bit_or => Instruction.Kind.bit_or,
-        .bit_xor => Instruction.Kind.bit_xor,
-        else => std.debug.panic("compiler error: not a bit ast: {s}\n", .{@tagName(ast.*)}),
-    };
 }
 
 fn generate_assign(

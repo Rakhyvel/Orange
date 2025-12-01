@@ -107,7 +107,12 @@ fn next_is_compound_assign(self: *Self) bool {
         next_kind == .minus_equals or
         next_kind == .star_equals or
         next_kind == .slash_equals or
-        next_kind == .percent_equals;
+        next_kind == .percent_equals or
+        next_kind == .double_lesser_equals or
+        next_kind == .double_greater_equals or
+        next_kind == .bar_equals or
+        next_kind == .ampersand_equals or
+        next_kind == .tilde_equals;
 }
 
 /// Returns the next token if its kind matches the given kind, otherwise
@@ -671,12 +676,27 @@ fn assignment_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 fn bool_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    var exp = try self.comparison_expr();
+    var exp = try self.bitwise_expr();
     while (true) {
         if (self.accept(.@"and")) |token| {
-            exp = ast_.AST.create_and(token, exp, try self.comparison_expr(), self.allocator);
+            exp = ast_.AST.create_and(token, exp, try self.bitwise_expr(), self.allocator);
         } else if (self.accept(.@"or")) |token| {
-            exp = ast_.AST.create_or(token, exp, try self.comparison_expr(), self.allocator);
+            exp = ast_.AST.create_or(token, exp, try self.bitwise_expr(), self.allocator);
+        } else {
+            return exp;
+        }
+    }
+}
+
+fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    var exp = try self.comparison_expr();
+    while (true) {
+        if (self.accept(.bar)) |token| {
+            exp = ast_.AST.create_bit_or(token, exp, try self.comparison_expr(), self.allocator);
+        } else if (self.accept(.tilde)) |token| {
+            exp = ast_.AST.create_bit_xor(token, exp, try self.comparison_expr(), self.allocator);
+        } else if (self.accept(.ampersand)) |token| {
+            exp = ast_.AST.create_bit_and(token, exp, try self.comparison_expr(), self.allocator);
         } else {
             return exp;
         }
@@ -798,24 +818,6 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
             var children = try fmt_string_parser.parse_fmt_string();
             try children.append(ast_.AST.create_string(token, "\n", self.allocator));
             return ast_.AST.create_print(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
-            return ast_.AST.create_bit_and(token, args, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
-            return ast_.AST.create_bit_or(token, args, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, std.math.maxInt(usize));
-            return ast_.AST.create_bit_xor(token, args, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "left_shift")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "right_shift")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "variant_tag")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
@@ -828,6 +830,8 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         }
     } else if (self.accept(.minus)) |token| {
         return ast_.AST.create_negate(token, try self.prefix_expr(), self.allocator);
+    } else if (self.accept(.tilde)) |token| {
+        return ast_.AST.create_bit_not(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.ampersand)) |token| {
         const mut = self.accept(.mut);
         return ast_.AST.create_addr_of(token, try self.prefix_expr(), mut != null, false, self.allocator);

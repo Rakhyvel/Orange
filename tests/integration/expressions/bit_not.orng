@@ -1,5 +1,5 @@
 // 333
 fn main() -> Word32 {
     let x: Word32 = 0xFFFF_FEB2;
-    @bit_not(x)
+    ~x
 }

@@ -27,28 +27,28 @@ fn init(
 
     let mut flags: Word32 = 0x0
     if init_audio {
-        flags = @bit_or(flags, sdl_init_audio)
+        flags |= sdl_init_audio
     }
     if init_video {
-        flags = @bit_or(flags, sdl_init_video)
+        flags |= sdl_init_video
     }
     if init_joystick {
-        flags = @bit_or(flags, sdl_init_joystick)
+        flags |= sdl_init_joystick
     }
     if init_haptic {
-        flags = @bit_or(flags, sdl_init_haptic)
+        flags |= sdl_init_haptic
     }
     if init_gamepad {
-        flags = @bit_or(flags, sdl_init_gamepad)
+        flags |= sdl_init_gamepad
     }
     if init_events {
-        flags = @bit_or(flags, sdl_init_events)
+        flags |= sdl_init_events
     }
     if init_sensor {
-        flags = @bit_or(flags, sdl_init_sensor)
+        flags |= sdl_init_sensor
     }
     if init_camera {
-        flags = @bit_or(flags, sdl_init_camera)
+        flags |= sdl_init_camera
     }
 
     if not sdl_init(flags) {

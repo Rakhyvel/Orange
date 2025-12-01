@@ -3,5 +3,5 @@ fn main() -> Word32 {
     let x: Word32 = 0x1FF
     let y: Word32 = 0xF4F
     let z: Word32 = 0xFFA
-    @bit_and(x, y, z)
+    x & y & z
 }
