@@ -512,6 +512,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 expr_type = self.typecheck_AST(ast.expr(), null) catch return error.CompileError;
             }
             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
+            if (ast.dyn_value.mut) {
+                try self.assert_mutable(ast.expr());
+            }
 
             if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
                 const type_param_decl = expr_type.symbol().?.decl.?;
@@ -546,7 +549,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 ast.dyn_value.impl = impl.ast;
             }
 
-            return ast.dyn_value.dyn_type;
+            return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
         },
         .context_value => {
             try self.ctx.validate_type.validate_type(ast.context_value.parent);

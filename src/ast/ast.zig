@@ -286,6 +286,10 @@ pub const AST = union(enum) {
         common: AST_Common,
         _children: std.array_list.Managed(*AST),
     },
+    format_args: struct {
+        common: AST_Common,
+        _children: std.array_list.Managed(*AST),
+    },
     variant_tag: struct {
         common: AST_Common,
         _expr: *AST,
@@ -614,6 +618,13 @@ pub const AST = union(enum) {
 
     pub fn create_print(_token: Token, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .print = .{
+            .common = AST_Common{ ._token = _token },
+            ._children = _children,
+        } }, allocator);
+    }
+
+    pub fn create_format_args(_token: Token, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .format_args = .{
             .common = AST_Common{ ._token = _token },
             ._children = _children,
         } }, allocator);
@@ -1475,6 +1486,10 @@ pub const AST = union(enum) {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
                 return create_print(self.token(), cloned_args, allocator);
             },
+            .format_args => {
+                const cloned_args = clone_children(self.children().*, substs, allocator);
+                return create_format_args(self.token(), cloned_args, allocator);
+            },
             .variant_tag => return create_variant_tag(self.token(), self.expr().clone(substs, allocator), allocator),
             .variant_name => return create_variant_name(self.token(), self.expr().clone(substs, allocator), allocator),
 
@@ -2009,6 +2024,7 @@ pub const AST = union(enum) {
             .invoke => &self.invoke._args,
             .write => &self.write._children,
             .print => &self.print._children,
+            .format_args => &self.format_args._children,
             .binding => &self.binding.decls,
             else => std.debug.panic("compiler error: cannot call `.children()` on the AST `{f}`", .{self.*}),
         };
@@ -2384,6 +2400,16 @@ pub const AST = union(enum) {
             },
             .print => {
                 try out.print("print(", .{});
+                for (self.print._children.items, 0..) |item, i| {
+                    try out.print("{f}", .{item});
+                    if (i < self.print._children.items.len - 1) {
+                        try out.print(",", .{});
+                    }
+                }
+                try out.print(")", .{});
+            },
+            .format_args => {
+                try out.print("format_args(", .{});
                 for (self.print._children.items, 0..) |item, i| {
                     try out.print("{f}", .{item});
                     if (i < self.print._children.items.len - 1) {

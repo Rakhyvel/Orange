@@ -828,6 +828,7 @@ pub const Type_AST = union(enum) {
     }
 
     /// Calculates the alignment of an AST type in bytes. Call is memoized.
+    /// Alignments are gauranteed to be positive.
     pub fn alignof(self: *Type_AST) i64 {
         if (self.common()._alignof == null) {
             self.set_alignof(self.expand_identifier().alignof_internal()); // memoize call
@@ -851,7 +852,7 @@ pub const Type_AST = union(enum) {
                 for (self.children().items) |_child| {
                     max_align = @max(max_align, _child.alignof());
                 }
-                return max_align;
+                return @max(1, max_align);
             },
 
             .enum_type, // this pains me :-( but has to be this way for the tag // TODO: This is fixable...
@@ -863,11 +864,11 @@ pub const Type_AST = union(enum) {
 
             .untagged_sum_type => {
                 std.debug.assert(self.child().expand_identifier().* == .enum_type);
-                var max_size: i64 = 0;
+                var max_align: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_size = @max(max_size, _child.alignof());
+                    max_align = @max(max_align, _child.alignof());
                 }
-                return max_size;
+                return @max(1, max_align);
             },
 
             .unit_type => return 1, // fogedda bout it
@@ -1003,7 +1004,7 @@ pub const Type_AST = union(enum) {
                 return retval and A.rhs().types_match(B.rhs());
             },
             .dyn_type => {
-                return A.child().symbol() == B.child().symbol();
+                return (!B.dyn_type.mut or B.dyn_type.mut == A.dyn_type.mut) and (A.child().symbol() == B.child().symbol());
             },
             else => std.debug.panic("compiler error: unimplemented types_match() for {s}", .{@tagName(A.*)}),
         }

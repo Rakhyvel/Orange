@@ -30,7 +30,7 @@ fn read_until_delimeter(reader: &mut dyn core::Reader, writer: &mut dyn core::Wr
 
 fn read_byte(reader: &mut dyn core::Reader) -> ()!Byte {
     let mut byte_buf: [1]Byte
-    let writer = Fixed_Buffer_Writer([mut]byte_buf, 0)
+    let mut writer = Fixed_Buffer_Writer([mut]byte_buf, 0)
     try reader.>read(&mut writer, .some(1))
     .ok(byte_buf[0])
 }

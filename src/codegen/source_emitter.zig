@@ -616,7 +616,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             for (instr.data.invoke.arg_lval_list.items, 0..) |term, i| {
                 if (!term.get_expanded_type().is_c_void_type()) {
                     // Do not output `void` arguments
-                    try self.output_rvalue(term, Instruction.Precedence.highest);
+                    try self.output_rvalue(term, Instruction.Precedence.postfix);
                     if (instr.data.invoke.dyn_value != null and instr.data.invoke.dyn_value == term and i == 0) {
                         try self.writer.print(".data_ptr", .{});
                     }
@@ -692,7 +692,7 @@ fn output_vtable_invoke(self: *Self, instr: *Instruction) !void {
     var vtables = std.array_list.Managed(usize).init(std.heap.page_allocator);
     defer vtables.deinit();
     _ = try self.append_vtable_indirection(trait_decl, method_name, &vtables);
-    try self.output_rvalue(instr.data.invoke.dyn_value.?, Instruction.Precedence.prefix);
+    try self.output_rvalue(instr.data.invoke.dyn_value.?, Instruction.Precedence.postfix);
     try self.writer.print(".vtable->", .{});
     for (0..vtables.items.len) |i| {
         try self.writer.print("_{}->", .{vtables.items[vtables.items.len - i - 1]});

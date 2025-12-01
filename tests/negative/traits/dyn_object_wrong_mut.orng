@@ -1,4 +1,7 @@
-// 290
+// dyn_object_wrong_mut.orng:21:38: error: expected a value of type `&mut dyn My_Trait`, got a value of type `&dyn My_Trait`
+//     let my_dyn: &mut dyn My_Trait = &my_val
+//                                     ^
+// 
 trait My_Trait {
     virtual fn b(&self, x: Int) -> Int
 
@@ -15,7 +18,7 @@ impl My_Trait for My_Type {
 
 fn main() -> Int {
     let mut my_val = My_Type(100, 45)
-    let my_dyn: &mut dyn My_Trait = &mut my_val
+    let my_dyn: &mut dyn My_Trait = &my_val
     my_dyn.>c(2)
     my_dyn.>b(2)
 }

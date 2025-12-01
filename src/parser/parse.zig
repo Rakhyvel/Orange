@@ -819,6 +819,12 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
             var children = try fmt_string_parser.parse_fmt_string();
             try children.append(ast_.AST.create_string(token, "\n", self.allocator));
             return ast_.AST.create_print(token, children, self.allocator);
+        } else if (std.mem.eql(u8, token.data, "format")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+            const fmt_str = args.items[0];
+            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+            const children = try fmt_string_parser.parse_fmt_string();
+            return ast_.AST.create_format_args(token, children, self.allocator);
         } else if (std.mem.eql(u8, token.data, "variant_tag")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
             return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
