@@ -146,6 +146,9 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .access,
         .left_shift,
         .right_shift,
+        .bit_and,
+        .bit_or,
+        .bit_xor,
         => {
             try walk_ast(ast.lhs(), new_context);
             try walk_ast(ast.rhs(), new_context);
@@ -173,9 +176,6 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .tuple_value,
         .array_value,
         .print,
-        .bit_and,
-        .bit_or,
-        .bit_xor,
         => try walk_asts(ast.children(), new_context),
 
         .write => {

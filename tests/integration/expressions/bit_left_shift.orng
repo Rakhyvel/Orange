@@ -1,5 +1,5 @@
 // 334
 fn main() -> Word32 {
     let x: Word32 = 0x14
-    @left_shift(x, 4) + 0xE
+    (x << 4) + 0xE
 }

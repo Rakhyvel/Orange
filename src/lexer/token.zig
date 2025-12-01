@@ -69,6 +69,11 @@ pub const Kind = enum(u32) {
     plus_equals,
     slash_equals,
     star_equals,
+    double_lesser_equals,
+    double_greater_equals,
+    ampersand_equals,
+    bar_equals,
+    tilde_equals,
 
     // Math
     bar,
@@ -85,6 +90,11 @@ pub const Kind = enum(u32) {
     skinny_arrow,
     slash,
     star,
+
+    // Bitwise
+    double_lesser,
+    double_greater,
+    tilde,
 
     // Punctuation
     ampersand,
@@ -196,6 +206,11 @@ pub const Kind = enum(u32) {
             .plus_equals => "+=",
             .slash_equals => "/=",
             .star_equals => "*=",
+            .double_lesser_equals => "<<=",
+            .double_greater_equals => ">>=",
+            .ampersand_equals => "&=",
+            .bar_equals => "|=",
+            .tilde_equals => "~=",
 
             // Math
             .bar => "|",
@@ -212,6 +227,11 @@ pub const Kind = enum(u32) {
             .skinny_arrow => "->",
             .slash => "/",
             .star => "*",
+
+            // Bitwise
+            .double_lesser => "<<",
+            .double_greater => ">>",
+            .tilde => "~",
 
             // Punctuation
             .ampersand => "&",

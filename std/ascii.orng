@@ -42,13 +42,13 @@ impl for Byte {
     }
 
     fn to_upper(self) -> Byte {
-        let mask: Byte = @left_shift(if self.>is_lower() {1} else {0}, 5)
-        @bit_xor(self, mask)
+        let mask: Byte = if self.>is_lower() {1} else {0} << 5
+        self ~ mask
     }
 
     fn to_lower(self) -> Byte {
-        let mask: Byte = @left_shift(if self.>is_upper() {1} else {0}, 5)
-        @bit_or(self, mask)
+        let mask: Byte = if self.>is_upper() {1} else {0} << 5
+        self | mask
     }
 }
 

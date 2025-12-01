@@ -184,7 +184,7 @@ impl Hash for String {
         const prime: Word64 = 1099511628211
 
         while let mut i = 0; i < self.length; i += 1 {
-            h = @bit_xor(h, self[i] as Word64) * prime
+            h ~= (self[i] as Word64) * prime
         }
 
         h

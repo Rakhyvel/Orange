@@ -1,7 +1,0 @@
-// left_shift_arity.orng:6:18: error: built-in function takes 2 parameters, 3 arguments given
-//     @left_shift(4, 5, 5)
-//                 ^
-// 
-fn main() -> Int {
-    @left_shift(4, 5, 5)
-}
