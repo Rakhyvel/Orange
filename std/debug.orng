@@ -1,24 +1,28 @@
-extern const putchar: Byte -> Int32
-
-fn print(s: String) {
-    while let mut i = 0; i < s.length; i += 1 {
-        _ = putchar(s[i])
+struct Console_Writer {}
+impl core::Writer for Console_Writer {
+    virtual fn write(&mut self, bytes: String) -> ()!() {
+        _ = self
+        extern const putchar: Byte -> Int32
+        while let mut i = 0; i < bytes.length; i += 1 {
+            _ = putchar(bytes[i])
+        }
+        .ok
     }
 }
 
-fn println(s: String) {
-    print(s)
-    print("\n")
+fn traceln(args: []&dyn core::Format) {
+    let mut console = Console_Writer()
+    core::format_all(&console, args) catch {}
+    console.>write("\n") catch {}
 }
 
 fn assert(cond: Bool, reason: ?String = .none) {
     if not cond {
-        print("assertion failed")
-        if reason != .none {
-            print(": ")
-            print(reason.some)
+        let reason_str = match reason {
+            .some(r) => r
+            .none    => ""
         }
-        print("\n")
+        traceln(@format("assertion failed: {reason_str}"))
         unreachable
     }
     {}

@@ -11,5 +11,3 @@ import mem
 import rand
 import string_buffer
 import testing
-
-const println = debug::println
