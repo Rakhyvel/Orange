@@ -16,6 +16,13 @@ fn traceln(args: []&dyn core::Format) {
     console.>write("\n") catch {}
 }
 
+fn panic(args: []&dyn core::Format) {
+    let mut console = Console_Writer()
+    core::format_all(&console, args) catch {}
+    console.>write("\n") catch {}
+    unreachable
+}
+
 fn assert(cond: Bool, reason: ?String = .none) {
     if not cond {
         let reason_str = match reason {
