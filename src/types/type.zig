@@ -1004,7 +1004,7 @@ pub const Type_AST = union(enum) {
                 return retval and A.rhs().types_match(B.rhs());
             },
             .dyn_type => {
-                return A.child().symbol() == B.child().symbol();
+                return (!B.dyn_type.mut or B.dyn_type.mut == A.dyn_type.mut) and (A.child().symbol() == B.child().symbol());
             },
             else => std.debug.panic("compiler error: unimplemented types_match() for {s}", .{@tagName(A.*)}),
         }

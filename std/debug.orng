@@ -12,13 +12,13 @@ impl core::Writer for Console_Writer {
 
 fn traceln(args: []&dyn core::Format) {
     let mut console = Console_Writer()
-    core::format_all(&console, args) catch {}
+    core::format_all(&mut console, args) catch {}
     console.>write("\n") catch {}
 }
 
 fn panic(args: []&dyn core::Format) {
     let mut console = Console_Writer()
-    core::format_all(&console, args) catch {}
+    core::format_all(&mut console, args) catch {}
     console.>write("\n") catch {}
     unreachable
 }
