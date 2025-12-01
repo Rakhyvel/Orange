@@ -11,7 +11,7 @@ impl for Float {
 
     fn is_inf(self) -> Bool {
         let bits = self.>as_bits()
-        let exp = @bit_and(@right_shift(bits, 52), 0x7FF)
+        let exp = @bit_and(bits >> 52, 0x7FF)
         let mant = @bit_and(bits, 0xFFFFFFFFFFFFF)
 
         exp == 0x7FF and mant == 0
@@ -193,7 +193,7 @@ impl for Float32 {
 
     fn is_inf(self) -> Bool {
         let bits = self.>as_bits()
-        let exp: Word32 = @bit_and(@right_shift(bits, 23), 0xFF)
+        let exp: Word32 = @bit_and(bits >> 23, 0xFF)
         let mant: Word32 = @bit_and(bits, 0x7FFFFF)
 
         exp == 0xFF and mant == 0

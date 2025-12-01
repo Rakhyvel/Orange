@@ -18,9 +18,9 @@ impl for Xoshiro128 {
         fn splitmix32(the_seed: &mut Word32) -> Word32 {
             the_seed^ += 0x9E3779B9
             let mut z = the_seed^
-            z = @bit_xor(z, @right_shift(z, 16)) * 0x85EBCA6B
-            z = @bit_xor(z, @right_shift(z, 13)) * 0xC2B2AE35
-            @bit_xor(z, @right_shift(z, 16))
+            z = @bit_xor(z, z >> 16) * 0x85EBCA6B
+            z = @bit_xor(z, z >> 13) * 0xC2B2AE35
+            @bit_xor(z, z >> 16)
         }
 
         let mut tmp = the_seed
@@ -35,7 +35,7 @@ impl for Xoshiro128 {
     fn next(&mut self) -> Word32 {
         let result = self.state[0] + self.state[3]
 
-        let t: Word32 = @left_shift(self.state[1], 9)
+        let t: Word32 = self.state[1] << 9
 
         self.state[2] = @bit_xor(self.state[2], self.state[0])
         self.state[3] = @bit_xor(self.state[3], self.state[1])
@@ -72,8 +72,8 @@ impl for Xoshiro128 {
 
 fn rotl(x: Word32, k: Word32) -> Word32 {
     @bit_or(
-        @left_shift(x, k),
-        @right_shift(x, (32 - k))
+        x << k,
+        x >> (32 - k)
     )
 }
 

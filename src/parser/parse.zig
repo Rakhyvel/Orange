@@ -702,12 +702,25 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 fn coalesce_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    var exp = try self.int_expr();
+    var exp = try self.shift_expr();
     while (true) {
         if (self.accept(.@"catch")) |token| {
-            exp = ast_.AST.create_catch(token, exp, try self.int_expr(), self.allocator);
+            exp = ast_.AST.create_catch(token, exp, try self.shift_expr(), self.allocator);
         } else if (self.accept(.@"orelse")) |token| {
-            exp = ast_.AST.create_orelse(token, exp, try self.int_expr(), self.allocator);
+            exp = ast_.AST.create_orelse(token, exp, try self.shift_expr(), self.allocator);
+        } else {
+            return exp;
+        }
+    }
+}
+
+fn shift_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    var exp = try self.int_expr();
+    while (true) {
+        if (self.accept(.double_lesser)) |token| {
+            exp = ast_.AST.create_left_shift(token, exp, try self.int_expr(), self.allocator);
+        } else if (self.accept(.double_greater)) |token| {
+            exp = ast_.AST.create_right_shift(token, exp, try self.int_expr(), self.allocator);
         } else {
             return exp;
         }
