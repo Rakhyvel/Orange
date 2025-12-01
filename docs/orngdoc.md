@@ -361,10 +361,11 @@ The following operators are in order of precedence.
     4. `core::Args`
 
 ### Format
-1. The `@println`, `@print`, and `@write` built-in functions require the `core::IO` context.
-2. The `@println`, `@print`, and `@write` built-in functions take a format string, which surrounds format arguments in `{` `}` in the string.
+1. The `@format`, `@println`, `@print`, and `@write` built-in functions require the `core::IO` context.
+2. The `@format`,`@println`, `@print`, and `@write` built-in functions take a format string, which surrounds format arguments in `{` `}` in the string.
 3. Format arguments in the format string in `{` `}` must implement `core::Format`.
 4. The characters `{` and `}` can be escapped in a format string with `{{` and `}}` respectively.
+5. The `@format` built-in function takes a format string and returns the corresponding slice of `core::Format` trait objects.
 5. The `@write` built-in function takes a trait object that implements `core::Writer` as the first argument, and writes the formatted string to the writer.
 5. The `@print` built-in function writes the formatted string to the writer from `core::IO`.
 5. The `@println` built-in function writes the formatted string and OS-dependnet newline to the writer from `core::IO`.
