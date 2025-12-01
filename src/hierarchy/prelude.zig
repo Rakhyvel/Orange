@@ -132,8 +132,8 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     create_info(
         "Bool",
         null,
-        "uint8_t",
-        "u8",
+        "_Bool",
+        "b",
         bool_type,
         .eq,
         .boolean,
