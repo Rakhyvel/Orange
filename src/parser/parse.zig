@@ -53,6 +53,7 @@ fn next_is_expr(self: *Self) bool {
         next_kind == .left_brace or
         next_kind == .bar or
         next_kind == .minus or
+        next_kind == .tilde or
         next_kind == .match or
         next_kind == .@"fn" or
         next_kind == .@"for" or
