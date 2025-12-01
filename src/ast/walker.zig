@@ -176,6 +176,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .tuple_value,
         .array_value,
         .print,
+        .format_args,
         => try walk_asts(ast.children(), new_context),
 
         .write => {

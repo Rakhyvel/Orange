@@ -1,0 +1,28 @@
+// 429
+trait Get_Value {
+    virtual fn get_value(&self) -> Int
+}
+
+impl Get_Value for Int {
+    virtual fn get_value(&self) -> Int { self^ }
+}
+
+fn sum(values: []&dyn Get_Value) -> Int {
+    let mut res = 0
+    while let mut i = 0; i < values.length; i += 1 {
+        res += values[i].>get_value()
+    }
+    res
+}
+
+fn main() -> Int {
+    let item0 = 400
+    let item1 = 20
+    let item2 = 9
+    let obj0: &dyn Get_Value = &item0
+    let obj1: &dyn Get_Value = &item1
+    let obj2: &dyn Get_Value = &item2
+    let arr = [obj0, obj1, obj2]
+    let slice = []arr
+    sum(slice)
+}

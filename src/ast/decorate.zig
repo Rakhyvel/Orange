@@ -250,6 +250,11 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             ast.* = format_all_call.*;
         },
 
+        .format_args => {
+            const format_args_slice = try self.create_format_args_slice(ast);
+            ast.* = format_args_slice.*;
+        },
+
         .binding => {
             for (ast.binding.decls.items) |decl| {
                 if (decl.* == .decl) {
@@ -490,13 +495,20 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
     }
 }
 
-fn create_format_all_call(self: Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {
+fn create_format_all_call(self: *const Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {
     var format_all = ast_.AST.create_identifier(ast.token(), self.ctx.allocator());
     format_all.set_symbol(self.ctx.get_core_symbol("format_all"));
     var args = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
     try args.append(writer);
 
-    // Create and append slice to call args
+    const args_slice = try self.create_format_args_slice(ast);
+    try args.append(args_slice);
+
+    const format_all_call = ast_.AST.create_call(ast.token(), format_all, args, self.ctx.allocator());
+    return format_all_call;
+}
+
+fn create_format_args_slice(self: *const Self, ast: *ast_.AST) !*ast_.AST {
     var array_terms = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
     var format_ident_token = ast.token();
     format_ident_token.data = "Format";
@@ -515,9 +527,5 @@ fn create_format_all_call(self: Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.
         try array_terms.append(dyn_value);
     }
     const args_array = ast_.AST.create_array_value(ast.token(), array_terms, self.ctx.allocator());
-    const args_slice = ast_.AST.create_slice_of(ast.token(), args_array, false, self.ctx.allocator());
-    try args.append(args_slice);
-
-    const format_all_call = ast_.AST.create_call(ast.token(), format_all, args, self.ctx.allocator());
-    return format_all_call;
+    return ast_.AST.create_slice_of(ast.token(), args_array, false, self.ctx.allocator());
 }
