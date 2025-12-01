@@ -105,6 +105,31 @@ array[2]
 ### Enum Types
 1. An _enum_ type is a tagged union of other types.
 2. The payload of the active enum variant can be accessed with the select operator.
+3. The `@variant_tag` built-in function gives the tag of the active variant of an enum value.
+4. The `@variant_name` built-in function gives the name of the active variant of an enum value.
+
+#### Optional Types
+1. An _optional type_ represents a value of type `T` that may or may not be present. It is written `?T`.
+2. The optional type `?T` is conceptually the following enum:
+```orng
+enum [T] {
+    some(T)
+    none
+}
+```
+3. Optioanl types support the `orelse` operator.
+
+#### Error Types
+1. An _error type_ represents a computation resulting in either a successful value of type `O`, or an errant value of type `E`. It is written `E!O`.
+2. The error type `E!O` is conceptually the following enum:
+```orng
+enum [E, O] {
+    ok(O)
+    err(E)
+}
+```
+3. Error types support the `catch` operator.
+4. Error types support the `try` operator.
 
 ### Function Types
 1. A _function_ takes a list of parameter types, called the domain, to an output type, called the codomain.
@@ -155,6 +180,7 @@ array[2]
 4. A function has a list of zero or more parameters.
     1. Parameters have a name and type.
     2. Parameters optionally have a default value that is known at compile-time.
+    3. Parameters may be marked `mut`, which signifies that the function body may mutate their values.
 5. A function may optionally specify a return type. If no return type is specified, then it is the unit type.
 6. A function has a list of zero or more contexts.
 7. A function has a body block. The result of calling the function is the value of the function in the context of the specified generic parameters, parameters, and specified contexts.
@@ -190,6 +216,7 @@ array[2]
     1. The first parameter may be either the `self`, `&self`, or `&mut self` receivers.
     2. Parameters have a name and a type.
     3. Parameters may optionally have a default value that is known at compile-time.
+    4. Parameters may be marked `mut`, which signifies that the function body may mutate their values.
 5. A method declaration can have a body block.
     1. When the method declaration appears in an implementation declaration, this body is mandatory.
     2. When the method declaration appears in a trait declaration, this body is optional.
@@ -204,6 +231,8 @@ array[2]
 7. If a declaration does not appear in an implementaiton, then its declartion is taken from the trait.
 
 ### Test Declarations
+1. Tests are declared with the `test` keyword, followed by a string literal representing the test's name, and the test body.
+2. The test body is expected to be of type `()!()`.
 
 ### Context Declarations
 1. A _context declaration_ declares and names a context.
@@ -238,38 +267,43 @@ TODO:
 
 ### Operator Expressions
 The following operators are in order of precedence.
-| Syntax       | Description                |
-|--------------|----------------------------|
-| `a and b`    | Boolean AND                |
-| `a or b`     | Boolean OR                 |
-| `a == b`     | Equality                   |
-| `a != b`     | Inequality                 |
-| `a < b`      | Greater-than               |
-| `a > b`      | Less-than                  |
-| `a <= b`     | Greater-than or equal      |
-| `a >= b`     | Less-than or equal         |
-| `a catch b`  | Defaulting error unwrap    |
-| `a orelse b` | Defaulting optional unwrap |
-| `a + b`      | Addition                   |
-| `a - b`      | Subtraction                |
-| `a * b`      | Multiplication             |
-| `a / b`      | Division                   |
-| `a % b`      | Modulus                    |
-| `a as T`     | Type cast                  |
-| `not a`      | Boolean NOT                |
-| `-a`         | Negation                   |
-| `&a`         | Address-of                 |
-| `&mut a`     | Mutable ddress-of          |
-| `[]a`        | Slice-of                   |
-| `[mut]a`     | Mutable slice-of           |
-| `try a`      | Early return error unwrap  |
-| `a()`        | Call                       |
-| `a[b]`       | Index                      |
-| `a[b..c]`    | Sub-slice                  |
-| `a.b`        | Field select               |
-| `a::b`       | Member access              |
-| `a.>b()`     | Method invoke              |
-| `a^`         | Dereference                |
+| Syntax             | Description                |
+|--------------------|----------------------------|
+| `a and b`          | Boolean AND                |
+| `a or b`           | Boolean OR                 |
+| `a & b` `a &= b`   | Bitwise AND                |
+| `a | b` `a |= b`   | Bitwise OR                 |
+| `a ~ b` `a ~= b`   | Bitwise XOR                |
+| `a == b`           | Equality                   |
+| `a != b`           | Inequality                 |
+| `a < b`            | Greater-than               |
+| `a > b`            | Less-than                  |
+| `a <= b`           | Greater-than or equal      |
+| `a >= b`           | Less-than or equal         |
+| `a catch b`        | Defaulting error unwrap    |
+| `a orelse b`       | Defaulting optional unwrap |
+| `a << b` `a <<= b` | Left shift                 |
+| `a >> b` `a >>= b` | Right shift                |
+| `a + b` `a += b`   | Addition                   |
+| `a - b` `a -= b`   | Subtraction                |
+| `a * b` `a *= b`   | Multiplication             |
+| `a / b` `a /= b`   | Division                   |
+| `a % b` `a %= b`   | Modulus                    |
+| `a as T`           | Type cast                  |
+| `not a`            | Boolean NOT                |
+| `-a`               | Negation                   |
+| `&a`               | Address-of                 |
+| `&mut a`           | Mutable ddress-of          |
+| `[]a`              | Slice-of                   |
+| `[mut]a`           | Mutable slice-of           |
+| `try a`            | Early return error unwrap  |
+| `a()`              | Call                       |
+| `a[b]`             | Index                      |
+| `a[b..c]`          | Sub-slice                  |
+| `a.b`              | Field select               |
+| `a::b`             | Member access              |
+| `a.>b()`           | Method invoke              |
+| `a^`               | Dereference                |
 
 ### Call Expressions
 1. A _call expression_ has a left-hand side that refers to a function, and a list of arguments.
