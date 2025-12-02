@@ -916,7 +916,6 @@ pub const Type_AST = union(enum) {
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
             if (B.symbol().?.decl.?.* == .type_param_decl) {
-                std.debug.print("1. {f} == {f}\n", .{ A, B });
                 return true; // TODO: Check that contraints match
             }
             return types_match(A, B.symbol().?.init_typedef().?);
