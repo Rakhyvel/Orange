@@ -221,6 +221,11 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         }
     }
 
+    if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_alias and std.mem.eql(u8, "Self", for_type.token().data)) {
+        const for_type_init = for_type.symbol().?.decl.?.type_alias.init.?;
+        return self.lookup_impl_member(for_type_init, name, compiler);
+    }
+
     if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
     if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| return res;
     if (try self.lookup_impl_member_imports(for_type, name, compiler)) |res| return res;
@@ -251,6 +256,10 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         return cloned;
+    }
+    for (trait_decl.trait.type_decls.items) |type_decl| {
+        if (!std.mem.eql(u8, type_decl.token().data, name)) continue;
+        return type_decl;
     }
     return null;
 }
@@ -332,6 +341,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
+            new_impl.impl.type_defs,
             compiler.allocator(),
         );
         try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -363,6 +373,11 @@ fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     for (impl.impl.const_defs.items) |const_def| {
         if (std.mem.eql(u8, const_def.binding.pattern.symbol().?.name, name)) {
             return const_def;
+        }
+    }
+    for (impl.impl.type_defs.items) |type_def| {
+        if (std.mem.eql(u8, type_def.symbol().?.name, name)) {
+            return type_def;
         }
     }
     return null;

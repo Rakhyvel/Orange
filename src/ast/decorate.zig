@@ -458,13 +458,6 @@ fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: *ast_.AST) wal
     return extract_symbol_from_decl(rhs_decl);
 }
 
-/// Resolves a symbol access on an import symbol
-/// This is gauranteed to work, since the import-module symbol connection is setup by the compiler itself
-// fn resolve_access_import(self: Self, import_symbol: *Symbol, rhs: *ast_.AST, scope: *Scope) walk_.Error!*Symbol {
-//     const referant_symbol = import_symbol.scope.parent.?.lookup(import_symbol.kind.import.real_name, .{ .allow_modules = true }).found;
-//     return try self.resolve_access_symbol(referant_symbol, rhs, scope);
-// }
-
 /// Resolves a symbol access on a constant symbol, likely a trait lookup
 fn resolve_access_const(self: Self, lhs: *Type_AST, rhs: *ast_.AST, scope: *Scope) walk_.Error!*Symbol {
     const rhs_decl = scope.lookup_impl_member(lhs, rhs.token().data, self.ctx) catch return error.CompileError;
@@ -486,7 +479,7 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs: *ast_.AST, scope: *Scop
 fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
     if (decl.* == .decl) {
         return decl.decl.name.symbol().?;
-    } else if (decl.* == .method_decl or decl.* == .fn_decl or decl.* == .trait or decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .type_alias or decl.* == .context_decl) {
+    } else if (decl.* == .method_decl or decl.* == .fn_decl or decl.* == .trait or decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .type_alias or decl.* == .context_decl or decl.* == .type_param_decl) {
         return decl.symbol().?;
     } else if (decl.* == .binding) {
         return decl.binding.pattern.symbol().?;

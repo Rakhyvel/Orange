@@ -1,0 +1,30 @@
+// 430
+trait A {
+    fn get_value(self) -> Int
+}
+
+trait B {
+    type Addend: A
+
+    fn get_value(&self, addend: Addend) -> Int
+}
+
+impl A for Int {
+    fn get_value(self) -> Int { self }
+}
+
+struct Impler {
+    x: Int
+}
+impl B for Impler {
+    type Addend = Int
+
+    fn get_value(&self, addend: Addend) -> Int {
+        self.x + addend.>get_value()
+    }
+}
+
+fn main() -> Int {
+    let i = Impler(400)
+    i.>get_value(30)
+}

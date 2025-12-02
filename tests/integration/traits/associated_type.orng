@@ -1,0 +1,19 @@
+// 430
+trait A {
+    type Assoc_Type
+
+    fn get_value() -> Self::Assoc_Type
+}
+
+struct Impler {}
+impl A for Impler {
+    type Assoc_Type = Int
+
+    fn get_value() -> Self::Assoc_Type {
+        430
+    }
+}
+
+fn main() -> Int {
+    Impler::get_value()
+}

@@ -160,14 +160,14 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that return type matches
-        const trait_method_ret_type = Type_AST.clone(trait_decl.?.method_decl.ret_type, &subst, self.ctx.allocator());
-        const def_method_ret_type = Type_AST.clone(def.method_decl.ret_type, &subst, self.ctx.allocator());
-        if (!def_method_ret_type.types_match(trait_method_ret_type)) {
+        // const trait_method_ret_type = Type_AST.clone(trait_decl.?.method_decl.ret_type, &subst, self.ctx.allocator());
+        // const def_method_ret_type = Type_AST.clone(def.method_decl.ret_type, &subst, self.ctx.allocator());
+        if (!def.method_decl.ret_type.types_match(trait_decl.?.method_decl.ret_type)) {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,
                 .trait_name = trait_ast.token().data,
-                .trait_type = trait_method_ret_type,
+                .trait_type = trait_decl.?.method_decl.ret_type,
                 .impl_type = def.method_decl.ret_type,
             } });
             return error.CompileError;

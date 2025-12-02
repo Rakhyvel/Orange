@@ -915,6 +915,10 @@ pub const Type_AST = union(enum) {
         if (A.* == .access) {
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
+            if (B.symbol().?.decl.?.* == .type_param_decl) {
+                std.debug.print("1. {f} == {f}\n", .{ A, B });
+                return true; // TODO: Check that contraints match
+            }
             return types_match(A, B.symbol().?.init_typedef().?);
         }
         if (A.* == .generic_apply and A.generic_apply._symbol != null and B.* != .generic_apply) {
@@ -924,6 +928,9 @@ pub const Type_AST = union(enum) {
         }
         if (B.* == .anyptr_type and (A.* == .addr_of or A.* == .dyn_type)) {
             return true;
+        }
+        if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
+            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl); // TODO: Check that contraints match
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
