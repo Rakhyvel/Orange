@@ -196,7 +196,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
 
     for (impl.impl.type_defs.items) |typedef| {
         const def_key = typedef.type_alias.name.token().data;
-        const trait_type_decl = trait_method_decls.get(def_key);
+        const trait_type_decl = trait_type_decls.get(def_key);
 
         // Check that the trait defines the method
         if (trait_type_decl == null) {
