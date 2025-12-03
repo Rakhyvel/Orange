@@ -211,17 +211,14 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             const symbol = try create_trait_symbol(ast, self.scope, self.allocator);
             try self.register_symbol(ast, symbol);
 
-            const self_type_decl = ast_.AST.create_type_alias(
-                ast.token(),
-                ast_.AST.create_pattern_symbol(
-                    Token.init_simple("Self"),
-                    .type,
-                    .local,
-                    "Self",
-                    self.allocator,
-                ),
-                null,
-                std.array_list.Managed(*ast_.AST).init(self.allocator),
+            const self_token = Token.init_simple("Self");
+            var self_identifier = Type_AST.create_type_identifier(self_token, self.allocator);
+            self_identifier.set_symbol(symbol);
+            var self_type_constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+            try self_type_constraints.append(self_identifier);
+            const self_type_decl = ast_.AST.create_type_param_decl(
+                self_token,
+                self_type_constraints,
                 self.allocator,
             );
             try walk_.walk_ast(self_type_decl, new_self);
@@ -279,6 +276,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                     std.array_list.Managed(*Type_AST).init(self.allocator),
                     cloned_methods,
                     ast_.AST.clone_children(ast.impl.const_defs, &subst, self.allocator),
+                    ast_.AST.clone_children(ast.impl.type_defs, &subst, self.allocator),
                     self.allocator,
                 );
                 try new_self_for_anon_trait.scope.traits.put(anon_trait, void{});

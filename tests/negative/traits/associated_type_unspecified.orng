@@ -1,0 +1,13 @@
+// associated_type_unspecified.orng:11:5: error: missing implementation of associated type `Addend` from trait `A`
+// impl A for Impler {}
+//    ^
+// associated_type_unspecified.orng:8:22: note: type specification here:
+// trait A { type Addend }
+//                     ^
+// 
+trait A { type Addend }
+
+struct Impler { x: Int }
+impl A for Impler {}
+
+fn main() -> Int { 430 }

@@ -13,12 +13,16 @@ const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 const Self: type = @This();
 
 ctx: *Compiler_Context,
+visited: std.AutoArrayHashMap(*Type_AST, bool),
 
 pub fn init(ctx: *Compiler_Context) Self {
-    return Self{ .ctx = ctx };
+    return Self{ .ctx = ctx, .visited = std.AutoArrayHashMap(*Type_AST, bool).init(ctx.allocator()) };
 }
 
 pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
+    if (self.visited.contains(@"type")) return;
+    try self.visited.put(@"type", true);
+
     switch (@"type".*) {
         .generic_apply => {
             // TODO: This has a lot of similarities to monomorphizing a generic_apply in decorate.zig
@@ -42,19 +46,13 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 try self.ctx.validate_type.validate_type(child);
 
                 const param = params.items[i];
-                for (param.type_param_decl.constraints.items) |constraint| {
-                    if (constraint.symbol() != null) {
-                        const trait = constraint.symbol().?;
-                        const res = constraint.symbol().?.scope.impl_trait_lookup(child, trait);
-                        if (res.count == 0) {
-                            self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                                .span = child.token().span,
-                                .trait_name = trait.name,
-                                ._type = child,
-                            } });
-                            return error.CompileError;
-                        }
-                    }
+                if (child.satisfies_all_constraints(param.type_param_decl.constraints.items)) |unsatisfied_trait| {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = child.token().span,
+                        .trait_name = unsatisfied_trait.name,
+                        ._type = child,
+                    } });
+                    return error.CompileError;
                 }
             }
 
@@ -72,6 +70,11 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "expected a type", .span = @"type".token().span } });
                 return error.CompileError;
             }
+        },
+
+        .access => {
+            const type_symbol = @"type".symbol().?;
+            if (type_symbol.init_typedef()) |typ| try self.validate_type(typ);
         },
 
         .array_of => {
@@ -146,10 +149,6 @@ pub fn detect_cycle(self: *Self, ty: *Type_AST, append_me: ?*Symbol) bool {
     var path = std.AutoArrayHashMap(*Symbol, bool).init(self.ctx.allocator());
     defer path.deinit();
 
-    // if (append_me) |to_append| {
-    // path.put(to_append, true) catch unreachable;
-    // }
-
     return dfs(ty, &visiting, &path, &visited, false);
 }
 
@@ -162,13 +161,13 @@ fn dfs(
 ) bool {
     if (visited.contains(ty)) return false;
 
-    if (visiting.contains(ty) and ty.* == .identifier and ty.symbol().?.decl.?.* == .type_alias) return true; // unsafe cycle detected
-    if (visiting.contains(ty) and ty.* == .identifier) return !has_indirection; // unsafe cycle detected
+    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply) and ty.symbol().?.decl.?.* == .type_alias) return true; // unsafe cycle detected
+    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply)) return !has_indirection; // unsafe cycle detected
 
     visiting.put(ty, true) catch unreachable;
 
     switch (ty.*) {
-        .identifier => if (ty.symbol()) |sym| {
+        .identifier, .access, .generic_apply => if (ty.symbol()) |sym| {
             if (path.contains(sym)) {
                 if (sym.decl.?.* == .type_alias) {
                     return true; // invalid alias cycle

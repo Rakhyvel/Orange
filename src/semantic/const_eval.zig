@@ -3,6 +3,7 @@
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
+const errs_ = @import("../util/errors.zig");
 const Interpreter_Context = @import("../interpretation/interpreter.zig");
 const defaults_ = @import("defaults.zig");
 const Scope = @import("../symbol/scope.zig");
@@ -64,6 +65,13 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
 
         .size_of => {
             const _type = ast.size_of._type;
+            if (self.ctx.validate_type.detect_cycle(ast.size_of._type, null)) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                    .msg = "cyclic type detected",
+                    .span = ast.token().span,
+                } });
+                return error.CompileError;
+            }
             ast.* = ast_.AST.create_int(ast.token(), _type.sizeof(), self.ctx.allocator()).*;
             _ = self.ctx.typecheck.typecheck_AST(ast, null) catch return error.CompileError;
         },

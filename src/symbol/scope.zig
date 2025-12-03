@@ -218,6 +218,9 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = constraint.symbol().?.decl.?;
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
+            for (trait_decl.trait.super_traits.items) |super_trait| {
+                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+            }
         }
     }
 
@@ -252,9 +255,14 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         return cloned;
     }
+    for (trait_decl.trait.type_decls.items) |type_decl| {
+        if (!std.mem.eql(u8, type_decl.token().data, name)) continue;
+        return type_decl;
+    }
     return null;
 }
 
+var count: usize = 0;
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(compiler.allocator());
@@ -265,7 +273,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         try walker_.walk_type(impl.impl._type, decorate_context);
 
         try compiler.validate_type.validate_type(impl.impl._type);
-        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
+        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch {
+            continue;
+        };
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
         if (search_impl(instantiated_impl, name)) |res| return res;
@@ -332,6 +342,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
+            new_impl.impl.type_defs,
             compiler.allocator(),
         );
         try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -363,6 +374,11 @@ fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     for (impl.impl.const_defs.items) |const_def| {
         if (std.mem.eql(u8, const_def.binding.pattern.symbol().?.name, name)) {
             return const_def;
+        }
+    }
+    for (impl.impl.type_defs.items) |type_def| {
+        if (std.mem.eql(u8, type_def.symbol().?.name, name)) {
+            return type_def;
         }
     }
     return null;

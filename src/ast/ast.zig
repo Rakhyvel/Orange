@@ -162,6 +162,7 @@ pub const AST = union(enum) {
         super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
+        type_decls: std.array_list.Managed(*AST),
         num_virtual_methods: i64 = 0,
         _symbol: ?*Symbol = null, // Filled by symbol-tree pass.
         _scope: ?*Scope = null, // Filled by symbol-tree pass.
@@ -185,6 +186,7 @@ pub const AST = union(enum) {
         _type: *Type_AST, // The `for` type for this impl
         method_defs: std.array_list.Managed(*AST),
         const_defs: std.array_list.Managed(*AST),
+        type_defs: std.array_list.Managed(*AST),
         _generic_params: std.array_list.Managed(*AST), // list of annotations
         num_virtual_methods: i64 = 0,
         _scope: ?*Scope = null, // Scope used for `impl` methods, rooted in `impl`'s scope.
@@ -872,6 +874,7 @@ pub const AST = union(enum) {
         super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
+        type_decls: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
         return AST.box(AST{ .trait = .{
@@ -879,6 +882,7 @@ pub const AST = union(enum) {
             .super_traits = super_traits,
             .method_decls = method_decls,
             .const_decls = const_decls,
+            .type_decls = type_decls,
         } }, allocator);
     }
 
@@ -888,21 +892,27 @@ pub const AST = union(enum) {
         _type: *Type_AST,
         method_defs: std.array_list.Managed(*AST),
         const_defs: std.array_list.Managed(*AST),
+        type_defs: std.array_list.Managed(*AST),
         _generic_params: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
-        return AST.box(
+        const retval = AST.box(
             AST{ .impl = .{
                 .common = AST_Common{ ._token = _token },
                 .trait = _trait,
                 ._type = _type,
                 .method_defs = method_defs,
                 .const_defs = const_defs,
+                .type_defs = type_defs,
                 ._generic_params = _generic_params,
                 .instantiations = Monomorph_Map(*AST).init(allocator),
             } },
             allocator,
         );
+        for (method_defs.items) |method_def| {
+            method_def.method_decl.impl = retval;
+        }
+        return retval;
     }
 
     pub fn create_invoke(
@@ -1629,17 +1639,20 @@ pub const AST = union(enum) {
                 const cloned_super_traits = Type_AST.clone_types(self.trait.super_traits, substs, allocator);
                 const cloned_method_decls = clone_children(self.trait.method_decls, substs, allocator);
                 const cloned_const_decls = clone_children(self.trait.const_decls, substs, allocator);
+                const cloned_type_decls = clone_children(self.trait.type_decls, substs, allocator);
                 return create_trait(
                     self.token(),
                     cloned_super_traits,
                     cloned_method_decls,
                     cloned_const_decls,
+                    cloned_type_decls,
                     allocator,
                 );
             },
             .impl => {
                 const cloned_method_defs = clone_children(self.impl.method_defs, substs, allocator);
                 const cloned_const_defs = clone_children(self.impl.const_defs, substs, allocator);
+                const cloned_type_defs = clone_children(self.impl.type_defs, substs, allocator);
                 const cloned_generic_params = clone_children(self.impl._generic_params, substs, allocator);
                 var retval = create_impl(
                     self.token(),
@@ -1647,6 +1660,7 @@ pub const AST = union(enum) {
                     self.impl._type.clone(substs, allocator),
                     cloned_method_defs,
                     cloned_const_defs,
+                    cloned_type_defs,
                     cloned_generic_params,
                     allocator,
                 );

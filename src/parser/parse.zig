@@ -1455,6 +1455,21 @@ fn type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     return ast_.AST.create_type_alias(identifier, name, _init, gen_params, self.allocator);
 }
 
+fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
+    _ = try self.expect(.type);
+    const identifier = try self.expect(.identifier);
+
+    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+    if (self.accept(.single_colon)) |_| {
+        try constraints.append(try self.type_expr());
+        while (self.accept(.plus)) |_| {
+            try constraints.append(try self.type_expr());
+        }
+    }
+
+    return ast_.AST.create_type_param_decl(identifier, constraints, self.allocator);
+}
+
 fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     var params = std.array_list.Managed(*ast_.AST).init(self.allocator);
     if (self.accept(.left_square) != null) {
@@ -1495,11 +1510,15 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     errdefer method_decls.deinit();
     var const_decls = std.array_list.Managed(*ast_.AST).init(self.allocator);
     errdefer const_decls.deinit();
+    var type_decls = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    errdefer type_decls.deinit();
 
     self.newlines();
-    while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const")) {
+    while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const") or self.peek_kind(.type)) {
         if (self.peek_kind(.@"const")) {
             const_decls.append(try self.const_declaration()) catch unreachable;
+        } else if (self.peek_kind(.type)) {
+            type_decls.append(try self.trait_type_alias_declaration()) catch unreachable;
         } else {
             method_decls.append(try self.method_definition()) catch unreachable;
         }
@@ -1507,7 +1526,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 
     _ = try self.expect(.right_brace);
-    return ast_.AST.create_trait(trait_name, super_traits, method_decls, const_decls, self.allocator);
+    return ast_.AST.create_trait(trait_name, super_traits, method_decls, const_decls, type_decls, self.allocator);
 }
 
 fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1524,23 +1543,23 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     errdefer method_defs.deinit();
     var const_defs = std.array_list.Managed(*ast_.AST).init(self.allocator);
     errdefer const_defs.deinit();
-    const retval = ast_.AST.create_impl(token, trait_ident, _type, method_defs, const_defs, gen_params, self.allocator);
+    var type_defs = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    errdefer type_defs.deinit();
 
     self.newlines();
-    while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const")) {
+    while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const") or self.peek_kind(.type)) {
         if (self.peek_kind(.@"const")) {
             const_defs.append(try self.const_declaration()) catch unreachable;
+        } else if (self.peek_kind(.type)) {
+            type_defs.append(try self.type_alias_declaration()) catch unreachable;
         } else {
             const method = try self.method_definition();
-            method.method_decl.impl = retval;
             method_defs.append(method) catch unreachable;
         }
         self.newlines();
     }
     _ = try self.expect(.right_brace);
-    retval.impl.method_defs = method_defs;
-    retval.impl.const_defs = const_defs;
-    return retval;
+    return ast_.AST.create_impl(token, trait_ident, _type, method_defs, const_defs, type_defs, gen_params, self.allocator);
 }
 
 fn test_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

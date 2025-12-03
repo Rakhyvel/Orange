@@ -113,10 +113,26 @@ pub const Error = union(enum) {
         method_name: []const u8,
         trait_name: []const u8,
     },
+    type_not_in_trait: struct {
+        type_span: Span,
+        type_name: []const u8,
+        trait_name: []const u8,
+    },
+    unsatisfied_constraint: struct {
+        type_span: Span,
+        type: *Type_AST,
+        trait_name: []const u8,
+    },
     method_not_in_impl: struct {
         impl_span: Span,
         method_span: Span,
         method_name: []const u8,
+        trait_name: []const u8,
+    },
+    type_not_in_impl: struct {
+        impl_span: Span,
+        type_span: Span,
+        type_name: []const u8,
         trait_name: []const u8,
     },
     impl_receiver_mismatch: struct {
@@ -309,7 +325,10 @@ pub const Error = union(enum) {
             .type_not_impl_method => return self.type_not_impl_method.span,
             .type_not_impl_trait => return self.type_not_impl_trait.span,
             .method_not_in_trait => return self.method_not_in_trait.method_span,
+            .type_not_in_trait => return self.type_not_in_trait.type_span,
+            .unsatisfied_constraint => return self.unsatisfied_constraint.type_span,
             .method_not_in_impl => return self.method_not_in_impl.impl_span,
+            .type_not_in_impl => return self.type_not_in_impl.impl_span,
             .impl_receiver_mismatch => return self.impl_receiver_mismatch.receiver_span,
             .invoke_receiver_mismatch => return self.invoke_receiver_mismatch.receiver_span,
             .mismatch_method_param_arity => return self.mismatch_method_param_arity.span,
@@ -434,10 +453,24 @@ pub const Error = union(enum) {
                 err.method_not_in_trait.method_name,
                 err.method_not_in_trait.trait_name,
             }) catch unreachable,
+            .type_not_in_trait => writer.print("type `{s}` is not in trait `{s}`\n", .{
+                err.type_not_in_trait.type_name,
+                err.type_not_in_trait.trait_name,
+            }) catch unreachable,
+            .unsatisfied_constraint => writer.print("type `{f}` does not implement trait `{s}`\n", .{
+                err.unsatisfied_constraint.type,
+                err.unsatisfied_constraint.trait_name,
+            }) catch unreachable,
             .method_not_in_impl => {
                 writer.print("missing implementation of method `{s}` from trait `{s}`\n", .{
                     err.method_not_in_impl.method_name,
                     err.method_not_in_impl.trait_name,
+                }) catch unreachable;
+            },
+            .type_not_in_impl => {
+                writer.print("missing implementation of associated type `{s}` from trait `{s}`\n", .{
+                    err.type_not_in_impl.type_name,
+                    err.type_not_in_impl.trait_name,
                 }) catch unreachable;
             },
             .impl_receiver_mismatch => if (err.impl_receiver_mismatch.trait_receiver != null and err.impl_receiver_mismatch.impl_receiver != null) {
@@ -696,6 +729,14 @@ pub const Error = union(enum) {
                 writer.print("method specification here:\n", .{}) catch unreachable;
                 print_color(not_bold, writer, conf);
                 print_epilude(self.method_not_in_impl.method_span, writer, conf);
+            },
+            .type_not_in_impl => {
+                print_color(bold, writer, conf);
+                print_note_label(self.type_not_in_impl.type_span, writer, conf);
+                print_color(bold, writer, conf);
+                writer.print("type specification here:\n", .{}) catch unreachable;
+                print_color(not_bold, writer, conf);
+                print_epilude(self.type_not_in_impl.type_span, writer, conf);
             },
             else => {},
         }
