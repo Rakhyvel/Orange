@@ -262,6 +262,7 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
     return null;
 }
 
+var count: usize = 0;
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(compiler.allocator());
@@ -272,7 +273,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         try walker_.walk_type(impl.impl._type, decorate_context);
 
         try compiler.validate_type.validate_type(impl.impl._type);
-        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
+        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch {
+            continue;
+        };
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
         if (search_impl(instantiated_impl, name)) |res| return res;
@@ -319,8 +322,6 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     // Already instantiated, return the memoized impl
     const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
-
-    try subst.put("Self", impl.impl._type.clone(subst, compiler.allocator()));
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());

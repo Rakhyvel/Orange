@@ -1,0 +1,19 @@
+// 432
+struct Wrapper[T] {
+    x: T
+}
+
+impl[T] for Wrapper[T] {
+    fn init(x: T) -> Self {
+        Self(x)
+    }
+
+    fn init_wrapper(x: T) -> Self {
+        Self::init(x)
+    }
+}
+
+fn main() -> Int {
+    let w = Wrapper[Int]::init_wrapper(432)
+    w.x
+}
