@@ -1,11 +1,15 @@
-trait A { type T }
+// associated_type_cyclic.orng:14:12: error: cyclic type detected
+//     @sizeof(Impler::I_Wanna_Be_Cyclic)
+//           ^
+// 
+trait A { type I_Wanna_Be_Cyclic }
 
 struct Impler {}
 struct Wrapper[T] {x: T}
 impl A for Impler {
-    type T = Wrapper[Self::T] // TODO: should cause error about cyclic definition
+    type I_Wanna_Be_Cyclic = Wrapper[Self::I_Wanna_Be_Cyclic] // TODO: should cause error about cyclic definition
 }
 
 fn main() -> Int {
-    @sizeof(Impler::T)
+    @sizeof(Impler::I_Wanna_Be_Cyclic)
 }

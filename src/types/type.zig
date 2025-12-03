@@ -622,12 +622,8 @@ pub const Type_AST = union(enum) {
     pub fn expand_identifier(self: *Type_AST) *Type_AST {
         var res = self;
         while (true) {
-            if ((res.* == .identifier or res.* == .access) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
+            if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
                 const new = res.symbol().?.init_typedef().?;
-                new.set_unexpanded_type(res);
-                res = new;
-            } else if (res.* == .generic_apply) {
-                const new = res.generic_apply._symbol.?.init_typedef().?;
                 new.set_unexpanded_type(res);
                 res = new;
             } else if (res.* == .annotation) {
