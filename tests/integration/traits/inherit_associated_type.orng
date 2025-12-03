@@ -1,0 +1,16 @@
+// 432
+trait A { type T }
+trait B: A { fn use_t() -> Self::T }
+
+struct Impler {}
+impl A for Impler {
+    type T = Int
+}
+
+impl B for Impler {
+    fn use_t() -> Self::T { 432 }
+}
+
+fn main() -> Int {
+    Impler::use_t()
+}

@@ -218,12 +218,10 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = constraint.symbol().?.decl.?;
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
+            for (trait_decl.trait.super_traits.items) |super_trait| {
+                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+            }
         }
-    }
-
-    if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_alias and std.mem.eql(u8, "Self", for_type.token().data)) {
-        const for_type_init = for_type.symbol().?.decl.?.type_alias.init.?;
-        return self.lookup_impl_member(for_type_init, name, compiler);
     }
 
     if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
@@ -321,6 +319,8 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     // Already instantiated, return the memoized impl
     const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
+
+    try subst.put("Self", impl.impl._type.clone(subst, compiler.allocator()));
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());

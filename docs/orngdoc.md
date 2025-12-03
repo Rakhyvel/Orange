@@ -207,6 +207,7 @@ enum [E, O] {
 1. A _trait declaration_ declares and names a trait.
 2. A trait declaration begins with the `trait` keyword.
 3. A trait declaration has a list of zero or more method, type alias, and constant declarations.
+4. A trait declaration has a list of zero or more super traits.
 
 ### Method Declarations
 1. A method declaration_ is declared with the `fn` keyword.
@@ -229,6 +230,7 @@ enum [E, O] {
 5. Implementations have a for-type, introduced after the `for` keyword.
 6. Implementations have a list of method, type alias, and constant declarations. These must match in type, virtuality, arity, and constraints with the specified trait.
 7. If a declaration does not appear in an implementaiton, then its declartion is taken from the trait.
+8. When implementing a trait `Tr` for a type `Ty`, all super traits of `Tr` must be implemented for the type `Ty`.
 
 ### Test Declarations
 1. Tests are declared with the `test` keyword, followed by a string literal representing the test's name, and the test body.

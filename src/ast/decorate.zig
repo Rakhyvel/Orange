@@ -351,19 +351,13 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
         try self.ctx.validate_type.validate_type(child);
 
         const param = params.items[i];
-        for (param.type_param_decl.constraints.items) |constraint| {
-            if (constraint.symbol() != null) {
-                const trait = constraint.symbol().?;
-                const res = self.scope.impl_trait_lookup(child, trait);
-                if (res.count == 0) {
-                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                        .span = child.token().span,
-                        .trait_name = trait.name,
-                        ._type = child,
-                    } });
-                    return error.CompileError;
-                }
-            }
+        if (child.satisfies_all_constraints(param.type_param_decl.constraints.items)) |unsatisfied_trait| {
+            self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                .span = child.token().span,
+                .trait_name = unsatisfied_trait.name,
+                ._type = child,
+            } });
+            return error.CompileError;
         }
     }
 

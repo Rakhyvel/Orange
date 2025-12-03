@@ -896,7 +896,7 @@ pub const AST = union(enum) {
         _generic_params: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
     ) *AST {
-        return AST.box(
+        const retval = AST.box(
             AST{ .impl = .{
                 .common = AST_Common{ ._token = _token },
                 .trait = _trait,
@@ -909,6 +909,10 @@ pub const AST = union(enum) {
             } },
             allocator,
         );
+        for (method_defs.items) |method_def| {
+            method_def.method_decl.impl = retval;
+        }
+        return retval;
     }
 
     pub fn create_invoke(

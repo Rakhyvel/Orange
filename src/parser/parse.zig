@@ -1459,7 +1459,13 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.type);
     const identifier = try self.expect(.identifier);
 
-    const constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+    if (self.accept(.single_colon)) |_| {
+        try constraints.append(try self.type_expr());
+        while (self.accept(.plus)) |_| {
+            try constraints.append(try self.type_expr());
+        }
+    }
 
     return ast_.AST.create_type_param_decl(identifier, constraints, self.allocator);
 }
@@ -1539,7 +1545,6 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     errdefer const_defs.deinit();
     var type_defs = std.array_list.Managed(*ast_.AST).init(self.allocator);
     errdefer type_defs.deinit();
-    const retval = ast_.AST.create_impl(token, trait_ident, _type, method_defs, const_defs, type_defs, gen_params, self.allocator);
 
     self.newlines();
     while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const") or self.peek_kind(.type)) {
@@ -1549,17 +1554,12 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
             type_defs.append(try self.type_alias_declaration()) catch unreachable;
         } else {
             const method = try self.method_definition();
-            method.method_decl.impl = retval;
             method_defs.append(method) catch unreachable;
         }
         self.newlines();
     }
     _ = try self.expect(.right_brace);
-    // These are necessary because we need the retval up front, and then if these append then they get invalidated or something idk
-    retval.impl.method_defs = method_defs;
-    retval.impl.const_defs = const_defs;
-    retval.impl.type_defs = type_defs;
-    return retval;
+    return ast_.AST.create_impl(token, trait_ident, _type, method_defs, const_defs, type_defs, gen_params, self.allocator);
 }
 
 fn test_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

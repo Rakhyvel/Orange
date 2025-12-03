@@ -916,7 +916,7 @@ pub const Type_AST = union(enum) {
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
             if (B.symbol().?.decl.?.* == .type_param_decl) {
-                return true; // TODO: Check that contraints match
+                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == null;
             }
             return types_match(A, B.symbol().?.init_typedef().?);
         }
@@ -929,7 +929,7 @@ pub const Type_AST = union(enum) {
             return true;
         }
         if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl); // TODO: Check that contraints match
+            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl);
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
@@ -1047,6 +1047,19 @@ pub const Type_AST = union(enum) {
             .dyn_type => is_sub_trait(from.child(), to.child()) and (!to_expanded.dyn_type.mut or from_expanded.dyn_type.mut),
             else => false,
         };
+    }
+
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) ?*Symbol {
+        for (constraints) |constraint| {
+            if (constraint.symbol() != null) {
+                const trait = constraint.symbol().?;
+                const res = constraint.symbol().?.scope.impl_trait_lookup(self, trait);
+                if (res.count == 0) {
+                    return trait;
+                }
+            }
+        }
+        return null;
     }
 
     fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
@@ -1201,7 +1214,7 @@ pub const Type_AST = union(enum) {
     pub fn refers_to_self(_type: *Type_AST) bool {
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier => std.mem.eql(u8, _type.token().data, "Self"),
+            .identifier => std.mem.eql(u8, _type.token().data, "Self") or _type.symbol().?.decl.?.* == .type_param_decl,
             .addr_of, .array_of => _type.child().refers_to_self(),
             .annotation => _type.child().refers_to_self(),
             .function => {

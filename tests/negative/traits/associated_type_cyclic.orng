@@ -1,0 +1,11 @@
+trait A { type T }
+
+struct Impler {}
+struct Wrapper[T] {x: T}
+impl A for Impler {
+    type T = Wrapper[Self::T] // TODO: should cause error about cyclic definition
+}
+
+fn main() -> Int {
+    @sizeof(Impler::T)
+}
