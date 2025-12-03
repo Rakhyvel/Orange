@@ -74,7 +74,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
 
         .access => {
             const type_symbol = @"type".symbol().?;
-            try self.validate_type(type_symbol.init_typedef().?);
+            if (type_symbol.init_typedef()) |typ| try self.validate_type(typ);
         },
 
         .array_of => {
