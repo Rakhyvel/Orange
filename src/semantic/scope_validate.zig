@@ -94,16 +94,21 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     // Construct a map of all trait decls
-    var trait_decls = std.StringArrayHashMap(*ast_.AST).init(self.ctx.allocator()); // Map name -> Method Decl
-    defer trait_decls.deinit();
+    var trait_method_decls = std.StringArrayHashMap(*ast_.AST).init(self.ctx.allocator()); // Map name -> Method Decl
+    defer trait_method_decls.deinit();
     for (trait_ast.trait.method_decls.items) |decl| {
-        trait_decls.put(decl.method_decl.name.token().data, decl) catch unreachable;
+        trait_method_decls.put(decl.method_decl.name.token().data, decl) catch unreachable;
+    }
+    var trait_type_decls = std.StringArrayHashMap(*ast_.AST).init(self.ctx.allocator());
+    defer trait_type_decls.deinit();
+    for (trait_ast.trait.type_decls.items) |decl| {
+        trait_type_decls.put(decl.token().data, decl) catch unreachable;
     }
 
     // Subtract trait defs - impl decls
     for (impl.impl.method_defs.items) |def| {
         const def_key = def.method_decl.name.token().data;
-        const trait_decl = trait_decls.get(def_key);
+        const trait_decl = trait_method_decls.get(def_key);
 
         // Check that the trait defines the method
         if (trait_decl == null) {
@@ -186,16 +191,53 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Subtract the method from the set
-        _ = trait_decls.swapRemove(def_key);
+        _ = trait_method_decls.swapRemove(def_key);
+    }
+
+    for (impl.impl.type_defs.items) |typedef| {
+        const def_key = typedef.type_alias.name.token().data;
+        const trait_type_decl = trait_method_decls.get(def_key);
+
+        // Check that the trait defines the method
+        if (trait_type_decl == null) {
+            self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
+                .type_span = typedef.token().span,
+                .type_name = typedef.type_alias.name.token().data,
+                .trait_name = trait_ast.token().data,
+            } });
+            return error.CompileError;
+        }
+
+        // Check that contraints match
+        if (typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items)) |unsatisfied_trait| {
+            self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
+                .type_span = typedef.decl_typedef().?.token().span,
+                .type = typedef.decl_typedef().?,
+                .trait_name = unsatisfied_trait.name,
+            } });
+            return error.CompileError;
+        }
+        // Subtract the type from the set
+        _ = trait_type_decls.swapRemove(def_key);
     }
 
     var errant = false;
-    for (trait_decls.keys()) |trait_key| {
-        const trait_decl = trait_decls.get(trait_key).?;
+    for (trait_method_decls.keys()) |trait_key| {
+        const trait_decl = trait_method_decls.get(trait_key).?;
         self.ctx.errors.add_error(errs_.Error{ .method_not_in_impl = .{
             .impl_span = impl.token().span,
             .method_span = trait_decl.token().span,
             .method_name = trait_decl.method_decl.name.token().data,
+            .trait_name = trait_ast.token().data,
+        } });
+        errant = true;
+    }
+    for (trait_type_decls.keys()) |trait_key| {
+        const trait_decl = trait_type_decls.get(trait_key).?;
+        self.ctx.errors.add_error(errs_.Error{ .type_not_in_impl = .{
+            .impl_span = impl.token().span,
+            .type_span = trait_decl.token().span,
+            .type_name = trait_decl.token().data,
             .trait_name = trait_ast.token().data,
         } });
         errant = true;

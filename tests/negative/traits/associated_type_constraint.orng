@@ -1,0 +1,16 @@
+// associated_type_constraint.orng:13:22: error: type `Int` does not implement trait `A`
+//     type Addend = Int
+//                     ^
+// 
+trait A {}
+
+trait B {
+    type Addend: A
+}
+
+struct Impler { x: Int }
+impl B for Impler {
+    type Addend = Int
+}
+
+fn main() -> Int { 430 }

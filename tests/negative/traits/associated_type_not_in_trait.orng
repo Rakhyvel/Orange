@@ -1,0 +1,12 @@
+// associated_type_not_in_trait.orng:9:16: error: type `Addend` is not in trait `A`
+//     type Addend = Int
+//               ^
+// 
+trait A {}
+
+struct Impler { x: Int }
+impl A for Impler {
+    type Addend = Int
+}
+
+fn main() -> Int { 430 }
