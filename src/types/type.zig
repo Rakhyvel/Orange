@@ -643,16 +643,10 @@ pub const Type_AST = union(enum) {
                 new.set_unexpanded_type(res);
                 res = new;
             } else if (res.* == .access and res.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
-                const type_param_decl = res.access.inner_access.lhs().symbol().?.decl.?;
-                for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-                    if (constraint.* != .generic_apply) continue;
-                    for (constraint.children().items) |child_constraint| {
-                        if (child_constraint.* != .eq_constraint) continue;
-                        if (std.mem.eql(u8, child_constraint.lhs().token().data, res.access.inner_access.rhs().token().data)) {
-                            res = child_constraint.rhs();
-                            break;
-                        }
-                    }
+                if (res.associated_type_from_constraint()) |assoc_type| {
+                    res = assoc_type;
+                } else {
+                    return res;
                 }
             } else if (res.* == .annotation) {
                 res = res.child();
@@ -668,6 +662,18 @@ pub const Type_AST = union(enum) {
         } else {
             return self;
         }
+    }
+
+    pub fn associated_type_from_constraint(self: *Type_AST) ?*Type_AST {
+        const type_param_decl = self.access.inner_access.lhs().symbol().?.decl.?;
+        for (type_param_decl.type_param_decl.constraints.items) |constraint| {
+            if (constraint.* != .generic_apply) continue;
+            for (constraint.children().items) |child_constraint| {
+                if (child_constraint.* != .eq_constraint) continue;
+                if (std.mem.eql(u8, child_constraint.lhs().token().data, self.access.inner_access.rhs().token().data)) return child_constraint.rhs();
+            }
+        }
+        return null;
     }
 
     pub fn print_type(self: *const Type_AST, out: *std.Io.Writer) !void {
@@ -1101,10 +1107,9 @@ pub const Type_AST = union(enum) {
                     return .{ .not_impl = trait };
                 }
 
-                const impl = res.ast.?;
-
                 if (constraint.* == .generic_apply) {
                     for (constraint.children().items) |eq_constraint| {
+                        const impl = res.ast orelse return .{ .not_impl = trait };
                         const associated_type_name = eq_constraint.lhs().token().data;
 
                         var type_def: ?*AST = null;

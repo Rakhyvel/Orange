@@ -101,15 +101,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
             if (type_symbol.init_typedef()) |typ| {
                 try self.validate_type(typ);
             } else if (@"type".access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
-                const type_param_decl = @"type".access.inner_access.lhs().symbol().?.decl.?;
-                for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-                    if (constraint.* != .generic_apply) continue;
-                    for (constraint.children().items) |child_constraint| {
-                        if (child_constraint.* != .eq_constraint) continue;
-                        if (!std.mem.eql(u8, child_constraint.lhs().token().data, @"type".access.inner_access.rhs().token().data)) continue;
-                        try self.validate_type(child_constraint.rhs());
-                    }
-                }
+                if (@"type".associated_type_from_constraint()) |assoc_type| try self.validate_type(assoc_type);
             }
         },
 

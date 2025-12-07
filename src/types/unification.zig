@@ -16,15 +16,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
         return try unify(lhs, rhs.symbol().?.init_typedef().?, withs, subst);
     }
     if (rhs.* == .access and rhs.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
-        const type_param_decl = rhs.access.inner_access.lhs().symbol().?.decl.?;
-        for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-            if (constraint.* != .generic_apply) continue;
-            for (constraint.children().items) |child| {
-                if (child.* != .eq_constraint) continue;
-                if (!std.mem.eql(u8, child.lhs().token().data, rhs.access.inner_access.rhs().token().data)) continue;
-                return try unify(lhs, child.rhs(), withs, subst);
-            }
-        }
+        if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, withs, subst);
     }
 
     switch (lhs.*) {
