@@ -1,0 +1,19 @@
+// 439
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+struct Wrapper[V: A[Item = Int]] {
+    x: V
+}
+
+impl A for Int {
+    type Item = Int
+    fn get_value(self) -> Self::Item { self }
+}
+
+fn main() -> Int {
+    let wrapper = Wrapper[Int](439)
+    wrapper.x.>get_value()
+}
