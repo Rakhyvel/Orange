@@ -2,6 +2,7 @@
 const std = @import("std");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Type_AST = @import("type.zig").Type_AST;

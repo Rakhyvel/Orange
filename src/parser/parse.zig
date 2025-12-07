@@ -961,14 +961,22 @@ fn call_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
 fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     _ = try self.expect(.left_square);
     var retval = std.array_list.Managed(*Type_AST).init(self.allocator);
-    retval.append(try self.type_expr()) catch unreachable;
+    retval.append(try self.generic_arg()) catch unreachable;
     while (self.accept(.comma)) |_| {
         if (self.peek_kind(.right_square)) {
             break;
         }
-        retval.append(try self.type_expr()) catch unreachable;
+        retval.append(try self.generic_arg()) catch unreachable;
     }
     _ = try self.expect(.right_square);
+    return retval;
+}
+
+fn generic_arg(self: *Self) Parser_Error_Enum!*Type_AST {
+    var retval = try self.type_expr();
+    if (self.accept(.single_equals)) |token| {
+        retval = Type_AST.create_eq_constraint(token, retval, try self.type_expr(), self.allocator);
+    }
     return retval;
 }
 
@@ -1459,13 +1467,7 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.type);
     const identifier = try self.expect(.identifier);
 
-    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
-    if (self.accept(.single_colon)) |_| {
-        try constraints.append(try self.type_expr());
-        while (self.accept(.plus)) |_| {
-            try constraints.append(try self.type_expr());
-        }
-    }
+    const constraints = try self.contraint_list();
 
     return ast_.AST.create_type_param_decl(identifier, constraints, self.allocator);
 }
@@ -1475,13 +1477,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     if (self.accept(.left_square) != null) {
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
-            var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
-            if (self.accept(.single_colon)) |_| {
-                try constraints.append(try self.type_expr());
-                while (self.accept(.plus)) |_| {
-                    try constraints.append(try self.type_expr());
-                }
-            }
+            const constraints = try self.contraint_list();
             const param_ident = ast_.AST.create_type_param_decl(param_token, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
@@ -1491,6 +1487,17 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
         _ = try self.expect(.right_square);
     }
     return params;
+}
+
+fn contraint_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+    if (self.accept(.single_colon)) |_| {
+        try constraints.append(try self.type_expr());
+        while (self.accept(.plus)) |_| {
+            try constraints.append(try self.type_expr());
+        }
+    }
+    return constraints;
 }
 
 fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

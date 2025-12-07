@@ -336,6 +336,11 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
             try walk_types(_type.children(), new_context);
         },
 
+        .eq_constraint => {
+            // try walk_type(_type.lhs(), new_context);
+            try walk_type(_type.rhs(), new_context);
+        },
+
         .array_of => {
             try walk_type(_type.child(), new_context);
             try walk_ast(_type.array_of.len, new_context);

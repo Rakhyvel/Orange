@@ -1,0 +1,18 @@
+// 435
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+fn get[T: A[Item=Int]](t: T) -> Int {
+    t.>get_value()
+}
+
+impl A for Int {
+    type Item = Int
+    fn get_value(self) -> Self::Item { self }
+}
+
+fn main() -> Int {
+    get[Int](435)
+}

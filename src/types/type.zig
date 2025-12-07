@@ -6,6 +6,7 @@ const Scope = @import("../symbol/scope.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
 
@@ -57,6 +58,11 @@ pub const Type_AST = union(enum) {
         args: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
         state: enum { unmorphed, morphing, morphed } = .unmorphed,
+    },
+    eq_constraint: struct {
+        common: Type_AST_Common,
+        _lhs: *Type_AST,
+        _rhs: *Type_AST,
     },
     function: struct {
         common: Type_AST_Common,
@@ -249,6 +255,15 @@ pub const Type_AST = union(enum) {
             .common = _common,
             ._lhs = _lhs,
             .args = args,
+        } }, allocator);
+    }
+
+    pub fn create_eq_constraint(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+        const _common: Type_AST_Common = .{ ._token = _token };
+        return Type_AST.box(Type_AST{ .eq_constraint = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
         } }, allocator);
     }
 
@@ -909,6 +924,9 @@ pub const Type_AST = union(enum) {
             return types_match(A, B.child());
         }
         if (A.* == .access) {
+            if (A.symbol().?.decl.?.* == .type_param_decl) {
+                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == null;
+            }
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
             if (B.symbol().?.decl.?.* == .type_param_decl) {
@@ -1195,6 +1213,12 @@ pub const Type_AST = union(enum) {
                     allocator,
                 );
             },
+            .eq_constraint => return create_eq_constraint(
+                self.token(),
+                self.lhs().clone(substs, allocator),
+                self.rhs().clone(substs, allocator),
+                allocator,
+            ),
             else => std.debug.panic("compiler error: clone doesn't support trait type AST `{s}`", .{@tagName(self.*)}),
         }
     }
@@ -1234,11 +1258,13 @@ pub const Type_AST = union(enum) {
         };
     }
 
-    pub fn refers_to_trait(self: *Type_AST) bool {
+    pub fn base_symbol(self: *Type_AST) ?*Symbol {
         return switch (self.*) {
-            else => false,
+            else => return null,
 
-            .identifier, .access => self.symbol().?.is_trait(),
+            .generic_apply => return self.lhs().base_symbol(),
+
+            .identifier, .access => return self.symbol(),
         };
     }
 

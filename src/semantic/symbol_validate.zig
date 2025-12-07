@@ -99,15 +99,17 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         defer traits_used.deinit();
 
         for (symbol.decl.?.type_param_decl.constraints.items) |constraint| {
-            if (!constraint.refers_to_trait()) {
+            const trait_symbol = constraint.base_symbol().?;
+            if (!trait_symbol.is_trait()) {
                 self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
                 return error.CompileError;
             }
-            if (traits_used.contains(constraint.symbol().?)) {
-                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = constraint.symbol().?.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
+
+            if (traits_used.contains(trait_symbol)) {
+                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = trait_symbol.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
                 return error.CompileError;
             }
-            try traits_used.put(constraint.symbol().?, void{});
+            try traits_used.put(trait_symbol, void{});
         }
     }
 
