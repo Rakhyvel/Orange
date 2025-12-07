@@ -1,0 +1,23 @@
+// associated_type_eq_not_in_trait_instantiate.orng:10:21: error: type `Kablooah` is not in trait `A`
+// fn get[T: A[Kablooah=Int]](t: T) -> T::Item {
+//                    ^
+// 
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+fn get[T: A[Kablooah=Int]](t: T) -> T::Item {
+    t.>get_value()
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Bool
+    fn get_value(self) -> Self::Item { _ = self; 436 }
+}
+
+fn main() -> Int {
+    let impler = Impler()
+    get[Impler](impler)
+}

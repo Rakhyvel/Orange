@@ -1,0 +1,30 @@
+// 438
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+fn get[T: A[Item=Wrapper[Int]]](t: T) -> Int {
+    t.>get_value().>unwrap()
+}
+
+struct Wrapper[V] {
+    x: V
+}
+impl[V] for Wrapper[V] {
+    fn unwrap(&self) -> V { self.x }
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Wrapper[Int]
+    fn get_value(self) -> Self::Item { 
+        _ = self;
+        Wrapper[Int](438)
+    }
+}
+
+fn main() -> Int {
+    let impler = Impler()
+    get[Impler](impler)
+}

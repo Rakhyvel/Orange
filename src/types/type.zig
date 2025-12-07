@@ -3,9 +3,11 @@ const alignment_ = @import("../util/alignment.zig");
 const AST = @import("../ast/ast.zig").AST;
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Scope = @import("../symbol/scope.zig");
+const Span = @import("../util/span.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
 
@@ -57,6 +59,11 @@ pub const Type_AST = union(enum) {
         args: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
         state: enum { unmorphed, morphing, morphed } = .unmorphed,
+    },
+    eq_constraint: struct {
+        common: Type_AST_Common,
+        _lhs: *Type_AST,
+        _rhs: *Type_AST,
     },
     function: struct {
         common: Type_AST_Common,
@@ -249,6 +256,15 @@ pub const Type_AST = union(enum) {
             .common = _common,
             ._lhs = _lhs,
             .args = args,
+        } }, allocator);
+    }
+
+    pub fn create_eq_constraint(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+        const _common: Type_AST_Common = .{ ._token = _token };
+        return Type_AST.box(Type_AST{ .eq_constraint = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
         } }, allocator);
     }
 
@@ -626,6 +642,12 @@ pub const Type_AST = union(enum) {
                 const new = res.symbol().?.init_typedef().?;
                 new.set_unexpanded_type(res);
                 res = new;
+            } else if (res.* == .access and res.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+                if (res.associated_type_from_constraint()) |assoc_type| {
+                    res = assoc_type;
+                } else {
+                    return res;
+                }
             } else if (res.* == .annotation) {
                 res = res.child();
             } else {
@@ -640,6 +662,18 @@ pub const Type_AST = union(enum) {
         } else {
             return self;
         }
+    }
+
+    pub fn associated_type_from_constraint(self: *Type_AST) ?*Type_AST {
+        const type_param_decl = self.access.inner_access.lhs().symbol().?.decl.?;
+        for (type_param_decl.type_param_decl.constraints.items) |constraint| {
+            if (constraint.* != .generic_apply) continue;
+            for (constraint.children().items) |child_constraint| {
+                if (child_constraint.* != .eq_constraint) continue;
+                if (std.mem.eql(u8, child_constraint.lhs().token().data, self.access.inner_access.rhs().token().data)) return child_constraint.rhs();
+            }
+        }
+        return null;
     }
 
     pub fn print_type(self: *const Type_AST, out: *std.Io.Writer) !void {
@@ -909,10 +943,13 @@ pub const Type_AST = union(enum) {
             return types_match(A, B.child());
         }
         if (A.* == .access) {
+            if (A.symbol().?.decl.?.* == .type_param_decl) {
+                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+            }
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
             if (B.symbol().?.decl.?.* == .type_param_decl) {
-                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == null;
+                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
             }
             return types_match(A, B.symbol().?.init_typedef().?);
         }
@@ -1045,17 +1082,63 @@ pub const Type_AST = union(enum) {
         };
     }
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) ?*Symbol {
+    const Satisfies_Constraints_Results = union(enum) {
+        satisfies,
+        not_impl: *Symbol,
+        not_eq: struct {
+            expected: *Type_AST,
+            got: *Type_AST,
+            associated_type_name: []const u8,
+            constraint_span: Span,
+            impl_span: Span,
+        },
+        no_such_assoc_type: struct {
+            eq_constraint: *Type_AST,
+            trait_name: []const u8,
+        },
+    };
+
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) Satisfies_Constraints_Results {
         for (constraints) |constraint| {
-            if (constraint.symbol() != null) {
-                const trait = constraint.symbol().?;
-                const res = constraint.symbol().?.scope.impl_trait_lookup(self, trait);
+            if (constraint.base_symbol() != null) {
+                const trait = constraint.base_symbol().?;
+                const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
                 if (res.count == 0) {
-                    return trait;
+                    return .{ .not_impl = trait };
+                }
+
+                if (constraint.* == .generic_apply) {
+                    for (constraint.children().items) |eq_constraint| {
+                        const impl = res.ast orelse return .{ .not_impl = trait };
+                        const associated_type_name = eq_constraint.lhs().token().data;
+
+                        var type_def: ?*AST = null;
+                        for (impl.impl.type_defs.items) |maybe_type_def| {
+                            if (std.mem.eql(u8, maybe_type_def.symbol().?.name, associated_type_name)) {
+                                type_def = maybe_type_def;
+                                break;
+                            }
+                        }
+                        if (type_def == null) {
+                            return .{ .no_such_assoc_type = .{
+                                .eq_constraint = eq_constraint,
+                                .trait_name = trait.name,
+                            } };
+                        }
+                        if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
+                            return .{ .not_eq = .{
+                                .got = type_def.?.decl_typedef().?,
+                                .expected = eq_constraint.rhs(),
+                                .associated_type_name = associated_type_name,
+                                .constraint_span = eq_constraint.token().span,
+                                .impl_span = type_def.?.token().span,
+                            } };
+                        }
+                    }
                 }
             }
         }
-        return null;
+        return .satisfies;
     }
 
     fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
@@ -1195,6 +1278,12 @@ pub const Type_AST = union(enum) {
                     allocator,
                 );
             },
+            .eq_constraint => return create_eq_constraint(
+                self.token(),
+                self.lhs().clone(substs, allocator),
+                self.rhs().clone(substs, allocator),
+                allocator,
+            ),
             else => std.debug.panic("compiler error: clone doesn't support trait type AST `{s}`", .{@tagName(self.*)}),
         }
     }
@@ -1234,11 +1323,13 @@ pub const Type_AST = union(enum) {
         };
     }
 
-    pub fn refers_to_trait(self: *Type_AST) bool {
+    pub fn base_symbol(self: *Type_AST) ?*Symbol {
         return switch (self.*) {
-            else => false,
+            else => return null,
 
-            .identifier, .access => self.symbol().?.is_trait(),
+            .generic_apply => return self.lhs().base_symbol(),
+
+            .identifier, .access => return self.symbol(),
         };
     }
 

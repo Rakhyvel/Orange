@@ -163,7 +163,7 @@ pub fn output_function_definition(self: *Self, cfg: *CFG) CodeGen_Error!void {
         for (param_symbols.?.items) |param| {
             // Do this only if they aren't discarded in source
             // Users can discard parameters, however used parameters may also become unused through optimizations
-            if (!param.expanded_type().is_c_void_type() and // unit-typed parameters aren't emitted
+            if (Emitter.is_storable(param.expanded_type()) and // unit-typed parameters aren't emitted
                 param.uses == 0)
             {
                 try self.writer.print("    (void)", .{});
@@ -364,7 +364,7 @@ fn output_instruction(self: *Self, instr: *Instruction) CodeGen_Error!void {
         }
     }
 
-    if (instr.dest != null and instr.dest.?.get_expanded_type().is_c_void_type() and instr.kind != .call and instr.kind != .invoke) {
+    if (instr.dest != null and !Emitter.is_storable(instr.dest.?.get_expanded_type()) and instr.kind != .call and instr.kind != .invoke) {
         return;
     }
 
@@ -421,12 +421,12 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.writer.print("{{", .{});
             const dest_type = instr.dest.?.get_expanded_type();
             if (dest_type.* == .struct_type or dest_type.* == .tuple_type) { // TODO: Likely need a `load_array` instruction
-                var product_list = dest_type.children().*;
+                const product_list = dest_type.children().*;
                 for (instr.data.lval_list.items, product_list.items, 1..) |term, expected, i| {
-                    if (!expected.is_c_void_type()) {
+                    if (Emitter.is_storable(expected)) {
                         // Don't use values of type `void` (don't exist in C! (Goobersville!))
                         try self.output_rvalue(term, instr.kind.precedence());
-                        if (i < product_list.items.len and !product_list.items[i - 1].is_c_void_type()) {
+                        if (i < product_list.items.len and Emitter.is_storable(product_list.items[i - 1])) {
                             try self.writer.print(", ", .{});
                         }
                     }
@@ -445,7 +445,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
         .load_union => {
             try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
             try self.writer.print("{{.tag = {}", .{instr.data.int});
-            if (instr.src1 != null and !instr.src1.?.get_expanded_type().is_c_void_type()) {
+            if (instr.src1 != null and Emitter.is_storable(instr.src1.?.get_expanded_type())) {
                 try self.writer.print(", ._{} = ", .{instr.data.int});
                 try self.output_rvalue(instr.src1.?, instr.kind.precedence());
             }
@@ -584,10 +584,10 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.output_rvalue(instr.src1.?, instr.kind.precedence());
             try self.writer.print("(", .{});
             for (instr.data.call.arg_lval_list.items, 0..) |term, i| {
-                if (!term.get_expanded_type().is_c_void_type()) {
+                if (Emitter.is_storable(term.get_expanded_type())) {
                     // Do not output `void` arguments
                     try self.output_rvalue(term, Instruction.Precedence.highest);
-                    if (i + 1 < instr.data.call.arg_lval_list.items.len and !instr.data.call.arg_lval_list.items[i + 1].get_expanded_type().is_c_void_type()) {
+                    if (i + 1 < instr.data.call.arg_lval_list.items.len and Emitter.is_storable(instr.data.call.arg_lval_list.items[i + 1].get_expanded_type())) {
                         try self.writer.print(", ", .{});
                     }
                 }
@@ -614,13 +614,13 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             }
             const num_invoke_args = instr.data.invoke.arg_lval_list.items.len;
             for (instr.data.invoke.arg_lval_list.items, 0..) |term, i| {
-                if (!term.get_expanded_type().is_c_void_type()) {
+                if (Emitter.is_storable(term.get_expanded_type())) {
                     // Do not output `void` arguments
                     try self.output_rvalue(term, Instruction.Precedence.postfix);
                     if (instr.data.invoke.dyn_value != null and instr.data.invoke.dyn_value == term and i == 0) {
                         try self.writer.print(".data_ptr", .{});
                     }
-                    if (i + 1 < num_invoke_args and !instr.data.invoke.arg_lval_list.items[i + 1].get_expanded_type().is_c_void_type()) {
+                    if (i + 1 < num_invoke_args and Emitter.is_storable(instr.data.invoke.arg_lval_list.items[i + 1].get_expanded_type())) {
                         try self.writer.print(", ", .{});
                     }
                 }
@@ -673,11 +673,11 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
 
 /// Outputs C code for the prefix of a call
 fn output_call_prefix(self: *Self, instr: *Instruction) !void {
-    const void_fn = instr.dest.?.get_expanded_type().is_c_void_type();
+    const nonvoid_fn = Emitter.is_storable(instr.dest.?.get_expanded_type());
     const symbol_used = if (instr.dest.?.* == .symbver) instr.dest.?.symbver.symbol.uses > 0 else false;
     if (!symbol_used) {
         try self.writer.print("    (void)", .{});
-    } else if (!void_fn) {
+    } else if (nonvoid_fn) {
         try self.output_var_assign(instr.dest.?);
     } else {
         try self.writer.print("    ", .{});
@@ -869,7 +869,7 @@ fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
 /// Emits the return statement from a function
 fn output_return(self: *Self, return_symbol: *Symbol) CodeGen_Error!void {
     try self.writer.print("    return", .{});
-    if (return_symbol.defs > 0 and !return_symbol.expanded_type().is_c_void_type()) {
+    if (return_symbol.defs > 0 and Emitter.is_storable(return_symbol.expanded_type())) {
         try self.writer.print(" ", .{});
         try self.emitter.output_symbol(return_symbol);
     }

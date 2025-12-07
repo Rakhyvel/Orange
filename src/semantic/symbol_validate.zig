@@ -99,15 +99,38 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         defer traits_used.deinit();
 
         for (symbol.decl.?.type_param_decl.constraints.items) |constraint| {
-            if (!constraint.refers_to_trait()) {
+            const trait_symbol = constraint.base_symbol().?;
+            if (!trait_symbol.is_trait()) {
                 self.ctx.errors.add_error(errs_.Error{ .not_constraint = .{ .got = constraint, .span = constraint.token().span } });
                 return error.CompileError;
             }
-            if (traits_used.contains(constraint.symbol().?)) {
-                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = constraint.symbol().?.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
+
+            if (traits_used.contains(trait_symbol)) {
+                self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = trait_symbol.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
                 return error.CompileError;
             }
-            try traits_used.put(constraint.symbol().?, void{});
+
+            const trait_decl = trait_symbol.decl.?;
+
+            if (constraint.* == .generic_apply) {
+                for (constraint.children().items) |eq_constraint| {
+                    const associated_type_name = eq_constraint.lhs().token().data;
+                    for (trait_decl.trait.type_decls.items) |maybe_type_def| {
+                        if (std.mem.eql(u8, maybe_type_def.symbol().?.name, associated_type_name)) {
+                            break;
+                        }
+                    } else {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
+                            .type_span = eq_constraint.token().span,
+                            .type_name = eq_constraint.lhs().token().data,
+                            .trait_name = trait_symbol.name,
+                        } });
+                        return error.CompileError;
+                    }
+                }
+            }
+
+            try traits_used.put(trait_symbol, void{});
         }
     }
 

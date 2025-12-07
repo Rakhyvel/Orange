@@ -2,6 +2,7 @@
 const std = @import("std");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Type_AST = @import("type.zig").Type_AST;
@@ -46,13 +47,36 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 try self.ctx.validate_type.validate_type(child);
 
                 const param = params.items[i];
-                if (child.satisfies_all_constraints(param.type_param_decl.constraints.items)) |unsatisfied_trait| {
-                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                        .span = child.token().span,
-                        .trait_name = unsatisfied_trait.name,
-                        ._type = child,
-                    } });
-                    return error.CompileError;
+                const sat_res = child.satisfies_all_constraints(param.type_param_decl.constraints.items);
+                switch (sat_res) {
+                    .satisfies => {},
+                    .not_impl => |unimpld| {
+                        self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
+                            .type_span = child.token().span,
+                            .trait_name = unimpld.name,
+                            .type = child,
+                        } });
+                        return error.CompileError;
+                    },
+                    .not_eq => |uneqd| {
+                        self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
+                            .call_span = child.token().span,
+                            .associated_type_name = uneqd.associated_type_name,
+                            .constraint_span = uneqd.constraint_span,
+                            .impl_span = uneqd.impl_span,
+                            .expected = uneqd.expected,
+                            .got = uneqd.got,
+                        } });
+                        return error.CompileError;
+                    },
+                    .no_such_assoc_type => |no_assoc| {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
+                            .type_span = no_assoc.eq_constraint.lhs().token().span,
+                            .type_name = no_assoc.eq_constraint.lhs().token().data,
+                            .trait_name = no_assoc.trait_name,
+                        } });
+                        return error.CompileError;
+                    },
                 }
             }
 
@@ -74,7 +98,11 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
 
         .access => {
             const type_symbol = @"type".symbol().?;
-            if (type_symbol.init_typedef()) |typ| try self.validate_type(typ);
+            if (type_symbol.init_typedef()) |typ| {
+                try self.validate_type(typ);
+            } else if (@"type".access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+                if (@"type".associated_type_from_constraint()) |assoc_type| try self.validate_type(assoc_type);
+            }
         },
 
         .array_of => {

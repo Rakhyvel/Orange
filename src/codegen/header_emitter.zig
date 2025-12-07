@@ -130,21 +130,6 @@ fn output_typedef_include(self: *Self, dep: *Dependency_Node) CodeGen_Error!void
     try self.writer.print("#include \"types/{f}.h\"\n", .{Canonical_Type_Fmt{ .type = dep.base }});
 }
 
-/// Outputs the fields of a structure or union type based on the provided list of AST types.
-fn output_field_list(self: *Self, fields: *const std.array_list.Managed(*Type_AST), spaces: usize) CodeGen_Error!void {
-    // output each field in the list
-    for (fields.items, 0..) |term, i| {
-        if (!term.is_c_void_type()) {
-            // Don't gen `void` structure/union fields
-            for (0..spaces) |_| {
-                try self.writer.print(" ", .{});
-            }
-            try self.emitter.output_type(term);
-            try self.writer.print(" _{};\n", .{i});
-        }
-    }
-}
-
 fn output_traits(self: *Self) CodeGen_Error!void {
     // FIXME: High Cyclo
     if (self.module.traits.keys().len > 0) {
@@ -179,17 +164,17 @@ fn output_traits(self: *Self) CodeGen_Error!void {
             // Output receiver parameter
             if (method_decl_has_receiver) {
                 try self.writer.print("void *", .{});
-                if ((decl.children().items.len > 0 and !decl.children().items[0].binding.type.is_c_void_type()) or has_contexts) {
+                if ((decl.children().items.len > 0 and Emitter.is_storable(decl.children().items[0].binding.type)) or has_contexts) {
                     try self.writer.print(", ", .{});
                 }
             }
 
             // Output regular parameters
             for (decl.children().items, 0..) |param_decl, i| {
-                if (!param_decl.binding.type.is_c_void_type()) {
+                if (Emitter.is_storable(param_decl.binding.type)) {
                     // Do not output `void` parameters
                     try self.emitter.output_type(param_decl.binding.type);
-                    if ((i + 1 < num_method_params and !decl.children().items[i + 1].binding.type.is_c_void_type()) or has_contexts) {
+                    if ((i + 1 < num_method_params and Emitter.is_storable(decl.children().items[i + 1].binding.type)) or has_contexts) {
                         try self.writer.print(", ", .{});
                     }
                 }

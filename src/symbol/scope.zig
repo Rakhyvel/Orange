@@ -3,7 +3,6 @@ const anon_name_ = @import("../util/anon_name.zig");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
-// const Decorate_Access = @import("../ast/decorate-access.zig");
 const errs_ = @import("../util/errors.zig");
 const Symbol = @import("symbol.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
@@ -210,13 +209,17 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     if (false) {
         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
+        Tree_Writer.print_type_tree(for_type);
         self.pprint();
     }
 
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-            const trait_decl = constraint.symbol().?.decl.?;
+            const trait_decl = switch (constraint.*) {
+                .generic_apply => constraint.lhs().symbol().?.decl.?,
+                else => constraint.symbol().?.decl.?,
+            };
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
             for (trait_decl.trait.super_traits.items) |super_trait| {
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
@@ -242,6 +245,7 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
         return cloned;
     }
     for (trait_decl.trait.const_decls.items) |const_decl| {
@@ -253,6 +257,7 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
         return cloned;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {

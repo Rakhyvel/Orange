@@ -15,6 +15,9 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
     if (rhs.* == .access and rhs.symbol().?.init_typedef() != null) {
         return try unify(lhs, rhs.symbol().?.init_typedef().?, withs, subst);
     }
+    if (rhs.* == .access and rhs.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+        if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, withs, subst);
+    }
 
     switch (lhs.*) {
         .identifier => {

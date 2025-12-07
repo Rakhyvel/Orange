@@ -1,0 +1,20 @@
+// 436
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+fn get[T: A[Item=Int]](t: T) -> T::Item {
+    t.>get_value()
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Int
+    fn get_value(self) -> Self::Item { _ = self; 436 }
+}
+
+fn main() -> Int {
+    let impler = Impler()
+    get[Impler](impler)
+}
