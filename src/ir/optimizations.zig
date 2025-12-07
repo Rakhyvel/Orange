@@ -8,7 +8,7 @@ const Symbol_Version = @import("symbol_version.zig");
 var debug = false;
 
 pub fn optimize(cfg: *CFG, errors: *errs_.Errors, allocator: std.mem.Allocator) error{CompileError}!void {
-    // debug = std.mem.eql(u8, cfg.symbol.name, "main"); //and std.mem.eql(u8, cfg.module.package_name, "externs");
+    // debug = std.mem.eql(u8, cfg.symbol.name, "main");
     if (debug) {
         std.debug.print("[  CFG  ]: {s}\n", .{cfg.symbol.name});
         cfg.block_graph_head.?.pprint();

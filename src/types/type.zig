@@ -3,6 +3,7 @@ const alignment_ = @import("../util/alignment.zig");
 const AST = @import("../ast/ast.zig").AST;
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Scope = @import("../symbol/scope.zig");
+const Span = @import("../util/span.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
@@ -925,12 +926,12 @@ pub const Type_AST = union(enum) {
         }
         if (A.* == .access) {
             if (A.symbol().?.decl.?.* == .type_param_decl) {
-                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == null;
+                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
             }
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
             if (B.symbol().?.decl.?.* == .type_param_decl) {
-                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == null;
+                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
             }
             return types_match(A, B.symbol().?.init_typedef().?);
         }
@@ -1063,17 +1064,57 @@ pub const Type_AST = union(enum) {
         };
     }
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) ?*Symbol {
+    const Satisfies_Constraints_Results = union(enum) {
+        satisfies,
+        not_impl: *Symbol,
+        not_eq: struct {
+            expected: *Type_AST,
+            got: *Type_AST,
+            associated_type_name: []const u8,
+            constraint_span: Span,
+            impl_span: Span,
+        },
+    };
+
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) Satisfies_Constraints_Results {
         for (constraints) |constraint| {
-            if (constraint.symbol() != null) {
-                const trait = constraint.symbol().?;
-                const res = constraint.symbol().?.scope.impl_trait_lookup(self, trait);
+            if (constraint.base_symbol() != null) {
+                const trait = constraint.base_symbol().?;
+                const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
                 if (res.count == 0) {
-                    return trait;
+                    return .{ .not_impl = trait };
+                }
+
+                const impl = res.ast.?;
+
+                if (constraint.* == .generic_apply) {
+                    for (constraint.children().items) |eq_constraint| {
+                        const associated_type_name = eq_constraint.lhs().token().data;
+
+                        var type_def: ?*AST = null;
+                        for (impl.impl.type_defs.items) |maybe_type_def| {
+                            if (std.mem.eql(u8, maybe_type_def.symbol().?.name, associated_type_name)) {
+                                type_def = maybe_type_def;
+                                break;
+                            }
+                        }
+                        if (type_def == null) {
+                            std.debug.panic("not in the impl!", .{});
+                        }
+                        if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
+                            return .{ .not_eq = .{
+                                .got = type_def.?.decl_typedef().?,
+                                .expected = eq_constraint.rhs(),
+                                .associated_type_name = associated_type_name,
+                                .constraint_span = eq_constraint.token().span,
+                                .impl_span = type_def.?.token().span,
+                            } };
+                        }
+                    }
                 }
             }
         }
-        return null;
+        return .satisfies;
     }
 
     fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {

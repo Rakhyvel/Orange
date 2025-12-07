@@ -297,6 +297,14 @@ pub const Error = union(enum) {
         span: Span,
         got: *Type_AST,
     },
+    eq_constraint_failed: struct {
+        call_span: Span,
+        constraint_span: Span,
+        impl_span: Span,
+        associated_type_name: []const u8,
+        expected: *Type_AST,
+        got: *Type_AST,
+    },
 
     // TODO: Add span() and get field like for AST
     fn get_span(self: *const Error) ?Span {
@@ -363,6 +371,7 @@ pub const Error = union(enum) {
             .invalid_type => return self.invalid_type.span,
             .recursive_definition => return self.recursive_definition.span,
             .not_constraint => return self.not_constraint.span,
+            .eq_constraint_failed => return self.eq_constraint_failed.call_span,
         }
     }
 
@@ -378,6 +387,7 @@ pub const Error = union(enum) {
         print_color(not_bold, writer, conf);
         print_epilude(self.get_span(), writer, conf);
         self.print_extra_info(writer, conf);
+        self.print_extra_info2(writer, conf);
     }
 
     fn print_msg(err: Error, writer: *std.io.Writer) void {
@@ -649,6 +659,9 @@ pub const Error = union(enum) {
             .not_constraint => {
                 writer.print("error: expected a trait impl constraint, got {s}\n", .{@tagName(err.not_constraint.got.*)}) catch unreachable;
             },
+            .eq_constraint_failed => {
+                writer.print("error: expected `{f}` for associated type `{s}`, got `{f}`\n", .{ err.eq_constraint_failed.expected, err.eq_constraint_failed.associated_type_name, err.eq_constraint_failed.got }) catch unreachable;
+            },
         }
     }
 
@@ -737,6 +750,28 @@ pub const Error = union(enum) {
                 writer.print("type specification here:\n", .{}) catch unreachable;
                 print_color(not_bold, writer, conf);
                 print_epilude(self.type_not_in_impl.type_span, writer, conf);
+            },
+            .eq_constraint_failed => {
+                print_color(bold, writer, conf);
+                print_note_label(self.eq_constraint_failed.constraint_span, writer, conf);
+                print_color(bold, writer, conf);
+                writer.print("associated type equality constraint here:\n", .{}) catch unreachable;
+                print_color(not_bold, writer, conf);
+                print_epilude(self.eq_constraint_failed.constraint_span, writer, conf);
+            },
+            else => {},
+        }
+    }
+
+    fn print_extra_info2(self: Error, writer: *std.io.Writer, conf: Error_Config) void {
+        switch (self) {
+            .eq_constraint_failed => {
+                print_color(bold, writer, conf);
+                print_note_label(self.eq_constraint_failed.impl_span, writer, conf);
+                print_color(bold, writer, conf);
+                writer.print("associated type definition here:\n", .{}) catch unreachable;
+                print_color(not_bold, writer, conf);
+                print_epilude(self.eq_constraint_failed.impl_span, writer, conf);
             },
             else => {},
         }

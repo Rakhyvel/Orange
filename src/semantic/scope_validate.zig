@@ -209,14 +209,30 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
-        if (typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items)) |unsatisfied_trait| {
-            self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
-                .type_span = typedef.decl_typedef().?.token().span,
-                .type = typedef.decl_typedef().?,
-                .trait_name = unsatisfied_trait.name,
-            } });
-            return error.CompileError;
+        const sat_res = typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items);
+        switch (sat_res) {
+            .satisfies => {},
+            .not_impl => |unimpld| {
+                self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
+                    .type_span = typedef.decl_typedef().?.token().span,
+                    .trait_name = unimpld.name,
+                    .type = typedef.decl_typedef().?,
+                } });
+                return error.CompileError;
+            },
+            .not_eq => |uneqd| {
+                self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
+                    .call_span = typedef.decl_typedef().?.token().span,
+                    .associated_type_name = uneqd.associated_type_name,
+                    .constraint_span = uneqd.constraint_span,
+                    .impl_span = uneqd.impl_span,
+                    .expected = uneqd.expected,
+                    .got = uneqd.got,
+                } });
+                return error.CompileError;
+            },
         }
+
         // Subtract the type from the set
         _ = trait_type_decls.swapRemove(def_key);
     }

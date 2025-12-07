@@ -1,0 +1,29 @@
+// associated_type_eq_mismatch.orng:28:15: error: error: expected `Int` for associated type `Item`, got `Bool`
+//     get[Impler](impler)
+//              ^
+// associated_type_eq_mismatch.orng:16:18: note: associated type equality constraint here:
+// fn get[T: A[Item=Int]](t: T) -> T::Item {
+//                 ^
+// associated_type_eq_mismatch.orng:22:14: note: associated type definition here:
+//     type Item = Bool
+//             ^
+// 
+trait A {
+    type Item
+    fn get_value(self) -> Self::Item
+}
+
+fn get[T: A[Item=Int]](t: T) -> T::Item {
+    t.>get_value()
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Bool
+    fn get_value(self) -> Self::Item { _ = self; 436 }
+}
+
+fn main() -> Int {
+    let impler = Impler()
+    get[Impler](impler)
+}

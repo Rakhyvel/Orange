@@ -123,7 +123,7 @@ pub fn output_function_prototype(
     try self.writer.print("(", .{});
     if (param_symbols != null) {
         for (param_symbols.?.items, 0..) |term, i| {
-            if (!term.expanded_type().is_c_void_type()) {
+            if (is_storable(term.expanded_type())) {
                 if (decl.* == .method_decl and decl.method_decl.receiver != null and i == 0) {
                     // Print out method receiver
                     try self.writer.print("void *", .{});
@@ -132,7 +132,7 @@ pub fn output_function_prototype(
                     // Print out parameter declarations
                     try self.output_var_decl(term, true);
                 }
-                if (i + 1 < param_symbols.?.items.len and !param_symbols.?.items[i + 1].expanded_type().is_c_void_type()) {
+                if (i + 1 < param_symbols.?.items.len and is_storable(param_symbols.?.items[i + 1].expanded_type())) {
                     try self.writer.print(", ", .{});
                 }
                 num_non_unit_params += 1;
@@ -145,7 +145,7 @@ pub fn output_function_prototype(
         }
         for (context_param_symbols.?.items, 0..) |term, i| {
             try self.output_var_decl(term, true);
-            if (i + 1 < context_param_symbols.?.items.len and !context_param_symbols.?.items[i + 1].expanded_type().is_c_void_type()) {
+            if (i + 1 < context_param_symbols.?.items.len and is_storable(context_param_symbols.?.items[i + 1].expanded_type())) {
                 try self.writer.print(", ", .{});
             }
             num_non_unit_params += 1;
@@ -257,4 +257,8 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
             try self.writer.print(", ", .{});
         }
     }
+}
+
+pub fn is_storable(arg_type: *Type_AST) bool {
+    return !arg_type.is_c_void_type() and arg_type.sizeof() > 0;
 }

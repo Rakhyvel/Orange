@@ -77,10 +77,10 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
         try self.writer.print("(*{f})(", .{Canonical_Type_Fmt{ .type = self.dep.base }});
 
         for (self.dep.base.function.args.items, 0..) |arg, i| {
-            if (!arg.is_c_void_type()) {
+            if (Emitter.is_storable(arg)) {
                 // Do not output `void` parameters
                 try self.emitter.output_type(arg);
-                if (i + 1 < self.dep.base.function.args.items.len and !self.dep.base.function.args.items[i + 1].is_c_void_type()) {
+                if (i + 1 < self.dep.base.function.args.items.len and Emitter.is_storable(self.dep.base.function.args.items[i + 1])) {
                     try self.writer.print(", ", .{});
                 }
             }
@@ -139,7 +139,7 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
 fn output_field_list(self: *Self, fields: *const std.array_list.Managed(*Type_AST), spaces: usize) CodeGen_Error!void {
     // output each field in the list
     for (fields.items, 0..) |term, i| {
-        if (!term.is_c_void_type()) {
+        if (Emitter.is_storable(term)) {
             // Don't gen `void` structure/union fields
             for (0..spaces) |_| {
                 try self.writer.print(" ", .{});
