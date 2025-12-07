@@ -1,0 +1,29 @@
+// 437
+trait A {
+    type Item
+    type Item2
+    fn get_value(self, x: Self::Item) -> Self::Item2
+}
+
+fn get[T: A[Item=Bool, Item2=Int]](t: T) -> T::Item2 {
+    t.>get_value(true)
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Bool
+    type Item2 = Int
+    fn get_value(self, b: Bool) -> Self::Item2 { 
+        _ = self; 
+        if b {
+            437
+        } else {
+            unreachable
+        }
+    }
+}
+
+fn main() -> Int {
+    let impler = Impler()
+    get[Impler](impler)
+}

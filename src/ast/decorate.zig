@@ -373,6 +373,14 @@ fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
                 } });
                 return error.CompileError;
             },
+            .no_such_assoc_type => |no_assoc| {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
+                    .type_span = no_assoc.eq_constraint.lhs().token().span,
+                    .type_name = no_assoc.eq_constraint.lhs().token().data,
+                    .trait_name = no_assoc.trait_name,
+                } });
+                return error.CompileError;
+            },
         }
     }
 

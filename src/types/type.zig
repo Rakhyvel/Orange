@@ -642,6 +642,18 @@ pub const Type_AST = union(enum) {
                 const new = res.symbol().?.init_typedef().?;
                 new.set_unexpanded_type(res);
                 res = new;
+            } else if (res.* == .access and res.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+                const type_param_decl = res.access.inner_access.lhs().symbol().?.decl.?;
+                for (type_param_decl.type_param_decl.constraints.items) |constraint| {
+                    if (constraint.* != .generic_apply) continue;
+                    for (constraint.children().items) |child_constraint| {
+                        if (child_constraint.* != .eq_constraint) continue;
+                        if (std.mem.eql(u8, child_constraint.lhs().token().data, res.access.inner_access.rhs().token().data)) {
+                            res = child_constraint.rhs();
+                            break;
+                        }
+                    }
+                }
             } else if (res.* == .annotation) {
                 res = res.child();
             } else {
@@ -1074,6 +1086,10 @@ pub const Type_AST = union(enum) {
             constraint_span: Span,
             impl_span: Span,
         },
+        no_such_assoc_type: struct {
+            eq_constraint: *Type_AST,
+            trait_name: []const u8,
+        },
     };
 
     pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) Satisfies_Constraints_Results {
@@ -1099,7 +1115,10 @@ pub const Type_AST = union(enum) {
                             }
                         }
                         if (type_def == null) {
-                            std.debug.panic("not in the impl!", .{});
+                            return .{ .no_such_assoc_type = .{
+                                .eq_constraint = eq_constraint,
+                                .trait_name = trait.name,
+                            } };
                         }
                         if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
                             return .{ .not_eq = .{
