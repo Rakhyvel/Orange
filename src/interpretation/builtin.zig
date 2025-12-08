@@ -51,7 +51,8 @@ fn package_find_relative(current_module_path: []const u8, package_src: *AST, all
     const required_package_path = std.fs.path.join(allocator, &required_package_paths) catch unreachable;
 
     const package_buffer = allocator.alloc(u8, std.fs.max_path_bytes) catch unreachable;
-    return std.fs.cwd().realpath(required_package_path, package_buffer) catch return error.CompileError;
+    const retval = std.fs.cwd().realpath(required_package_path, package_buffer) catch return error.CompileError;
+    return retval;
 }
 
 /// Implements `core::Package::find` for the git variant

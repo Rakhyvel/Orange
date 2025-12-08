@@ -9,6 +9,7 @@ const Interpreter_Context = @import("interpretation/interpreter.zig");
 const Package_Kind = @import("hierarchy/package.zig").Package_Kind;
 const Span = @import("util/span.zig");
 const Symbol = @import("symbol/symbol.zig");
+const Tree_Writer = @import("ast/tree_writer.zig");
 
 const version_year: usize = 25;
 const version_month: usize = 12;
@@ -168,7 +169,7 @@ fn make_package(
         const new_working_directory = std.fs.cwd().realpath(required_package_dir, new_working_directory_buffer) catch unreachable;
         _ = try make_package(required_package, compiler, interpreter, new_working_directory);
 
-        try compiler.make_package_requirement_link(package_absolute_path, required_package_name, required_package_dir);
+        try compiler.make_package_requirement_link(package_absolute_path, required_package_name, new_working_directory);
     }
 
     try set_package_include_dirs(package, compiler, package_absolute_path);
