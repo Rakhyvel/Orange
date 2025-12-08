@@ -6,29 +6,34 @@ const Tree_Writer = @import("../ast/tree_writer.zig");
 pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 
 // Attempt to match the rhs with the lhs
-pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_.AST), subst: *Substitutions) !void {
+pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
     // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
     // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
     if (lhs.* == .identifier and lhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs.symbol().?.init_typedef().?, rhs, withs, subst);
+        return try unify(lhs.symbol().?.init_typedef().?, rhs, subst);
     } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs, rhs.symbol().?.init_typedef().?, withs, subst);
+        return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
     }
 
     if (rhs.* == .access and rhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs, rhs.symbol().?.init_typedef().?, withs, subst);
+        return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
     }
     if (rhs.* == .access and rhs.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
-        if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, withs, subst);
+        if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, subst);
+    }
+
+    if ((lhs.* == .identifier or lhs.* == .access) and lhs.symbol().?.decl.?.* == .type_param_decl) {
+        try subst.put(lhs.symbol().?.name, rhs);
+        return;
+    }
+    if ((rhs.* == .identifier or rhs.* == .access) and rhs.symbol().?.decl.?.* == .type_param_decl) {
+        try subst.put(rhs.symbol().?.name, lhs);
+        return;
     }
 
     switch (lhs.*) {
         .identifier => {
             std.debug.assert(lhs.token().data.len > 0);
-            if (identifier_is_type_param(lhs, withs)) |_| {
-                try subst.put(lhs.token().data, rhs);
-                return;
-            }
 
             if (rhs.* != .identifier or !std.mem.eql(u8, lhs.token().data, rhs.token().data)) {
                 return error.TypesMismatch;
@@ -44,7 +49,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
             }
 
             for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
-                try unify(l_arg, r_arg, withs, subst);
+                try unify(l_arg, r_arg, subst);
             }
         },
 
@@ -53,7 +58,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
                 return error.TypesMismatch;
             }
 
-            try unify(lhs.child(), rhs.child(), withs, subst);
+            try unify(lhs.child(), rhs.child(), subst);
         },
 
         .addr_of => {
@@ -61,7 +66,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
             if (lhs.addr_of.mut != rhs.addr_of.mut) return error.TypesMismatch;
             if (lhs.addr_of.multiptr != rhs.addr_of.multiptr) return error.TypesMismatch;
 
-            try unify(lhs.child(), rhs.child(), withs, subst);
+            try unify(lhs.child(), rhs.child(), subst);
         },
 
         .unit_type => {
@@ -91,7 +96,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
             }
 
             for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
-                try unify(l_arg, r_arg, withs, subst);
+                try unify(l_arg, r_arg, subst);
             }
         },
 
@@ -106,15 +111,6 @@ pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std
         retval.append(with_value) catch unreachable;
     }
     return retval;
-}
-
-fn identifier_is_type_param(ident: *Type_AST, generic_params: std.array_list.Managed(*ast_.AST)) ?*ast_.AST {
-    for (generic_params.items) |type_param| {
-        if (std.mem.eql(u8, type_param.token().data, ident.token().data)) {
-            return type_param;
-        }
-    }
-    return null;
 }
 
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {

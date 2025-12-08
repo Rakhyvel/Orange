@@ -963,8 +963,14 @@ pub const Type_AST = union(enum) {
         if (B.* == .anyptr_type and (A.* == .addr_of or A.* == .dyn_type)) {
             return true;
         }
+
+        if (A.is_ident_type("Void")) {
+            return true; // Bottom type - vacuously true
+        }
+        if (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl) {
+            return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+        }
         if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            // return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl);
             return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
@@ -985,9 +991,6 @@ pub const Type_AST = union(enum) {
         }
         if (A.* == .poison or B.* == .poison) {
             return true; // Whatever
-        }
-        if (A.is_ident_type("Void")) {
-            return true; // Bottom type - vacuously true
         }
         // std.debug.assert(A.common().validation_state == .valid);
         // std.debug.assert(B.common().validation_state == .valid);

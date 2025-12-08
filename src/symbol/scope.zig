@@ -171,7 +171,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
-        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
+        unification_.unify(impl.impl._type, for_type, &subst) catch continue;
         const traits_match = impl.impl.trait.?.symbol() == trait;
         if (traits_match) {
             retval.count += 1;
@@ -280,7 +280,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         try walker_.walk_type(impl.impl._type, decorate_context);
 
         try compiler.validate_type.validate_type(impl.impl._type);
-        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch {
+        unification_.unify(impl.impl._type, for_type, &subst) catch {
             continue;
         };
 
