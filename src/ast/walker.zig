@@ -173,6 +173,11 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
 
         .struct_value,
+        => {
+            try walk_type(ast.struct_value.parent, new_context);
+            try walk_asts(ast.children(), new_context);
+        },
+
         .tuple_value,
         .array_value,
         .print,

@@ -120,6 +120,15 @@ impl[T] for List[T] {
     }
 }
 
+impl[T] core::Into_Iterator for List[T] {
+    type Item = T
+    type Iter = core::Slice_Iter[T]
+
+    fn into_iter(&self) -> Self::Iter {
+        core::Slice_Iter[T](.items = self.items, .pos = 0)
+    }
+}
+
 impl core::Writer for List[Byte] {
     virtual fn write(&mut self, bytes: String) -> ()!() {
         .ok(self.>append_slice(bytes) catch {return .err})
@@ -309,6 +318,20 @@ test "write" with core::Allocating {
     try list.>write("Hello, World!")
 
     try testing::expect(mem::eql(list.items, "Hello, World!"))
+
+    .ok
+}
+
+test "into_iter" with core::Allocating {
+    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    defer list.>deinit()
+
+    let mut iter = list.>into_iter()
+    
+    try testing::expect(iter.>next().some == 1)
+    try testing::expect(iter.>next().some == 2)
+    try testing::expect(iter.>next().some == 3)
+    try testing::expect(match iter.>next() { .none => true; .some(_) => false })
 
     .ok
 }

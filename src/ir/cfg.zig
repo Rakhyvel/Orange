@@ -10,6 +10,7 @@ const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Symbol_Version = @import("symbol_version.zig");
 const Type_Set = @import("../types/type_set.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self = @This();
 

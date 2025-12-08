@@ -54,6 +54,8 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         }
     }
 
+    // std.debug.print("validating init for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
+
     if (symbol.init_value()) |_init| {
         // might be null for parameters
         // Tree_Writer.print_tree(_init);

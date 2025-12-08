@@ -206,6 +206,36 @@ trait File: Writer + Reader {
     virtual fn close(&mut self)
 }
 
+trait Iterator {
+    type Item
+
+    fn next(&mut self) -> ?Self::Item
+}
+
+trait Into_Iterator {
+    type Item
+    type Iter: Iterator[Item = Self::Item]
+
+    fn into_iter(&self) -> Self::Iter
+}
+
+struct Slice_Iter[T] {
+    items: []T
+    pos: Int
+}
+
+impl[T] Iterator for Slice_Iter[T] {
+    type Item = T
+    fn next(&mut self) -> ?Self::Item {
+        if self.pos >= self.items.length {
+            return .none
+        }
+        let retval = self.items[self.pos]
+        self.pos += 1
+        .some(retval)
+    }
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

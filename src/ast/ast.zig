@@ -267,6 +267,7 @@ pub const AST = union(enum) {
         common: AST_Common,
         kind: Receiver_Kind,
         _type: ?*Type_AST = null,
+        value_derefd: bool = false,
     },
     default: struct {
         common: AST_Common,
@@ -1810,6 +1811,7 @@ pub const AST = union(enum) {
                     allocator,
                 );
                 retval.receiver._type = if (retval.receiver._type) |_type| _type.clone(substs, allocator) else null;
+                retval.receiver.value_derefd = self.receiver.value_derefd;
                 return retval;
             },
 

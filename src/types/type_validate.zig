@@ -20,14 +20,23 @@ pub fn init(ctx: *Compiler_Context) Self {
     return Self{ .ctx = ctx, .visited = std.AutoArrayHashMap(*Type_AST, bool).init(ctx.allocator()) };
 }
 
+var iter: usize = 0;
 pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
     if (self.visited.contains(@"type")) return;
     try self.visited.put(@"type", true);
 
     switch (@"type".*) {
         .generic_apply => {
+            iter += 1;
             // TODO: This has a lot of similarities to monomorphizing a generic_apply in decorate.zig
             try self.validate_type(@"type".lhs());
+
+            if (iter > 600) {
+                std.debug.panic("here", .{});
+            }
+            // else {
+            //     std.debug.print("iter: {}\n", .{iter});
+            // }
 
             const sym = @"type".lhs().symbol().?;
             const params = sym.decl.?.generic_params();
@@ -84,7 +93,6 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 @"type".generic_apply.state = .morphing;
                 @"type".generic_apply._symbol = try sym.monomorphize(@"type".generic_apply.args, self.ctx);
                 @"type".generic_apply.state = .morphed;
-                try self.validate_type(@"type".generic_apply._symbol.?.init_typedef().?);
             }
         },
 

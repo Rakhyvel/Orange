@@ -6,7 +6,9 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 
@@ -67,17 +69,18 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     const trait_ast = trait_symbol.decl.?;
 
     // Check that the (trait, type) pair is unique for this scope
-    const lookup_res = impl.scope().?.impl_trait_lookup(impl.impl._type, trait_symbol);
-    if (lookup_res.count > 1) {
-        // Check if there's already an implementation for the same trait and type
-        self.ctx.errors.add_error(errs_.Error{ .reimpl = .{
-            .first_defined_span = lookup_res.ast.?.token().span,
-            .redefined_span = impl.token().span,
-            .name = if (!impl.impl.impls_anon_trait) trait_symbol.name else null,
-            ._type = impl.impl._type,
-        } });
-        return error.CompileError;
-    }
+    // TODO: For next release, add check that there is at least one most-specific impl
+    // const lookup_res = impl.scope().?.impl_trait_lookup(impl.impl._type, trait_symbol);
+    // if (lookup_res.count > 1) {
+    //     // Check if there's already an implementation for the same trait and type
+    //     self.ctx.errors.add_error(errs_.Error{ .reimpl = .{
+    //         .first_defined_span = lookup_res.ast.?.token().span,
+    //         .redefined_span = impl.token().span,
+    //         .name = if (!impl.impl.impls_anon_trait) trait_symbol.name else null,
+    //         ._type = impl.impl._type,
+    //     } });
+    //     return error.CompileError;
+    // }
 
     // Check that super traits are implemented
     for (trait_ast.trait.super_traits.items) |super_trait| {
@@ -145,9 +148,11 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that parameters match
+        var subst = unification_.Substitutions.init(self.ctx.allocator());
+        defer subst.deinit();
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
             const impl_type = impl_param.binding.type;
-            if (!impl_type.types_match(trait_param.binding.type)) {
+            unification_.unify(impl_type, trait_param.binding.type, &subst) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                     .span = impl_param.binding.type.token().span,
                     .method_name = def.method_decl.name.token().data,
@@ -156,11 +161,11 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
                     .impl_type = impl_type,
                 } });
                 return error.CompileError;
-            }
+            };
         }
 
         // Check that return type matches
-        if (!def.method_decl.ret_type.types_match(trait_decl.?.method_decl.ret_type)) {
+        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,
@@ -169,7 +174,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
                 .impl_type = def.method_decl.ret_type,
             } });
             return error.CompileError;
-        }
+        };
 
         // Copy over the c_type from trait method decl
         def.method_decl.c_type = trait_decl.?.method_decl.c_type;
@@ -213,10 +218,10 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
-                self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
-                    .type_span = typedef.decl_typedef().?.token().span,
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = typedef.decl_typedef().?.token().span,
                     .trait_name = unimpld.name,
-                    .type = typedef.decl_typedef().?,
+                    ._type = typedef.decl_typedef().?,
                 } });
                 return error.CompileError;
             },

@@ -76,7 +76,8 @@ pub fn Linear_Map(comptime Key: type, comptime Value: type, comptime eq: fn (Key
     };
 }
 
-pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_list.Managed(*Type_AST)) bool {
+// TODO: Remove in this PR
+pub fn type_lists_match2(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_list.Managed(*Type_AST)) bool {
     if (lhs.items.len != rhs.items.len) {
         return false;
     }
@@ -85,6 +86,22 @@ pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_l
         if (!lhs_item.types_match(rhs_item) or !rhs_item.types_match(lhs_item)) {
             return false;
         }
+    }
+
+    return true;
+}
+
+pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_list.Managed(*Type_AST)) bool {
+    const unification_ = @import("../types/unification.zig");
+    if (lhs.items.len != rhs.items.len) {
+        return false;
+    }
+
+    for (lhs.items, rhs.items) |lhs_item, rhs_item| {
+        var subst = unification_.Substitutions.init(std.heap.page_allocator);
+        defer subst.deinit();
+        unification_.unify(lhs_item, rhs_item, &subst) catch return false;
+        if (subst.keys().len != 0) return false;
     }
 
     return true;

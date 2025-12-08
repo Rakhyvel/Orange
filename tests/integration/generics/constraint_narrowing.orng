@@ -21,7 +21,7 @@ fn sum[T: Add + Default](ts: []T) -> T {
     return retval
 }
 
-fn incr[T: Add](t: &mut T, by: T) {
+fn incr[X: Add](t: &mut X, by: X) {
     t^ = t.>add(by)
 }
 

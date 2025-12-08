@@ -12,6 +12,7 @@ const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const walk_ = @import("../ast/walker.zig");
 
 scope: *Scope,
@@ -741,7 +742,7 @@ fn create_method_symbol(
         try ast.scope().?.put_symbol(receiver_symbol, errors);
         try ast.param_symbols().?.append(receiver_symbol);
 
-        if (ast.method_decl.receiver.?.receiver.kind == .value) {
+        if (ast.method_decl.receiver.?.receiver.kind == .value and !ast.method_decl.receiver.?.receiver.value_derefd) {
             const self_type = recv_type.child();
             const self_init = ast_.AST.create_dereference(ast.token(), ast_.AST.create_identifier(Token.init_simple("self__ptr"), allocator), allocator);
             const receiver_span = ast.method_decl.receiver.?.token().span;
@@ -763,6 +764,7 @@ fn create_method_symbol(
                     ast.method_decl.init = ast_.AST.create_block(ast.method_decl.init.?.token(), statements, null, allocator);
                 }
             }
+            ast.method_decl.receiver.?.receiver.value_derefd = true;
         }
     }
 
