@@ -935,8 +935,10 @@ pub const Type_AST = union(enum) {
     /// Assumes ASTs structurally can refer to compile-time constant types.
     pub fn types_match(A: *Type_AST, B: *Type_AST) bool {
         // FIXME: High Cyclo
-        // std.debug.print("{t} == {t}\n", .{ A.*, B.* });
-        // std.debug.print("{f} == {f}\n\n", .{ A, B });
+        // std.debug.print("{f} == {f}\n", .{ A, B });
+        // Tree_Writer.print_type_tree(A);
+        // Tree_Writer.print_type_tree(B);
+        // std.debug.print("\n", .{});
         if (A.* == .annotation) {
             return types_match(A.child(), B);
         } else if (B.* == .annotation) {
@@ -962,7 +964,8 @@ pub const Type_AST = union(enum) {
             return true;
         }
         if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl);
+            // return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 or (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl);
+            return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand

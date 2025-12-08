@@ -169,9 +169,11 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
-        const types_match = (impl.impl._type.types_match(for_type) or for_type.types_match(impl.impl._type));
+        var subst = unification_.Substitutions.init(std.heap.page_allocator);
+        defer subst.deinit();
+        unification_.unify(impl.impl._type, for_type, impl.impl._generic_params, &subst) catch continue;
         const traits_match = impl.impl.trait.?.symbol() == trait;
-        if (types_match and traits_match) {
+        if (traits_match) {
             retval.count += 1;
             retval.ast = retval.ast orelse impl;
         }
@@ -333,7 +335,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
-    const new_scope = init(self, self.uid_gen, compiler.allocator());
+    const new_scope = init(impl.scope().?.parent.?, self.uid_gen, compiler.allocator());
     try walker_.walk_ast(new_impl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
     new_impl.set_scope(new_scope);
 
@@ -401,6 +403,9 @@ pub fn pprint(self: *Self) void {
             std.debug.print("  {s} {s}\n", .{ @tagName(symbol.kind), name });
         }
     }
+    for (self.impls.items) |impl| {
+        std.debug.print("  impl {?f} for {f}\n", .{ impl.impl.trait, impl.impl._type });
+    }
 }
 
 pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{CompileError}!void {
@@ -408,6 +413,7 @@ pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{Co
     switch (res) {
         .found => {
             const first = res.found;
+            scope.pprint();
             errors.add_error(errs_.Error{ .redefinition = .{
                 .first_defined_span = first.span(),
                 .redefined_span = symbol.span(),

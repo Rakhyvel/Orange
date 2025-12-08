@@ -1,0 +1,24 @@
+// 431
+struct Wrapper[T] {
+    x: T
+}
+
+impl[T] for Wrapper[T] {
+    fn get(self) -> T { self.x }
+}
+
+struct Container[T] {
+    y: T
+}
+
+impl[T] for Container[T] {
+    fn create(self) -> Wrapper[T] {
+        Wrapper[T](self.y)
+    }
+}
+
+fn main() -> Int {
+    let cont = Container[Int](431)
+    let wrap = cont.>create()
+    wrap.>get()
+}

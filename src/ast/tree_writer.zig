@@ -47,6 +47,11 @@ fn tree_writer_prefix(self: Self, ast: *ast_.AST) walker_.Error!?Self {
             if (ast.symbol()) |sym| sym.name else null,
             if (ast.symbol()) |sym| sym.scope.uid else null,
         }),
+        .pattern_symbol => std.debug.print(".data={s}, .symbol={?s}@{?}", .{
+            ast.token().data,
+            if (ast.symbol()) |sym| sym.name else null,
+            if (ast.symbol()) |sym| sym.scope.uid else null,
+        }),
         .fn_decl => std.debug.print(".name={?f}", .{ast.fn_decl.name}),
         .method_decl => std.debug.print(".name={f}, .symbol={?*}", .{ ast.method_decl.name, if (ast.symbol()) |sym| sym else null }),
         .binding => std.debug.print(".pattern={f}, .type={f}, .init={?f}", .{ ast.binding.pattern, ast.binding.type, ast.binding.init }),
@@ -64,7 +69,11 @@ fn tree_writer_prefix_type(self: Self, _type: *Type_AST) walker_.Error!?Self {
     std.debug.print("{t}(", .{_type.*});
     switch (_type.*) {
         else => {},
-        .identifier => std.debug.print(".data={s}", .{_type.token().data}),
+        .identifier => std.debug.print(".data={s}, .symbol={?s}@{?}", .{
+            _type.token().data,
+            if (_type.symbol()) |sym| sym.name else null,
+            if (_type.symbol()) |sym| sym.scope.uid else null,
+        }),
         .annotation => std.debug.print(".name={f}", .{_type.annotation.pattern}),
     }
     std.debug.print(")\n", .{});

@@ -1,11 +1,14 @@
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 
 // Attempt to match the rhs with the lhs
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_.AST), subst: *Substitutions) !void {
+    // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
+    // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
     if (lhs.* == .identifier and lhs.symbol().?.init_typedef() != null) {
         return try unify(lhs.symbol().?.init_typedef().?, rhs, withs, subst);
     } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
@@ -73,10 +76,17 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, withs: std.array_list.Managed(*ast_
             }
             const lhs_constructor = lhs.lhs();
             const rhs_constructor = rhs.lhs();
-            if (!std.mem.eql(u8, lhs_constructor.token().data, rhs_constructor.token().data)) {
+            if (lhs_constructor.symbol() != rhs_constructor.symbol()) {
                 return error.TypesMismatch;
             }
+            // if (!std.mem.eql(u8, lhs_constructor.token().data, rhs_constructor.token().data)) {
+            //     std.debug.print("constructors differ: {s} vs {s}\n", .{ lhs_constructor.token().data, rhs_constructor.token().data });
+            //     Tree_Writer.print_type_tree(lhs_constructor);
+            //     Tree_Writer.print_type_tree(rhs_constructor);
+            //     return error.TypesMismatch;
+            // }
             if (lhs.children().items.len != rhs.children().items.len) {
+                std.debug.print("arg lengths differ\n", .{});
                 return error.TypesMismatch;
             }
 

@@ -6,6 +6,7 @@ const Fmt_String = @import("fmt_string.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self: type = @This();
 
@@ -457,13 +458,11 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
                 ast_.AST.create_field(try self.expect(.identifier), self.allocator),
                 self.allocator,
             );
+            exp = Type_AST.create_type_access(val_access.?.token(), val_access.?, self.allocator);
         } else if (self.peek_kind(.left_square)) {
             const args = try self.generics_args();
             exp = Type_AST.create_generic_apply_type(exp.token(), exp, args, self.allocator);
         } else {
-            if (val_access) |val| {
-                return Type_AST.create_type_access(val.token(), val, self.allocator);
-            }
             return exp;
         }
     }
@@ -1558,7 +1557,8 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.@"const")) {
             const_defs.append(try self.const_declaration()) catch unreachable;
         } else if (self.peek_kind(.type)) {
-            type_defs.append(try self.type_alias_declaration()) catch unreachable;
+            const type_def = try self.type_alias_declaration();
+            type_defs.append(type_def) catch unreachable;
         } else {
             const method = try self.method_definition();
             method_defs.append(method) catch unreachable;
@@ -1692,7 +1692,9 @@ fn match_mapping(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.fat_arrow);
     const rhs = try self.assignment_expr();
     if (!self.peek_kind(.right_brace)) {
-        _ = try self.expect(.newline);
+        if (self.accept(.semicolon) == null) {
+            _ = try self.expect(.newline);
+        }
     }
 
     return ast_.AST.create_mapping(lhs.token(), lhs, rhs, self.allocator);

@@ -1,0 +1,40 @@
+// 432
+trait A {
+    type Inner
+    fn get(&mut self) -> Self::Inner
+}
+
+trait B {
+    type Inner
+    type A_Impl: A[Inner = Self::Inner]
+
+    fn create(&self) -> Self::A_Impl
+}
+
+struct Wrapper[T] {
+    x: T
+}
+
+impl[T] A for Wrapper[T] {
+    type Inner = T
+    fn get(&mut self) -> Self::Inner { self.x }
+}
+
+struct Container[T] {
+    y: T
+}
+
+impl[T] B for Container[T] {
+    type Inner = T
+    type A_Impl = Wrapper[T]
+
+    fn create(&self) -> Self::A_Impl {
+        Wrapper[T](self.y)
+    }
+}
+
+fn main() -> Int {
+    let cont = Container[Int](432)
+    let mut wrap = cont.>create()
+    wrap.>get()
+}
