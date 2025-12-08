@@ -1,3 +1,5 @@
 // error: expected a value of type `untagged_sum_type`, got a value of type `?Int`
 // 
 const x : @Untagged ( ? Int ) 
+
+fn main() {}

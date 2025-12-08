@@ -369,7 +369,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
 
     // Store in the memo
     impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
-    return impl.impl.instantiations.get(type_param_list).?; // TODO: substitutions need to be in the same order as withs
+    return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 
 fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {

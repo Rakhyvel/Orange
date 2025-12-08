@@ -9,6 +9,11 @@ pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
     // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
     // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
+
+    if (lhs.is_ident_type("Void")) {
+        return; // Bottom type - vacuously true
+    }
+
     if (lhs.* == .identifier and lhs.symbol().?.init_typedef() != null) {
         return try unify(lhs.symbol().?.init_typedef().?, rhs, subst);
     } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
@@ -50,6 +55,20 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
 
             for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
                 try unify(l_arg, r_arg, subst);
+            }
+        },
+
+        .enum_type, .untagged_sum_type => {
+            if (rhs.* != .enum_type and rhs.* != .untagged_sum_type) {
+                return error.TypesMismatch;
+            }
+            if (!lengths_match(lhs.children(), rhs.children())) return error.TypeMismatch;
+            // need to make sure the types and variant names match
+            for (lhs.children().items, rhs.children().items) |term, B_term| {
+                const this_name = term.annotation.pattern.token().data;
+                const B_name = B_term.annotation.pattern.token().data;
+                if (!std.mem.eql(u8, this_name, B_name)) return error.TypeMismatch;
+                try unify(term, B_term, subst);
             }
         },
 
@@ -102,6 +121,10 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
 
         else => return, // TODO: Support more types, add error for unsupported constructs
     }
+}
+
+fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.array_list.Managed(*Type_AST)) bool {
+    return bs.items.len == as.items.len;
 }
 
 pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {

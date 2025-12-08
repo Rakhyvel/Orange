@@ -1,4 +1,4 @@
-// associated_type_constraint.orng:13:22: error: type `Int` does not implement trait `A`
+// associated_type_constraint.orng:13:22: error: the type `Int` does not implement the trait `A`
 //     type Addend = Int
 //                     ^
 // 

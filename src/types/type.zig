@@ -971,7 +971,7 @@ pub const Type_AST = union(enum) {
             return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
         }
         if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 and A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
