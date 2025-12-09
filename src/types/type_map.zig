@@ -76,21 +76,6 @@ pub fn Linear_Map(comptime Key: type, comptime Value: type, comptime eq: fn (Key
     };
 }
 
-// TODO: Remove in this PR
-pub fn type_lists_match2(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_list.Managed(*Type_AST)) bool {
-    if (lhs.items.len != rhs.items.len) {
-        return false;
-    }
-
-    for (lhs.items, rhs.items) |lhs_item, rhs_item| {
-        if (!lhs_item.types_match(rhs_item) or !rhs_item.types_match(lhs_item)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_list.Managed(*Type_AST)) bool {
     const unification_ = @import("../types/unification.zig");
     if (lhs.items.len != rhs.items.len) {
