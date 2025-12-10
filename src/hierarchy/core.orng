@@ -236,6 +236,15 @@ impl[T] Iterator for Slice_Iter[T] {
     }
 }
 
+impl[I] Into_Iterator for []I {
+    type Item = I
+    type Iter = Slice_Iter[I]
+
+    fn into_iter(&self) -> Self::Iter {
+        Self::Iter(.items = self^, .pos = 0)
+    }
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

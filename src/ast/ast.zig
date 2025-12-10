@@ -159,6 +159,8 @@ pub const AST = union(enum) {
     },
     trait: struct {
         common: AST_Common,
+        name: *AST, //
+        _generic_params: std.array_list.Managed(*AST),
         super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
@@ -872,6 +874,7 @@ pub const AST = union(enum) {
 
     pub fn create_trait(
         _token: Token,
+        name: *AST,
         super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
@@ -880,6 +883,8 @@ pub const AST = union(enum) {
     ) *AST {
         return AST.box(AST{ .trait = .{
             .common = AST_Common{ ._token = _token },
+            .name = name,
+            ._generic_params = std.array_list.Managed(*AST).init(allocator),
             .super_traits = super_traits,
             .method_decls = method_decls,
             .const_decls = const_decls,
@@ -1643,6 +1648,7 @@ pub const AST = union(enum) {
                 const cloned_type_decls = clone_children(self.trait.type_decls, substs, allocator);
                 return create_trait(
                     self.token(),
+                    self.trait.name.clone(substs, allocator),
                     cloned_super_traits,
                     cloned_method_decls,
                     cloned_const_decls,
@@ -2137,6 +2143,7 @@ pub const AST = union(enum) {
             .type_alias => self.type_alias.name = name,
             .fn_decl => self.fn_decl.name = name,
             .context_decl => self.context_decl.name = name,
+            .trait => self.trait.name = name,
             else => std.debug.panic("compiler error: cannot call `.decl_name()` on the AST `{s}`", .{@tagName(self.*)}),
         }
     }
@@ -2173,6 +2180,7 @@ pub const AST = union(enum) {
             .type_alias => &self.type_alias._generic_params,
             .impl => &self.impl._generic_params,
             .fn_decl => &self.fn_decl._generic_params,
+            .trait => &self.trait._generic_params,
             else => std.debug.panic("compiler error: cannot call `.generic_params()` on the AST `{t}`", .{self.*}),
         };
     }
@@ -2184,6 +2192,7 @@ pub const AST = union(enum) {
             .type_alias => self.type_alias._generic_params = _generic_params,
             .impl => self.impl._generic_params = _generic_params,
             .fn_decl => self.fn_decl._generic_params = _generic_params,
+            .trait => self.trait._generic_params = _generic_params,
             else => std.debug.panic("compiler error: cannot call `.set_generic_params()` on the AST `{t}`", .{self.*}),
         }
     }

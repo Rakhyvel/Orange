@@ -26,7 +26,6 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
 
     switch (@"type".*) {
         .generic_apply => {
-            iter += 1;
             // TODO: This has a lot of similarities to monomorphizing a generic_apply in decorate.zig
             try self.validate_type(@"type".lhs());
 
@@ -100,7 +99,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
             const type_symbol = @"type".symbol().?;
             if (type_symbol.init_typedef()) |typ| {
                 try self.validate_type(typ);
-            } else if (@"type".access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+            } else if (@"type".lhs().symbol().?.decl.?.* == .type_param_decl) {
                 if (@"type".associated_type_from_constraint()) |assoc_type| try self.validate_type(assoc_type);
             }
         },

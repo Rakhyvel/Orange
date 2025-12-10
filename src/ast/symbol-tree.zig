@@ -274,6 +274,13 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 }
                 const anon_trait = ast_.AST.create_trait(
                     token,
+                    ast_.AST.create_pattern_symbol(
+                        token,
+                        .trait,
+                        .local,
+                        token.data,
+                        self.allocator,
+                    ),
                     std.array_list.Managed(*Type_AST).init(self.allocator),
                     cloned_methods,
                     ast_.AST.clone_children(ast.impl.const_defs, &subst, self.allocator),

@@ -23,7 +23,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
     if (rhs.* == .access and rhs.symbol().?.init_typedef() != null) {
         return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
     }
-    if (rhs.* == .access and rhs.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+    if (rhs.* == .access and rhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
         if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, subst);
     }
 
@@ -138,12 +138,15 @@ pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std
 
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
+        std.debug.print("{s} ", .{key});
         const ty = subst.get(key).?;
         const bad = ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl;
         if (bad) {
+            std.debug.print("contains generics\n", .{});
             return true;
         }
     }
+    std.debug.print("no generics\n", .{});
     return false;
 }
 

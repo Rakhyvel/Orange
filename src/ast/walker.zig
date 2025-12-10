@@ -330,11 +330,14 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
     }
 
     switch (_type.*) {
-        .poison, .anyptr_type, .unit_type, .identifier => {},
+        .poison, .anyptr_type, .unit_type, .identifier, .field => {},
 
         .type_of => try walk_ast(_type.type_of._expr, new_context),
 
-        .access => try walk_ast(_type.access.inner_access, new_context),
+        .access => {
+            try walk_type(_type.lhs(), new_context);
+            try walk_type(_type.rhs(), new_context);
+        },
 
         .generic_apply => {
             try walk_type(_type.lhs(), new_context);

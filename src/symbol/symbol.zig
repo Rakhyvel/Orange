@@ -234,7 +234,9 @@ pub fn monomorphize(
     ctx: *Compiler_Context,
 ) error{ OutOfMemory, CompileError }!*Self {
     // std.debug.print("monomorphize {s}{f} ({*})\n", .{ self.name, fmt_.List_Printer(Type_AST){ .list = &key }, self });
-    if (self.monomorphs.get(key)) |retval| {
+    if (key.items.len == 0) {
+        return self;
+    } else if (self.monomorphs.get(key)) |retval| {
         // std.debug.print("eat slop ({*})\n", .{retval});
         return retval;
     } else {
