@@ -490,9 +490,13 @@ pub const Type_AST = union(enum) {
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
+            .field => blk: {
+                const id = Type_AST.create_field(ast.token(), allocator);
+                break :blk id;
+            },
             .access => blk: {
                 const typed_lhs = from_ast(ast.lhs(), allocator);
-                const typed_rhs = from_ast(ast.lhs(), allocator);
+                const typed_rhs = from_ast(ast.rhs(), allocator);
                 const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
@@ -1243,6 +1247,7 @@ pub const Type_AST = union(enum) {
             } else {
                 return self;
             },
+            .field => return self,
             .access => return create_type_access(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .type_of => {
                 const _expr = self.expr().clone(substs, allocator);

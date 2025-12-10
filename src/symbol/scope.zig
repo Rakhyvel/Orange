@@ -209,7 +209,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
 /// Looks up the impl's decl/method_decl ast for a given type, with a given name
 pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
-    if (false) {
+    if (true) {
         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
         Tree_Writer.print_type_tree(for_type);
         self.pprint();
@@ -246,7 +246,6 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         subst.put("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
-        std.debug.print("hello 1\n", .{});
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
         return cloned;
@@ -259,7 +258,6 @@ fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AS
         subst.put("Self", for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
-        std.debug.print("hello 2\n", .{});
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
         return cloned;
@@ -277,9 +275,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
 
-        std.debug.print("lookup_impl_member_impls\n", .{});
         // TODO: This was a hack to make sure the impl type is always decorated. Decorations should probably be needs-driven?
-        std.debug.print("hello 4\n", .{});
         const decorate_context = Decorate.new(self, compiler);
         try walker_.walk_type(impl.impl._type, decorate_context);
 
@@ -334,8 +330,12 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
 
+    unification_.print_substitutions(subst);
+
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
+    Tree_Writer.print_tree(new_impl);
+    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
@@ -369,7 +369,6 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     }
 
     // Decorate identifiers, validate
-    std.debug.print("hello 3\n", .{});
     const new_decorate_context = Decorate.new(new_scope, compiler);
     try walker_.walk_ast(new_impl, new_decorate_context); // this doesn't know about the anonymous trait
     try compiler.validate_scope.validate_scope(new_scope);
@@ -380,7 +379,6 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     }
 
     // Store in the memo
-    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
     return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 

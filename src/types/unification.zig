@@ -138,15 +138,12 @@ pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std
 
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
-        std.debug.print("{s} ", .{key});
         const ty = subst.get(key).?;
         const bad = ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl;
         if (bad) {
-            std.debug.print("contains generics\n", .{});
             return true;
         }
     }
-    std.debug.print("no generics\n", .{});
     return false;
 }
 

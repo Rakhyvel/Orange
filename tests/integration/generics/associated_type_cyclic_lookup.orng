@@ -1,0 +1,14 @@
+// 433
+trait A {
+    type Item
+}
+
+struct Impler {}
+impl A for Impler {
+    type Item = Int
+}
+
+fn main() -> Int {
+    let wrap: Impler::Item = 433
+    wrap
+}

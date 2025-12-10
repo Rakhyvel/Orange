@@ -361,6 +361,8 @@ fn resolve_access_ast(self: Self, ast: anytype) walk_.Error!*Symbol {
         ast.lhs();
 
     if (Ast_Type == *Type_AST) {
+        std.debug.print("right here:\n", .{});
+        Tree_Writer.print_type_tree(ast);
         return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
     }
 
