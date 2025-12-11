@@ -1,0 +1,12 @@
+// 450
+fn main() -> Int {
+    let xs = [][200, 40, 10]
+    let mut retval = 0
+    for x in xs {
+        if x < 0 {break}
+        retval += x
+    } else {
+        retval += 200
+    }
+    retval
+}

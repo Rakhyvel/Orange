@@ -1,0 +1,10 @@
+// 449
+fn main() -> Int {
+    let xs = [][400, -5, 40, -6, 9, -10]
+    let mut retval = 0
+    for x in xs {
+        if x < 0 {continue}
+        retval += x
+    }
+    retval
+}

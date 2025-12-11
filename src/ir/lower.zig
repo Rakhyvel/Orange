@@ -506,7 +506,7 @@ fn lower_AST_inner(
             const loop_labels = Labels{
                 .return_label = labels.return_label,
                 .break_label = end_label,
-                .continue_label = labels.continue_label,
+                .continue_label = cond_label,
                 .error_label = labels.error_label,
             };
 
