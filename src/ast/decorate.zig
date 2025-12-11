@@ -289,13 +289,10 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 }
 
 fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
-    try self.expand_type(ast);
     switch (ast.*) {
         .access => {
             ast.set_symbol(try self.resolve_access_ast(ast));
         },
-
-        .generic_apply => return self.monomorphize_generic_apply_type(ast),
 
         else => {},
     }
@@ -361,7 +358,14 @@ fn resolve_access_ast(self: Self, ast: anytype) walk_.Error!*Symbol {
         ast.lhs();
 
     if (Ast_Type == *Type_AST) {
-        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
+        if (stripped_lhs.* == .type_of) {
+            try self.expand_type(stripped_lhs);
+        } else if (stripped_lhs.* == .generic_apply) {
+            try self.monomorphize_generic_apply_type(stripped_lhs);
+        }
+        if (stripped_lhs.* == .struct_type) {
+            return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
+        }
     }
 
     const symbol = stripped_lhs.symbol().?;

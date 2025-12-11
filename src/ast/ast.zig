@@ -2124,6 +2124,7 @@ pub const AST = union(enum) {
             .enum_decl => self.enum_decl._type,
             .type_alias => self.type_alias.init,
             .type_param_decl => null, // No type... yet!
+            .module => null,
             else => std.debug.panic("compiler error: cannot call `.decl_typedef()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }
