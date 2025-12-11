@@ -216,7 +216,7 @@ trait Into_Iterator {
     type Item
     type Iter: Iterator[Item = Self::Item]
 
-    fn into_iter(&self) -> Self::Iter
+    fn into_iter(self) -> Self::Iter
 }
 
 struct Slice_Iter[T] {
@@ -233,6 +233,15 @@ impl[T] Iterator for Slice_Iter[T] {
         let retval = self.items[self.pos]
         self.pos += 1
         .some(retval)
+    }
+}
+
+impl[I] Into_Iterator for []I {
+    type Item = I
+    type Iter = Slice_Iter[I]
+
+    fn into_iter(self) -> Self::Iter {
+        Self::Iter(.items = self, .pos = 0)
     }
 }
 

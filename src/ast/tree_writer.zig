@@ -66,7 +66,7 @@ fn tree_writer_prefix_type(self: Self, _type: *Type_AST) walker_.Error!?Self {
     for (0..self.indent) |_| {
         std.debug.print(" ", .{});
     }
-    std.debug.print("{t}(", .{_type.*});
+    std.debug.print(":{t}(", .{_type.*});
     switch (_type.*) {
         else => {},
         .identifier => std.debug.print(".data={s}, .symbol={?s}@{?}", .{

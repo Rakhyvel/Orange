@@ -23,7 +23,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
     if (rhs.* == .access and rhs.symbol().?.init_typedef() != null) {
         return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
     }
-    if (rhs.* == .access and rhs.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+    if (rhs.* == .access and rhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
         if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, subst);
     }
 
@@ -130,7 +130,7 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
 pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
-        const with_value = subst.get(type_param.token().data).?;
+        const with_value = subst.get(type_param.token().data) orelse continue;
         retval.append(with_value) catch unreachable;
     }
     return retval;

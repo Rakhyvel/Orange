@@ -332,6 +332,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
+    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
@@ -346,6 +347,13 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
         token.data = anon_name_.next_anon_name("Trait", compiler.allocator());
         const anon_trait = ast_.AST.create_trait(
             token,
+            ast_.AST.create_pattern_symbol(
+                token,
+                .trait,
+                .local,
+                token.data,
+                compiler.allocator(),
+            ),
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
@@ -368,7 +376,6 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     }
 
     // Store in the memo
-    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
     return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 
@@ -413,7 +420,6 @@ pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{Co
     switch (res) {
         .found => {
             const first = res.found;
-            scope.pprint();
             errors.add_error(errs_.Error{ .redefinition = .{
                 .first_defined_span = first.span(),
                 .redefined_span = symbol.span(),

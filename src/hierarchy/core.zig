@@ -20,6 +20,9 @@ pub var package_source_type: *Type_AST = undefined;
 pub var test_result_type: *Type_AST = undefined;
 pub var test_type: *Type_AST = undefined;
 
+// Traits
+pub var into_iterator_trait: *Symbol = undefined;
+
 // Contexts
 pub var allocating_context: *Type_AST = undefined;
 pub var io_context: *Type_AST = undefined;
@@ -95,6 +98,8 @@ fn create_core(compiler: *Compiler_Context) !void {
         std.array_list.Managed(*Type_AST).init(compiler.allocator()),
         compiler.allocator(),
     );
+
+    into_iterator_trait = module_scope.lookup("Into_Iterator", .{}).found;
 
     allocating_context = module_scope.lookup("Allocating", .{}).found.init_typedef().?;
     io_context = module_scope.lookup("IO", .{}).found.init_typedef().?;

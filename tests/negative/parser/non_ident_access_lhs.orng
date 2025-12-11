@@ -1,7 +1,0 @@
-// non_ident_access_lhs.orng:5:17: error: expected identifier, got `Wrapper`
-// const x: Wrapper[Int]::init()
-//                ^
-// 
-const x: Wrapper[Int]::init()
-
-fn main() {}

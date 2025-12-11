@@ -274,6 +274,13 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 }
                 const anon_trait = ast_.AST.create_trait(
                     token,
+                    ast_.AST.create_pattern_symbol(
+                        token,
+                        .trait,
+                        .local,
+                        token.data,
+                        self.allocator,
+                    ),
                     std.array_list.Managed(*Type_AST).init(self.allocator),
                     cloned_methods,
                     ast_.AST.clone_children(ast.impl.const_defs, &subst, self.allocator),
@@ -451,7 +458,7 @@ fn create_symbol(
                 const new_type: *Type_AST = Type_AST.create_index_type(_type.token(), _type, index, allocator);
                 var index_rhs = std.array_list.Managed(*ast_.AST).init(allocator);
                 try index_rhs.append(index);
-                const new_init: *ast_.AST = ast_.AST.create_index(init.?.token(), init.?, index_rhs, allocator);
+                const new_init: ?*ast_.AST = if (init != null) ast_.AST.create_index(init.?.token(), init.?, index_rhs, allocator) else null;
                 try create_symbol(symbols, term, decl, new_type, new_init, scope, errors, allocator);
             }
         },

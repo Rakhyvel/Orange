@@ -1,0 +1,11 @@
+// for_not_into_iterable.orng:7:15: error: the type `Int` does not implement the method `Item`
+//     for x in 4 {
+//              ^
+// 
+fn main() -> Int {
+    let mut retval = 0
+    for x in 4 {
+        retval += x
+    }
+    retval
+}

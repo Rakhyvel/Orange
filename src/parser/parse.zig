@@ -442,23 +442,14 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
 fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
     // FIXME: High Cyclo
     var exp = try self.terminal_type_expr();
-    var val_access: ?*ast_.AST = null;
     while (true) {
         if (self.accept(.double_colon)) |token| {
-            if (val_access == null) {
-                if (exp.* != .identifier) {
-                    self.errors.add_error(errs_.Error{ .expected_basic_token = .{ .expected = "identifier", .got = exp.token() } });
-                    return Parser_Error_Enum.ParseError;
-                }
-                val_access = ast_.AST.create_identifier(exp.token(), self.allocator);
-            }
-            val_access = ast_.AST.create_access(
+            exp = Type_AST.create_type_access(
                 token,
-                val_access.?,
-                ast_.AST.create_field(try self.expect(.identifier), self.allocator),
+                exp,
+                Type_AST.create_field(try self.expect(.identifier), self.allocator),
                 self.allocator,
             );
-            exp = Type_AST.create_type_access(val_access.?.token(), val_access.?, self.allocator);
         } else if (self.peek_kind(.left_square)) {
             const args = try self.generics_args();
             exp = Type_AST.create_generic_apply_type(exp.token(), exp, args, self.allocator);
@@ -1226,9 +1217,23 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.@"for");
     const let: ?*ast_.AST = try self.let_pre();
     _ = self.accept(.mut);
-    const elem = ast_.AST.create_identifier(try self.expect(.identifier), self.allocator);
+    const pattern = try self.let_pattern_atom();
+
     _ = try self.expect(.in);
     const iterable = try self.assignment_expr();
+
+    const iterable_type = Type_AST.create_type_of(pattern.token(), iterable, self.allocator);
+    var item_token = iterable.token();
+    item_token.data = "Item";
+    const item_type = Type_AST.create_type_access(pattern.token(), iterable_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
+    const elem = ast_.AST.create_binding(
+        token,
+        pattern,
+        item_type,
+        null,
+        self.allocator,
+    );
+
     const body_block = try self.block_expr();
     var else_block: ?*ast_.AST = null;
     if (self.accept(.@"else")) |_| {
@@ -1502,6 +1507,7 @@ fn contraint_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AS
 fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.trait);
     const trait_name: Token = try self.expect(.identifier);
+    const name = ast_.AST.create_pattern_symbol(trait_name, .trait, .local, trait_name.data, self.allocator);
     var super_traits = std.array_list.Managed(*Type_AST).init(self.allocator);
     self.newlines();
     if (self.accept(.single_colon)) |_| {
@@ -1532,7 +1538,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 
     _ = try self.expect(.right_brace);
-    return ast_.AST.create_trait(trait_name, super_traits, method_decls, const_decls, type_decls, self.allocator);
+    return ast_.AST.create_trait(trait_name, name, super_traits, method_decls, const_decls, type_decls, self.allocator);
 }
 
 fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

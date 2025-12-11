@@ -47,11 +47,15 @@ pub const Type_AST = union(enum) {
         common: Type_AST_Common,
         _symbol: ?*Symbol = null,
     },
+    /// This tag is used for the right-hand-side of selects. They do not refer to symbols.
+    field: struct { common: Type_AST_Common },
     // TOOD: generic_type
     access: struct {
         common: Type_AST_Common,
-        inner_access: *AST,
+        _lhs: *Type_AST,
+        _rhs: *Type_AST, // TODO: This should just be the token
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
     generic_apply: struct {
         common: Type_AST_Common,
@@ -242,11 +246,16 @@ pub const Type_AST = union(enum) {
         return Type_AST.box(Type_AST{ .identifier = .{ .common = Type_AST_Common{ ._token = _token } } }, allocator);
     }
 
-    pub fn create_type_access(_token: Token, inner_access: *AST, allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_field(_token: Token, allocator: std.mem.Allocator) *Type_AST {
+        return Type_AST.box(Type_AST{ .field = .{ .common = Type_AST_Common{ ._token = _token } } }, allocator);
+    }
+
+    pub fn create_type_access(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .access = .{
             .common = _common,
-            .inner_access = inner_access,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
         } }, allocator);
     }
 
@@ -481,8 +490,14 @@ pub const Type_AST = union(enum) {
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
+            .field => blk: {
+                const id = Type_AST.create_field(ast.token(), allocator);
+                break :blk id;
+            },
             .access => blk: {
-                const id = Type_AST.create_type_access(ast.token(), ast, allocator);
+                const typed_lhs = from_ast(ast.lhs(), allocator);
+                const typed_rhs = from_ast(ast.rhs(), allocator);
+                const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
@@ -546,18 +561,19 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn symbol(self: Type_AST) ?*Symbol {
-        if (self == .access) {
-            return self.access.inner_access.symbol();
-        }
         return union_fields_.get_struct_field(self, "_symbol");
     }
 
     pub fn set_symbol(self: *Type_AST, val: ?*Symbol) void {
-        if (self.* == .access) {
-            self.access.inner_access.set_symbol(val);
-            return;
-        }
         union_fields_.set_field(self, "_symbol", val);
+    }
+
+    pub fn scope(self: Type_AST) ?*Scope {
+        return union_fields_.get_struct_field(self, "_scope");
+    }
+
+    pub fn set_scope(self: *Type_AST, val: ?*Scope) void {
+        union_fields_.set_field(self, "_scope", val);
     }
 
     pub fn lhs(self: Type_AST) *Type_AST {
@@ -642,7 +658,7 @@ pub const Type_AST = union(enum) {
                 const new = res.symbol().?.init_typedef().?;
                 new.set_unexpanded_type(res);
                 res = new;
-            } else if (res.* == .access and res.access.inner_access.lhs().symbol().?.decl.?.* == .type_param_decl) {
+            } else if (res.* == .access and res.lhs().symbol().?.decl.?.* == .type_param_decl) {
                 if (res.associated_type_from_constraint()) |assoc_type| {
                     res = assoc_type;
                 } else {
@@ -665,12 +681,12 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn associated_type_from_constraint(self: *Type_AST) ?*Type_AST {
-        const type_param_decl = self.access.inner_access.lhs().symbol().?.decl.?;
+        const type_param_decl = self.lhs().symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             if (constraint.* != .generic_apply) continue;
             for (constraint.children().items) |child_constraint| {
                 if (child_constraint.* != .eq_constraint) continue;
-                if (std.mem.eql(u8, child_constraint.lhs().token().data, self.access.inner_access.rhs().token().data)) return child_constraint.rhs();
+                if (std.mem.eql(u8, child_constraint.lhs().token().data, self.rhs().token().data)) return child_constraint.rhs();
             }
         }
         return null;
@@ -770,7 +786,7 @@ pub const Type_AST = union(enum) {
                 try out.print(")", .{});
             },
             .access => {
-                try out.print("{f}::{s}", .{ self.access.inner_access.lhs(), self.access.inner_access.rhs().token().data });
+                try out.print("{f}::{s}", .{ self.lhs(), self.rhs().token().data });
             },
             .generic_apply => {
                 try out.print("{f}[{f}", .{ self.generic_apply._lhs, self.generic_apply.args.items[0] });
@@ -1231,7 +1247,8 @@ pub const Type_AST = union(enum) {
             } else {
                 return self;
             },
-            .access => return create_type_access(self.token(), self.access.inner_access.clone(substs, allocator), allocator),
+            .field => return self,
+            .access => return create_type_access(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .type_of => {
                 const _expr = self.expr().clone(substs, allocator);
                 return create_type_of(self.token(), _expr, allocator);
