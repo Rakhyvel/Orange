@@ -420,7 +420,6 @@ pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{Co
     switch (res) {
         .found => {
             const first = res.found;
-            scope.pprint();
             errors.add_error(errs_.Error{ .redefinition = .{
                 .first_defined_span = first.span(),
                 .redefined_span = symbol.span(),
