@@ -458,7 +458,7 @@ fn create_symbol(
                 const new_type: *Type_AST = Type_AST.create_index_type(_type.token(), _type, index, allocator);
                 var index_rhs = std.array_list.Managed(*ast_.AST).init(allocator);
                 try index_rhs.append(index);
-                const new_init: *ast_.AST = ast_.AST.create_index(init.?.token(), init.?, index_rhs, allocator);
+                const new_init: ?*ast_.AST = if (init != null) ast_.AST.create_index(init.?.token(), init.?, index_rhs, allocator) else null;
                 try create_symbol(symbols, term, decl, new_type, new_init, scope, errors, allocator);
             }
         },

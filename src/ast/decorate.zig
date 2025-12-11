@@ -363,7 +363,7 @@ fn resolve_access_ast(self: Self, ast: anytype) walk_.Error!*Symbol {
         } else if (stripped_lhs.* == .generic_apply) {
             try self.monomorphize_generic_apply_type(stripped_lhs);
         }
-        if (stripped_lhs.* == .struct_type) {
+        if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
             return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
         }
     }

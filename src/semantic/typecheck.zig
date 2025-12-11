@@ -5,6 +5,7 @@ const ast_ = @import("../ast/ast.zig");
 const args_ = @import("args.zig");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
+const core_ = @import("../hierarchy/core.zig");
 const defaults_ = @import("defaults.zig");
 const errs_ = @import("../util/errors.zig");
 const poison_ = @import("../ast/poison.zig");
@@ -846,28 +847,25 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             return prelude_.unit_type;
         },
         .@"for" => {
+            if (ast.@"for".let) |let| {
+                _ = self.typecheck_AST(let, null) catch return error.CompileError;
+            }
             const into_iter_type = self.typecheck_AST(ast.@"for".iterable, null) catch return error.CompileError;
-            ast.@"for".iterable_into_iter_method_decl = try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx) orelse {
-                self.ctx.errors.add_error(errs_.Error{
-                    .type_not_impl_method = .{
-                        .span = ast.@"for".iterable.token().span,
-                        .method_name = "into_iter",
-                        ._type = into_iter_type,
-                    },
-                });
+            const impl = ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait);
+            if (impl.ast == null) {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = ast.token().span,
+                    .trait_name = core_.into_iterator_trait.name,
+                    ._type = into_iter_type,
+                } });
                 return error.CompileError;
-            };
-            const item_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type;
-            ast.@"for".iterable_next_method_decl = try ast.scope().?.lookup_impl_member(item_type, "next", self.ctx) orelse {
-                self.ctx.errors.add_error(errs_.Error{
-                    .type_not_impl_method = .{
-                        .span = ast.@"for".iterable.token().span,
-                        .method_name = "next",
-                        ._type = item_type,
-                    },
-                });
-                return error.CompileError;
-            };
+            }
+            // Can assume these will be defined by check above
+            ast.@"for".iterable_into_iter_method_decl = (try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx)).?;
+            const iterator_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type;
+            ast.@"for".iterable_next_method_decl = (try ast.scope().?.lookup_impl_member(iterator_type, "next", self.ctx)).?;
+            const item_type = ast.@"for".iterable_next_method_decl.?.method_decl.ret_type.get_some_type();
+            try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type);
             _ = self.typecheck_AST(ast.body_block(), null) catch return error.CompileError;
             if (ast.else_block() != null) {
                 _ = self.typecheck_AST(ast.else_block().?, null) catch return error.CompileError;

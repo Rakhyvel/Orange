@@ -544,11 +544,8 @@ fn lower_AST_inner(
 
             // body block: setup element
             self.instructions.append(block_label) catch unreachable;
-            const expanded_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type.expand_identifier();
-            const ok_symbol = self.create_temp_symbol(expanded_type);
-            const val = next_result.create_select_lval(0, 0, expanded_type, null, self.ctx.allocator());
-            const ok_lval = lval_.L_Value.create_unversioned_symbver(ok_symbol, self.ctx.allocator());
-            self.instructions.append(Instruction.init_simple_copy(ok_lval, val, ast.token().span, self.ctx.allocator())) catch unreachable;
+            const expanded_type = ast.@"for".iterable_next_method_decl.?.method_decl.ret_type.get_some_type().expand_identifier();
+            const ok_lval = next_result.create_select_lval(0, 0, expanded_type, null, self.ctx.allocator());
             try self.generate_pattern(ast.@"for".elem.binding.pattern, ast.@"for".elem.binding.type.expand_identifier(), ok_lval);
 
             // body block: execute body

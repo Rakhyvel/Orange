@@ -1,0 +1,9 @@
+// 446
+fn main() -> Int {
+    let xs: [](Int, Int) = [][(110, 4), (3, 2)]
+    let mut retval = 0
+    for (x, y) in xs {
+        retval += x * y
+    }
+    retval
+}
