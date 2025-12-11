@@ -492,6 +492,72 @@ fn lower_AST_inner(
             self.instructions.append(end_label) catch unreachable;
             return lval_.L_Value.create_unversioned_symbver(symbol, self.ctx.allocator());
         },
+        .@"for" => {
+            // Create the result symbol and labels used
+            const symbol = self.create_temp_symbol(self.ctx.typecheck.typeof(ast));
+            const cond_label = Instruction.init_label("for.cond", ast.token().span, self.ctx.allocator());
+            const block_label = Instruction.init_label("for.block", ast.token().span, self.ctx.allocator());
+            const end_label = Instruction.init_label("for.end", ast.token().span, self.ctx.allocator());
+
+            if (ast.@"for".let) |let| { // do `let` if there's a let
+                _ = try self.lower_AST(let, labels);
+            }
+
+            const loop_labels = Labels{
+                .return_label = labels.return_label,
+                .break_label = end_label,
+                .continue_label = labels.continue_label,
+                .error_label = labels.error_label,
+            };
+
+            const iterable = (try self.lower_AST(ast.@"for".iterable, labels)) orelse return null;
+
+            // Setup iterator
+            const iterator_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type;
+            const iterator = self.create_temp_lvalue(iterator_type);
+            var into_iter_lval_list = std.array_list.Managed(*lval_.L_Value).init(self.ctx.allocator());
+            const iterable_type = self.ctx.typecheck.typeof(ast.@"for".iterable);
+            const addr_of_iterable = self.create_temp_lvalue(Type_AST.create_addr_of_type(ast.token(), iterable_type, false, false, self.ctx.allocator()));
+            self.instructions.append(Instruction.init_int_float_kind(.addr_of, .addr_of, addr_of_iterable, iterable, null, ast.token().span, self.ctx.allocator())) catch unreachable;
+            into_iter_lval_list.append(addr_of_iterable) catch unreachable;
+            var into_iter_instr = Instruction.init_invoke(iterator, ast.@"for".iterable_into_iter_method_decl.?, into_iter_lval_list, null, ast.token().span, self.ctx.allocator());
+            into_iter_instr.data.invoke.method_decl_lval = try self.lval_from_symbol_cfg(ast.@"for".iterable_into_iter_method_decl.?.symbol().?, ast.token().span);
+            self.instructions.append(into_iter_instr) catch unreachable;
+
+            // Test if lhs tag is 0 (`ok` or `some`)
+            self.instructions.append(cond_label) catch unreachable;
+            const next_result = self.create_temp_lvalue(ast.@"for".iterable_next_method_decl.?.method_decl.ret_type);
+            const condition = self.create_temp_lvalue(prelude_.word64_type);
+            var next_lval_list = std.array_list.Managed(*lval_.L_Value).init(self.ctx.allocator());
+            const addr_of_iterator = self.create_temp_lvalue(Type_AST.create_addr_of_type(ast.token(), iterator_type, false, false, self.ctx.allocator()));
+            self.instructions.append(Instruction.init_int_float_kind(.addr_of, .addr_of, addr_of_iterator, iterator, null, ast.token().span, self.ctx.allocator())) catch unreachable;
+            next_lval_list.append(addr_of_iterator) catch unreachable;
+            var next_instr = Instruction.init_invoke(next_result, ast.@"for".iterable_next_method_decl.?, next_lval_list, null, ast.token().span, self.ctx.allocator());
+            next_instr.data.invoke.method_decl_lval = try self.lval_from_symbol_cfg(ast.@"for".iterable_next_method_decl.?.symbol().?, ast.token().span);
+            self.instructions.append(next_instr) catch unreachable;
+            self.instructions.append(Instruction.init_get_tag(condition, next_result, ast.token().span, self.ctx.allocator())) catch unreachable;
+            self.instructions.append(Instruction.init_branch(condition, block_label, ast.token().span, self.ctx.allocator())) catch unreachable;
+
+            // else block
+            try self.generate_control_flow_else(ast.else_block(), symbol, ast.token().span, labels);
+            self.instructions.append(Instruction.init_jump(end_label, ast.token().span, self.ctx.allocator())) catch unreachable;
+
+            // body block: setup element
+            self.instructions.append(block_label) catch unreachable;
+            const expanded_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type.expand_identifier();
+            const ok_symbol = self.create_temp_symbol(expanded_type);
+            const val = next_result.create_select_lval(0, 0, expanded_type, null, self.ctx.allocator());
+            const ok_lval = lval_.L_Value.create_unversioned_symbver(ok_symbol, self.ctx.allocator());
+            self.instructions.append(Instruction.init_simple_copy(ok_lval, val, ast.token().span, self.ctx.allocator())) catch unreachable;
+            try self.generate_pattern(ast.@"for".elem.binding.pattern, ast.@"for".elem.binding.type.expand_identifier(), ok_lval);
+
+            // body block: execute body
+            try self.generate_control_flow_block(ast.body_block(), symbol, ast.else_block() != null, loop_labels);
+            self.instructions.append(Instruction.init_jump(cond_label, ast.token().span, self.ctx.allocator())) catch unreachable;
+
+            self.instructions.append(end_label) catch unreachable;
+            return lval_.L_Value.create_unversioned_symbver(symbol, self.ctx.allocator());
+        },
         .with => {
             for (ast.with.contexts.items) |ctx| {
                 _ = try self.lower_AST(ctx, labels);

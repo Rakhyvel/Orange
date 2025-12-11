@@ -209,7 +209,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
 /// Looks up the impl's decl/method_decl ast for a given type, with a given name
 pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
-    if (true) {
+    if (false) {
         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
         Tree_Writer.print_type_tree(for_type);
         self.pprint();
@@ -330,11 +330,8 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
 
-    unification_.print_substitutions(subst);
-
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
-    Tree_Writer.print_tree(new_impl);
     impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();

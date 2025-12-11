@@ -845,6 +845,36 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
 
             return prelude_.unit_type;
         },
+        .@"for" => {
+            const into_iter_type = self.typecheck_AST(ast.@"for".iterable, null) catch return error.CompileError;
+            ast.@"for".iterable_into_iter_method_decl = try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx) orelse {
+                self.ctx.errors.add_error(errs_.Error{
+                    .type_not_impl_method = .{
+                        .span = ast.@"for".iterable.token().span,
+                        .method_name = "into_iter",
+                        ._type = into_iter_type,
+                    },
+                });
+                return error.CompileError;
+            };
+            const item_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type;
+            ast.@"for".iterable_next_method_decl = try ast.scope().?.lookup_impl_member(item_type, "next", self.ctx) orelse {
+                self.ctx.errors.add_error(errs_.Error{
+                    .type_not_impl_method = .{
+                        .span = ast.@"for".iterable.token().span,
+                        .method_name = "next",
+                        ._type = item_type,
+                    },
+                });
+                return error.CompileError;
+            };
+            _ = self.typecheck_AST(ast.body_block(), null) catch return error.CompileError;
+            if (ast.else_block() != null) {
+                _ = self.typecheck_AST(ast.else_block().?, null) catch return error.CompileError;
+            }
+
+            return prelude_.unit_type;
+        },
         .with => {
             for (ast.with.contexts.items) |child| {
                 _ = try self.typecheck_AST(child, null);

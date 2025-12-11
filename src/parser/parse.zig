@@ -531,7 +531,6 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     if (self.accept(.single_colon)) |_| {
         _type = try self.type_expr();
-        Tree_Writer.print_type_tree(_type.?);
         if (self.peek_kind(.single_equals)) {
             _ = try self.expect(.single_equals);
             if (self.accept(.undefined)) |_| {

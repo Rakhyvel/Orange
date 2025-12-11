@@ -344,6 +344,8 @@ pub const AST = union(enum) {
         iterable: *AST,
         _body_block: *AST,
         _else_block: ?*AST,
+        iterable_into_iter_method_decl: ?*AST = null,
+        iterable_next_method_decl: ?*AST = null,
     },
     with: struct {
         common: AST_Common,
