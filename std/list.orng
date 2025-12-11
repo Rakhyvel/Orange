@@ -124,7 +124,7 @@ impl[T] core::Into_Iterator for List[T] {
     type Item = T
     type Iter = core::Slice_Iter[T]
 
-    fn into_iter(&self) -> Self::Iter {
+    fn into_iter(self) -> Self::Iter {
         core::Slice_Iter[T](.items = self.items, .pos = 0)
     }
 }
