@@ -12,6 +12,7 @@ const core_ = @import("../hierarchy/core.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const process_state_ = @import("../util/process_state.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
@@ -141,7 +142,7 @@ pub const AST = union(enum) {
         _lhs: *AST,
         _children: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
-        state: enum { unmorphed, morphing, morphed } = .unmorphed,
+        state: process_state_.Process_State = .unprocessed,
     },
     select: struct {
         common: AST_Common,
@@ -265,6 +266,7 @@ pub const AST = union(enum) {
         mut: bool,
     },
     sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
+    range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
         common: AST_Common,
         kind: Receiver_Kind,
@@ -341,11 +343,11 @@ pub const AST = union(enum) {
         _scope: ?*Scope,
         let: ?*AST,
         elem: *AST,
-        iterable: *AST,
+        into_iter: *AST,
         _body_block: *AST,
         _else_block: ?*AST,
-        iterable_into_iter_method_decl: ?*AST = null,
-        iterable_next_method_decl: ?*AST = null,
+        into_iter_into_iter_method_decl: ?*AST = null,
+        into_iter_next_method_decl: ?*AST = null,
     },
     with: struct {
         common: AST_Common,
@@ -1033,6 +1035,20 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
+    pub fn create_range(
+        _token: Token,
+        lower: *AST,
+        upper: *AST,
+        allocator: std.mem.Allocator,
+    ) *AST {
+        const _common: AST_Common = .{ ._token = _token };
+        return AST.box(AST{ .range = .{
+            .common = _common,
+            .lower = lower,
+            .upper = upper,
+        } }, allocator);
+    }
+
     pub fn create_receiver(_token: Token, kind: Receiver_Kind, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
         return AST.box(
@@ -1122,7 +1138,7 @@ pub const AST = union(enum) {
         _token: Token,
         let: ?*AST,
         elem: *AST,
-        iterable: *AST,
+        into_iter: *AST,
         _body_block: *AST,
         _else_block: ?*AST,
         allocator: std.mem.Allocator,
@@ -1133,7 +1149,7 @@ pub const AST = union(enum) {
                 ._scope = null,
                 .let = let,
                 .elem = elem,
-                .iterable = iterable,
+                .into_iter = into_iter,
                 ._body_block = _body_block,
                 ._else_block = _else_block,
             } },
@@ -1812,6 +1828,12 @@ pub const AST = union(enum) {
                 if (self.sub_slice.upper) |upper| upper.clone(substs, allocator) else null,
                 allocator,
             ),
+            .range => return create_range(
+                self.token(),
+                self.range.lower.clone(substs, allocator),
+                self.range.upper.clone(substs, allocator),
+                allocator,
+            ),
             .receiver => {
                 var retval = create_receiver(
                     self.token(),
@@ -1856,7 +1878,15 @@ pub const AST = union(enum) {
                 if (self.else_block()) |_else| _else.clone(substs, allocator) else null,
                 allocator,
             ),
-            .@"for" => unreachable, // TODO
+            .@"for" => return create_for(
+                self.token(),
+                if (self.@"for".let) |let| let.clone(substs, allocator) else null,
+                self.@"for".elem.clone(substs, allocator),
+                self.@"for".into_iter.clone(substs, allocator),
+                self.@"for"._body_block.clone(substs, allocator),
+                if (self.@"for"._else_block) |_else_block| _else_block.clone(substs, allocator) else null,
+                allocator,
+            ),
             .with => {
                 const cloned_contexts = clone_children(self.with.contexts, substs, allocator);
                 return create_with(
@@ -2552,6 +2582,7 @@ pub const AST = union(enum) {
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
             .slice_of => try out.print("slice_of()", .{}),
             .sub_slice => try out.print("sub_slice()", .{}),
+            .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),
 
             .@"if" => try out.print("if()", .{}),

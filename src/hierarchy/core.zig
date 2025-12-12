@@ -17,6 +17,7 @@ const Type_AST = @import("../types/type.zig").Type_AST;
 // Maybe a map?
 pub var package_type: *Type_AST = undefined;
 pub var package_source_type: *Type_AST = undefined;
+pub var range_type: *Type_AST = undefined;
 pub var test_result_type: *Type_AST = undefined;
 pub var test_type: *Type_AST = undefined;
 
@@ -89,6 +90,7 @@ fn create_core(compiler: *Compiler_Context) !void {
     const module_scope = compiler.module_scope(module.absolute_path).?;
     package_type = module_scope.lookup("Package", .{}).found.init_typedef().?;
     package_source_type = module_scope.lookup("Package_Source", .{}).found.init_typedef().?;
+    range_type = module_scope.lookup("Range", .{}).found.init_typedef().?;
     test_result_type = module_scope.lookup("Test_Result", .{}).found.init_typedef().?;
     const args = std.array_list.Managed(*Type_AST).init(compiler.allocator());
     test_type = Type_AST.create_function(

@@ -1,4 +1,4 @@
-// invoke_dyn_method_not_found.orng:15:8: error: the type `&dyn My_Trait` does not implement the method `get_int`
+// invoke_dyn_method_not_found.orng:15:8: error: the type `&dyn My_Trait` does not contain the member `get_int`
 //     x.>get_int()
 //       ^
 // 

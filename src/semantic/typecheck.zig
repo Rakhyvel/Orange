@@ -850,7 +850,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
             if (ast.@"for".let) |let| {
                 _ = self.typecheck_AST(let, null) catch return error.CompileError;
             }
-            const into_iter_type = self.typecheck_AST(ast.@"for".iterable, null) catch return error.CompileError;
+            const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null) catch return error.CompileError;
             const impl = ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait);
             if (impl.ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
@@ -861,10 +861,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST) Val
                 return error.CompileError;
             }
             // Can assume these will be defined by check above
-            ast.@"for".iterable_into_iter_method_decl = (try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx)).?;
-            const iterator_type = ast.@"for".iterable_into_iter_method_decl.?.method_decl.ret_type;
-            ast.@"for".iterable_next_method_decl = (try ast.scope().?.lookup_impl_member(iterator_type, "next", self.ctx)).?;
-            const item_type = ast.@"for".iterable_next_method_decl.?.method_decl.ret_type.get_some_type();
+            ast.@"for".into_iter_into_iter_method_decl = (try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx)).?;
+            const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
+            ast.@"for".into_iter_next_method_decl = (try ast.scope().?.lookup_impl_member(iterator_type, "next", self.ctx)).?;
+            const item_type = ast.@"for".into_iter_next_method_decl.?.method_decl.ret_type.get_some_type();
             try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type);
             _ = self.typecheck_AST(ast.body_block(), null) catch return error.CompileError;
             if (ast.else_block() != null) {

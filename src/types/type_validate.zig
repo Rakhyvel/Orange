@@ -2,6 +2,7 @@
 const std = @import("std");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const generic_apply_ = @import("../ast/generic_apply.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
@@ -26,65 +27,8 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
 
     switch (@"type".*) {
         .generic_apply => {
-            // TODO: This has a lot of similarities to monomorphizing a generic_apply in decorate.zig
             try self.validate_type(@"type".lhs());
-
-            const sym = @"type".lhs().symbol().?;
-            const params = sym.decl.?.generic_params();
-            if (params.items.len != @"type".children().items.len) {
-                self.ctx.errors.add_error(errs_.Error{ .mismatch_arity = .{
-                    .span = @"type".token().span,
-                    .takes = params.items.len,
-                    .given = @"type".children().items.len,
-                    .thing_name = sym.name,
-                    .takes_name = "type parameter",
-                    .given_name = "argument",
-                } });
-                return error.CompileError;
-            }
-
-            for (@"type".children().items, 0..) |child, i| {
-                try self.ctx.validate_type.validate_type(child);
-
-                const param = params.items[i];
-                const sat_res = child.satisfies_all_constraints(param.type_param_decl.constraints.items);
-                switch (sat_res) {
-                    .satisfies => {},
-                    .not_impl => |unimpld| {
-                        self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
-                            .type_span = child.token().span,
-                            .trait_name = unimpld.name,
-                            .type = child,
-                        } });
-                        return error.CompileError;
-                    },
-                    .not_eq => |uneqd| {
-                        self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
-                            .call_span = child.token().span,
-                            .associated_type_name = uneqd.associated_type_name,
-                            .constraint_span = uneqd.constraint_span,
-                            .impl_span = uneqd.impl_span,
-                            .expected = uneqd.expected,
-                            .got = uneqd.got,
-                        } });
-                        return error.CompileError;
-                    },
-                    .no_such_assoc_type => |no_assoc| {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
-                            .type_span = no_assoc.eq_constraint.lhs().token().span,
-                            .type_name = no_assoc.eq_constraint.lhs().token().data,
-                            .trait_name = no_assoc.trait_name,
-                        } });
-                        return error.CompileError;
-                    },
-                }
-            }
-
-            if (@"type".generic_apply.state == .unmorphed) {
-                @"type".generic_apply.state = .morphing;
-                @"type".generic_apply._symbol = try sym.monomorphize(@"type".generic_apply.args, self.ctx);
-                @"type".generic_apply.state = .morphed;
-            }
+            try generic_apply_.instantiate(@"type", self.ctx);
         },
 
         .identifier => {

@@ -196,6 +196,8 @@ pub fn output_symbol(self: *Self, symbol: *Symbol) CodeGen_Error!void {
 }
 
 pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) CodeGen_Error!void {
+    try self.output_common_types();
+
     for (contexts_used.pairs.items) |pair| {
         var ctx = pair.key.child();
         if (ctx.types_match(core_.allocating_context)) {
@@ -208,6 +210,12 @@ pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) Code
             try self.writer.print("#include \"file_io.inc\"\n", .{});
         }
     }
+}
+
+pub fn output_common_types(self: *Self) CodeGen_Error!void {
+    try self.writer.print("typedef struct {f} orange_type_String;\n", .{Canonical_Type_Fmt{ .type = prelude_.string_type }});
+    try self.writer.print("typedef struct {f} orange_type_StringSlice;\n", .{Canonical_Type_Fmt{ .type = Type_AST.create_slice_type(prelude_.string_type, false, std.heap.page_allocator) }});
+    try self.writer.print("typedef struct {f} orange_type_ArgsCtx;\n", .{Canonical_Type_Fmt{ .type = core_.args_context }});
 }
 
 pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_Error!void {

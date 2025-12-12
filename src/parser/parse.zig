@@ -695,21 +695,30 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    var exp = try self.coalesce_expr();
+    var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
-        exp = ast_.AST.create_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
-        exp = ast_.AST.create_not_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {
-        exp = ast_.AST.create_greater(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_greater(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser)) |token| {
-        exp = ast_.AST.create_lesser(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_lesser(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater_equal)) |token| {
-        exp = ast_.AST.create_greater_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_greater_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser_equal)) |token| {
-        exp = ast_.AST.create_lesser_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_lesser_equal(token, exp, try self.range_expr(), self.allocator);
     }
     return exp;
+}
+
+fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const exp = try self.coalesce_expr();
+    if (self.accept(.triple_period)) |token| {
+        return ast_.AST.create_range(token, exp, try self.coalesce_expr(), self.allocator);
+    } else {
+        return exp;
+    }
 }
 
 fn coalesce_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1220,12 +1229,12 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const pattern = try self.let_pattern_atom();
 
     _ = try self.expect(.in);
-    const iterable = try self.assignment_expr();
+    const into_iter = try self.assignment_expr();
 
-    const iterable_type = Type_AST.create_type_of(pattern.token(), iterable, self.allocator);
-    var item_token = iterable.token();
+    const into_iter_type = Type_AST.create_type_of(pattern.token(), into_iter, self.allocator);
+    var item_token = into_iter.token();
     item_token.data = "Item";
-    const item_type = Type_AST.create_type_access(pattern.token(), iterable_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
+    const item_type = Type_AST.create_type_access(pattern.token(), into_iter_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
     const elem = ast_.AST.create_binding(
         token,
         pattern,
@@ -1240,7 +1249,7 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         else_block = try self.control_flow();
     }
 
-    return ast_.AST.create_for(token, let, elem, iterable, body_block, else_block, self.allocator);
+    return ast_.AST.create_for(token, let, elem, into_iter, body_block, else_block, self.allocator);
 }
 
 fn fn_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

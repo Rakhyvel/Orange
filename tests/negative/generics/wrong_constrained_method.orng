@@ -1,4 +1,4 @@
-// wrong_constrained_method.orng:11:8: error: the type `T` does not implement the method `show`
+// wrong_constrained_method.orng:11:8: error: the type `T` does not contain the member `show`
 //     x.>show()
 //       ^
 // 

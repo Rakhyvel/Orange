@@ -5,11 +5,13 @@ const ast_ = @import("../ast/ast.zig");
 const core_ = @import("../hierarchy/core.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
+const generic_apply_ = @import("generic_apply.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Type_Decorate = @import("../ast/type_decorate.zig");
 const walk_ = @import("../ast/walker.zig");
 
 scope: *Scope,
@@ -190,7 +192,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                     try types.append(Type_AST.from_ast(arg, self.ctx.allocator()));
                 }
                 ast.* = ast_.AST.create_generic_apply(ast.token(), child, types, self.ctx.allocator()).*;
-                try self.monomorphize_generic_apply(ast);
+                try generic_apply_.instantiate(ast, self.ctx);
             }
         },
 
@@ -281,9 +283,11 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                 ast.type_alias.init.?.set_symbol(init_symbol);
             }
         },
-        .generic_apply => return self.monomorphize_generic_apply(ast),
+        .generic_apply => {
+            try generic_apply_.instantiate(ast, self.ctx);
+        },
         .trait => try self.scope.traits.put(ast, void{}),
-        .enum_decl => try self.scope.enums.append(ast),
+        .enum_decl => try self.scope.enums.put(ast, void{}),
         .@"test" => try self.scope.tests.append(ast),
     }
 }
@@ -291,121 +295,72 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
     switch (ast.*) {
         .access => {
-            ast.set_symbol(try self.resolve_access_ast(ast));
+            ast.set_symbol(try self.resolve_access_type(ast));
         },
 
         else => {},
     }
 }
 
-fn expand_type(self: Self, _type: *Type_AST) walk_.Error!void {
-    const depth_limit: usize = 100;
-    var depth: usize = 0;
-    while (_type.* == .type_of or _type.* == .domain_of or _type.* == .index) {
-        if (depth > depth_limit) {
-            self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "recursive type detected", .span = _type.token().span } });
-            return error.CompileError;
-        }
-        switch (_type.*) {
-            .type_of => {
-                const typeof_expr = self.ctx.typecheck.typecheck_AST(_type.type_of._expr, null) catch |e| switch (e) {
-                    error.UnexpectedTypeType => {
-                        self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = null, .span = _type.type_of._expr.token().span } });
-                        return error.CompileError;
-                    },
-                    error.CompileError => return error.CompileError,
-                    error.OutOfMemory => return error.OutOfMemory,
-                };
-                _type.* = typeof_expr.*;
-            },
-            .domain_of => {
-                var child = _type.domain_of._child;
-                try self.postfix_type(child);
-                const domain_ptr = child.expand_identifier().enum_type.get_ctor(_type.domain_of.ctor_name) orelse std.debug.panic("{s} not in {f}\n", .{ _type.domain_of.ctor_name, child });
-                _type.* = domain_ptr.*;
-            },
-            .index => {
-                var child = _type.child();
-                try self.postfix_type(child);
-                child = child.expand_identifier();
-                if (child.* == .array_of) {
-                    _type.* = child.child().*;
-                } else if (child.* == .tuple_type) {
-                    if (_type.index.idx.int.data >= child.children().items.len) {
-                        break;
-                    }
-                    _type.* = child.children().items[@intCast(_type.index.idx.int.data)].*;
-                } else {
-                    _type.* = Type_AST.create_poisoned_type(_type.token(), self.ctx.allocator()).*;
-                }
-            },
-            else => unreachable,
-        }
-        depth += 1;
-    }
-}
-
-fn resolve_access_ast(self: Self, ast: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(ast);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
+fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     std.debug.assert(ast.* == .access);
 
-    const stripped_lhs = if (Ast_Type == *ast_.AST and ast.lhs().* == .addr_of)
+    const stripped_lhs = if (ast.lhs().* == .addr_of)
         ast.lhs().expr()
-    else if (Ast_Type == *Type_AST and ast.lhs().* == .addr_of)
+    else
+        ast.lhs();
+
+    const symbol = stripped_lhs.symbol().?;
+    const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs_type);
+}
+
+fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
+    std.debug.assert(ast.* == .access);
+
+    const stripped_lhs = if (ast.lhs().* == .addr_of)
         ast.lhs().child()
     else
         ast.lhs();
 
-    if (Ast_Type == *Type_AST) {
-        if (stripped_lhs.* == .type_of) {
-            try self.expand_type(stripped_lhs);
-        } else if (stripped_lhs.* == .generic_apply) {
-            try self.monomorphize_generic_apply_type(stripped_lhs);
-        }
-        if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
-            return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
-        }
+    if (stripped_lhs.* == .type_of) {
+        try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
+    } else if (stripped_lhs.* == .generic_apply) {
+        try generic_apply_.instantiate(stripped_lhs, self.ctx);
+    }
+    if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
+        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
     }
 
     const symbol = stripped_lhs.symbol().?;
-    return self.resolve_access_symbol(symbol, ast, stripped_lhs);
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs);
 }
 
-fn resolve_access_symbol(self: Self, symbol: *Symbol, ast: anytype, stripped_lhs: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(ast);
-    const Stripped_Lhs_Type = @TypeOf(stripped_lhs);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
-    comptime std.debug.assert(Stripped_Lhs_Type == *ast_.AST or Stripped_Lhs_Type == *Type_AST);
-    comptime std.debug.assert(Stripped_Lhs_Type == Ast_Type);
-
+fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: ?*Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
     switch (symbol.kind) {
-        .module => return try self.resolve_access_module(symbol, ast.rhs()),
+        .module => return try self.resolve_access_module(symbol, rhs),
 
         .import => {
             const module_symbol = symbol.kind.import.real_symbol.?;
-            return try self.resolve_access_module(module_symbol, ast.rhs());
+            return try self.resolve_access_module(module_symbol, rhs);
         },
 
         .import_inner => {
             const new_symbol =
                 if (symbol.decl.?.* == .type_alias)
-                    try self.resolve_access_ast(symbol.init_typedef().?)
+                    try self.resolve_access_type(symbol.init_typedef().?)
                 else
                     try self.resolve_access_ast(symbol.init_value().?);
-            return self.resolve_access_symbol(new_symbol, ast, stripped_lhs);
+            return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
         },
 
-        .type => {
-            const stripped_lhs_type = if (Stripped_Lhs_Type == *ast_.AST) Type_AST.from_ast(stripped_lhs, self.ctx.allocator()) else stripped_lhs;
-            return try self.resolve_access_const(stripped_lhs_type, ast.rhs().token(), ast.scope().?);
-        },
+        .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?),
 
         else => {
             self.ctx.errors.add_error(errs_.Error{
                 .member_not_in_module = .{
-                    .span = ast.rhs().token().span,
-                    .identifier = ast.rhs().token().data,
+                    .span = rhs.span,
+                    .identifier = rhs.data,
                     .name = "symbol",
                     .module_name = symbol.name,
                 },
@@ -415,202 +370,12 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, ast: anytype, stripped_lhs
     }
 }
 
-// TODO: This has a lot of similarities to monomorphizing a generic_apply type in type_validate.zig
-fn monomorphize_generic_apply(self: Self, ast: *ast_.AST) walk_.Error!void {
-    const sym = ast.lhs().symbol().?;
-    const params = sym.decl.?.generic_params();
-    if (params.items.len != ast.generic_apply._children.items.len) {
-        self.ctx.errors.add_error(errs_.Error{ .mismatch_arity = .{
-            .span = ast.token().span,
-            .takes = params.items.len,
-            .given = ast.generic_apply._children.items.len,
-            .thing_name = sym.name,
-            .takes_name = "type parameter",
-            .given_name = "argument",
-        } });
-        return error.CompileError;
-    }
-
-    for (ast.generic_apply._children.items, 0..) |child, i| {
-        try self.ctx.validate_type.validate_type(child);
-
-        const param = params.items[i];
-        const sat_res = child.satisfies_all_constraints(param.type_param_decl.constraints.items);
-        switch (sat_res) {
-            .satisfies => {},
-            .not_impl => |unimpld| {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = child.token().span,
-                    .trait_name = unimpld.name,
-                    ._type = child,
-                } });
-                return error.CompileError;
-            },
-            .not_eq => |uneqd| {
-                self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
-                    .call_span = child.token().span,
-                    .associated_type_name = uneqd.associated_type_name,
-                    .constraint_span = uneqd.constraint_span,
-                    .impl_span = uneqd.impl_span,
-                    .expected = uneqd.expected,
-                    .got = uneqd.got,
-                } });
-                return error.CompileError;
-            },
-            .no_such_assoc_type => |no_assoc| {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
-                    .type_span = no_assoc.eq_constraint.lhs().token().span,
-                    .type_name = no_assoc.eq_constraint.lhs().token().data,
-                    .trait_name = no_assoc.trait_name,
-                } });
-                return error.CompileError;
-            },
-        }
-    }
-
-    if (ast.generic_apply.state == .unmorphed) {
-        ast.generic_apply.state = .morphing;
-        ast.generic_apply._symbol = try sym.monomorphize(ast.generic_apply._children, self.ctx);
-        ast.generic_apply.state = .morphed;
-    }
-}
-
-fn monomorphize_generic_apply_type(self: Self, @"type": *Type_AST) walk_.Error!void {
-    const sym = @"type".lhs().symbol().?;
-    const params = sym.decl.?.generic_params();
-
-    var type_args = std.array_list.Managed(*Type_AST).init(self.ctx.allocator());
-    defer type_args.deinit();
-    for (@"type".children().items) |type_arg| {
-        if (type_arg.* == .eq_constraint) continue;
-        try type_args.append(type_arg);
-    }
-
-    if (params.items.len != type_args.items.len) {
-        self.ctx.errors.add_error(errs_.Error{ .mismatch_arity = .{
-            .span = @"type".token().span,
-            .takes = params.items.len,
-            .given = type_args.items.len,
-            .thing_name = sym.name,
-            .takes_name = "type parameter",
-            .given_name = "argument",
-        } });
-        return error.CompileError;
-    }
-
-    for (type_args.items, 0..) |child, i| {
-        try self.ctx.validate_type.validate_type(child);
-        if (child.* == .eq_constraint) continue;
-
-        const param = params.items[i];
-        const sat_res = child.satisfies_all_constraints(param.type_param_decl.constraints.items);
-        switch (sat_res) {
-            .satisfies => {},
-            .not_impl => |unimpld| {
-                self.ctx.errors.add_error(errs_.Error{ .unsatisfied_constraint = .{
-                    .type_span = child.token().span,
-                    .trait_name = unimpld.name,
-                    .type = child,
-                } });
-                return error.CompileError;
-            },
-            .not_eq => |uneqd| {
-                self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
-                    .call_span = child.token().span,
-                    .associated_type_name = uneqd.associated_type_name,
-                    .constraint_span = uneqd.constraint_span,
-                    .impl_span = uneqd.impl_span,
-                    .expected = uneqd.expected,
-                    .got = uneqd.got,
-                } });
-                return error.CompileError;
-            },
-            .no_such_assoc_type => |no_assoc| {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_in_trait = .{
-                    .type_span = no_assoc.eq_constraint.lhs().token().span,
-                    .type_name = no_assoc.eq_constraint.lhs().token().data,
-                    .trait_name = no_assoc.trait_name,
-                } });
-                return error.CompileError;
-            },
-        }
-    }
-
-    if (@"type".generic_apply.state == .unmorphed) {
-        @"type".generic_apply.state = .morphing;
-        @"type".generic_apply._symbol = try sym.monomorphize(type_args, self.ctx);
-        @"type".generic_apply.state = .morphed;
-    }
-}
-
-/// Takes in an a qualified-name AST and returns the symbol that it refers to. This requires looking up modules and packages, and so the
-/// compiler instance is required.
-fn resolve_symbol_from_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
-    switch (ast.*) {
-        .access => return self.resolve_symbol_from_access(ast),
-        .identifier, .pattern_symbol => return self.resolve_symbol_from_identlike(ast),
-        .generic_apply => return ast.symbol().?,
-        else => std.debug.panic("compiler error: fell through {f}", .{ast}),
-    }
-}
-
-/// Takes in an access-ast and resolves the symbol it refers to
-fn resolve_symbol_from_access(self: Self, access_ast: *ast_.AST) walk_.Error!*Symbol {
-    const stripped_lhs = if (access_ast.lhs().* == .addr_of) access_ast.lhs().expr() else access_ast.lhs();
-    const expanded_lhs = stripped_lhs.symbol().?;
-    const symbol = try self.resolve_access_symbol(expanded_lhs, access_ast.rhs(), access_ast.scope().?);
-    access_ast.set_symbol(symbol);
-    return symbol;
-}
-
-/// Takes in a identifier-like AST (such as an identifier or a pattern symbol) and returns the symbol it refers to
-fn resolve_symbol_from_identlike(self: Self, identlike_ast: *ast_.AST) walk_.Error!*Symbol {
-    switch (identlike_ast.symbol().?.kind) {
-        .module => {
-            // We found it as a module _because_ it wasn't imported
-            self.ctx.errors.add_error(errs_.Error{ .undeclared_identifier = .{ .identifier = identlike_ast.token(), .expected = null } });
-            return error.CompileError;
-        },
-        .import => return try self.resolve_symbol_from_import_identlike(identlike_ast),
-        else => return identlike_ast.symbol().?,
-    }
-}
-
-/// Takes in an identlike AST that refers to an import symbol, and returns the module symbol that it imports
-fn resolve_symbol_from_import_identlike(self: Self, identlike_ast: *ast_.AST) !*Symbol {
-    const this_module = identlike_ast.symbol().?.scope.module.?;
-    const curr_package_path = this_module.get_package_abs_path();
-    var module_path_name = std.array_list.Managed(u8).init(self.ctx.allocator());
-    defer module_path_name.deinit();
-    try module_path_name.print("{s}.orng", .{identlike_ast.token().data});
-    const package_build_paths = [_][]const u8{ curr_package_path, module_path_name.items };
-    const other_module_dir = try std.fs.path.join(self.ctx.allocator(), &package_build_paths);
-
-    if (std.mem.eql(u8, identlike_ast.symbol().?.kind.import.real_name, "core")) {
-        return core_.core_symbol.?;
-    }
-
-    // TODO: If these are both non-null, report the ambiguity
-    //       If these are both null, report that the module was not found
-
-    const local_module_lookup = self.ctx.lookup_module(other_module_dir);
-    const foreign_module_lookup = self.ctx.lookup_package_root_module(curr_package_path, identlike_ast.symbol().?.kind.import.real_name);
-
-    // TODO: This doesn't work when we do:
-    //   import module::member
-    return (local_module_lookup orelse foreign_module_lookup) orelse {
-        std.debug.panic("couldn't find module {s} or package {s}", .{ other_module_dir, identlike_ast.symbol().?.kind.import.real_name });
-    };
-}
-
 /// Resolves a symbol access from a module
-fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(rhs);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
+fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: Token) walk_.Error!*Symbol {
     std.debug.assert(module_symbol.kind == .module);
 
     const module_lookup_res = module_symbol.init_value().?.scope().?.lookup(
-        rhs.token().data,
+        rhs.data,
         .{},
     );
     const rhs_decl = switch (module_lookup_res) {
@@ -618,8 +383,8 @@ fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: anytype) walk_
         else => {
             self.ctx.errors.add_error(errs_.Error{
                 .member_not_in_module = .{
-                    .span = rhs.token().span,
-                    .identifier = rhs.token().data,
+                    .span = rhs.span,
+                    .identifier = rhs.data,
                     .name = "module",
                     .module_name = module_symbol.name,
                 },

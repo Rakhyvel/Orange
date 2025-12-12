@@ -2,6 +2,7 @@ const std = @import("std");
 const alignment_ = @import("../util/alignment.zig");
 const AST = @import("../ast/ast.zig").AST;
 const prelude_ = @import("../hierarchy/prelude.zig");
+const process_state_ = @import("../util/process_state.zig");
 const Scope = @import("../symbol/scope.zig");
 const Span = @import("../util/span.zig");
 const String = @import("../zig-string/zig-string.zig").String;
@@ -62,7 +63,7 @@ pub const Type_AST = union(enum) {
         _lhs: *Type_AST,
         args: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
-        state: enum { unmorphed, morphing, morphed } = .unmorphed,
+        state: process_state_.Process_State = .unprocessed,
     },
     eq_constraint: struct {
         common: Type_AST_Common,

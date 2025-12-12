@@ -27,7 +27,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn init_from_slice(pairs: [](K, V)) -> Error!Self with core::Allocating {
         let mut retval = Self::init()
 
-        while let mut i = 0; i < pairs.length; i += 1 {
+        for i in 0...pairs.length {
             try retval.>put(pairs[i][0], pairs[i][1])
         }
 
@@ -43,7 +43,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn clone(&self) -> Error!Self with core::Allocating {
         let mut retval = Self::init()
 
-        while let mut i = 0; i < self.>count(); i += 1 {
+        for i in 0...self.>count() {
             try retval.>put(self.keys[i], self.values[i])
         }
 
@@ -57,7 +57,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn get(&self, key: K) -> ?&V {
         let hash = key.>hash()
 
-        while let mut i = 0; i < self.hashes.length; i += 1 {
+        for i in 0...self.hashes.length {
             if self.hashes[i] == hash {
                 if self.keys[i].>eq(key) {
                     return .some(&self.values[i])
@@ -71,7 +71,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn get_mut(&self, key: K) -> ?&mut V {
         let hash = key.>hash()
 
-        while let mut i = 0; i < self.hashes.length; i += 1 {
+        for i in 0...self.hashes.length {
             if self.hashes[i] == hash {
                 if self.keys[i].>eq(key) {
                     return .some(&mut self.values[i])
@@ -98,7 +98,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn put(&mut self, key: K, value: V) -> Error!() {
         let hash = key.>hash()
 
-        while let mut i = 0; i < self.hashes.length; i += 1 {
+        for i in 0...self.hashes.length {
             if self.hashes[i] == hash and self.keys[i].>eq(key) {
                 self.values[i] = value
                 return .ok
@@ -117,7 +117,7 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
     fn remove(&mut self, key: K) {
         let hash = key.>hash()
 
-        while let mut i = 0; i < self.hashes.length; i += 1 {
+        for i in 0...self.hashes.length {
             if self.hashes[i] == hash and self.keys[i].>eq(key) {
                 let last = self.hashes.length - 1
 
