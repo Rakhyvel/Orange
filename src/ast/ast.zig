@@ -1878,7 +1878,15 @@ pub const AST = union(enum) {
                 if (self.else_block()) |_else| _else.clone(substs, allocator) else null,
                 allocator,
             ),
-            .@"for" => unreachable, // TODO
+            .@"for" => return create_for(
+                self.token(),
+                if (self.@"for".let) |let| let.clone(substs, allocator) else null,
+                self.@"for".elem.clone(substs, allocator),
+                self.@"for".into_iter.clone(substs, allocator),
+                self.@"for"._body_block.clone(substs, allocator),
+                if (self.@"for"._else_block) |_else_block| _else_block.clone(substs, allocator) else null,
+                allocator,
+            ),
             .with => {
                 const cloned_contexts = clone_children(self.with.contexts, substs, allocator);
                 return create_with(

@@ -36,7 +36,7 @@ fn slice_from_parts[T](data: [*]T, length: Int) -> []T {
 fn eql(a: String, b: String) -> Bool {
     if a.length != b.length {return false}
 
-    while let mut i = 0; i < a.length; i += 1 {
+    for i in 0...a.length {
         if a[i] != b[i] {return false}
     }
 
@@ -52,7 +52,7 @@ fn starts_with(haystack: []Byte, needle: []Byte) -> Bool {
 }
 
 fn copy[T](dest: [mut]T, src: []T) {
-    while let mut i = 0; i < src.length; i += 1 {
+    for i in 0...src.length {
         dest[i] = src[i]
     }
 }
@@ -123,7 +123,7 @@ fn replace(input: []Byte, needle: []Byte, replacement: []Byte, output: [mut]Byte
 
 fn reverse(items: [mut]Byte) {
     let end = items.length / 2
-    while let mut i = 0; i < end; i += 1 {
+    for i in 0...end {
         let tmp = items[i]
         items[i] = items[items.length - i - 1]
         items[items.length - i - 1] = tmp

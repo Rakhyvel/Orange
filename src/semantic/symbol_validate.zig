@@ -43,6 +43,8 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     // std.debug.print("validating type for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
 
     if (expected) |expected_type| {
+        const Decorate = @import("../ast/decorate.zig");
+        try walk_.walk_type(expected_type, Decorate.new(symbol.scope, self.ctx));
         try self.ctx.validate_type.validate_type(expected_type);
         if (self.ctx.validate_type.detect_cycle(expected_type, null)) {
             self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
@@ -59,6 +61,8 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     if (symbol.init_value()) |_init| {
         // might be null for parameters
         // Tree_Writer.print_tree(_init);
+        const Decorate = @import("../ast/decorate.zig");
+        try walk_.walk_ast(_init, Decorate.new(symbol.scope, self.ctx));
         _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,

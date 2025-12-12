@@ -24,7 +24,7 @@ impl for Xoshiro128 {
         }
 
         let mut tmp = the_seed
-        while let mut i = 0; i < 4; i += 1 {
+        for i in 0...4 {
             self.state[i] = splitmix32(&mut tmp)
             if self.state[i] == 0 {
                 self.state[i] = 0xDEADBEEF
@@ -80,7 +80,7 @@ test "rand" {
     const iterations = 1_000_000
     const tolerance = 0.05
 
-    while let mut i = 0; i < iterations; i += 1 {
+    for _ in 0...iterations {
         let x = rng.>next_float()
         let idx = math::int_from_float(x * 10.0)
         histogram[idx] += 1
@@ -88,7 +88,7 @@ test "rand" {
 
     let expected = math::float_from_int(iterations) / 10.0
 
-    while let mut i = 0; i < 10; i += 1 {
+    for i in 0...10 {
         let lower = math::int_from_float(expected * (1.0 - tolerance))
         let upper = math::int_from_float(expected * (1.0 + tolerance))
         try testing::expect(histogram[i] >= lower)
@@ -104,7 +104,7 @@ test "uniform" {
 
     let mut rng = Xoshiro128::from_seed(0)
 
-    while let mut i = 0; i < iterations; i += 1 {
+    for _ in 0...iterations {
         let value = rng.>uniform(lower, upper)
         
         try testing::expect(value >= lower)
@@ -119,7 +119,7 @@ test "normal" with core::IO {
     let mut min = 1000.0
     let mut max = -1000.0
 
-    while let mut i = 0; i < 1_000_000; i += 1 {
+    for _ in 0...1_000_000 {
         let x = rng.>normal()
         if x < min { min = x }
         if x > max { max = x }

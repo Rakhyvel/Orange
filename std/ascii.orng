@@ -55,7 +55,7 @@ impl for Byte {
 const whitespace: [6]Byte = [' ', '\t', '\n', '\r', 0x0B, 0x0C]
 
 test "whitespace" {
-    while let mut i = 0; i < 6; i += 1 {
+    for i in 0...6 {
         let char = whitespace[i]
         try testing::expect(char.>is_whitespace())
     }
