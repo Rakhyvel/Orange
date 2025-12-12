@@ -31,7 +31,6 @@ const Import = @import("../ast/import.zig");
 const Cinclude = @import("../ast/cinclude.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
 const Decorate = @import("../ast/decorate.zig");
-// const Decorate_Access = @import("../ast/decorate-access.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
 
 pub const Module_Errors = error{ OutOfMemory, LexerError, ParseError, CompileError, FileNotFound };
