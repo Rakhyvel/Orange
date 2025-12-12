@@ -312,7 +312,7 @@ fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
 
     const symbol = stripped_lhs.symbol().?;
     const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
-    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope().?, stripped_lhs_type);
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs_type);
 }
 
 fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
@@ -351,7 +351,7 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: ?*Scope
                     try self.resolve_access_type(symbol.init_typedef().?)
                 else
                     try self.resolve_access_ast(symbol.init_value().?);
-            return self.resolve_access_symbol(new_symbol, rhs, scope.?, stripped_lhs_type);
+            return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
         },
 
         .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?),
