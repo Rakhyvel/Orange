@@ -1220,12 +1220,12 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const pattern = try self.let_pattern_atom();
 
     _ = try self.expect(.in);
-    const iterable = try self.assignment_expr();
+    const into_iter = try self.assignment_expr();
 
-    const iterable_type = Type_AST.create_type_of(pattern.token(), iterable, self.allocator);
-    var item_token = iterable.token();
+    const into_iter_type = Type_AST.create_type_of(pattern.token(), into_iter, self.allocator);
+    var item_token = into_iter.token();
     item_token.data = "Item";
-    const item_type = Type_AST.create_type_access(pattern.token(), iterable_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
+    const item_type = Type_AST.create_type_access(pattern.token(), into_iter_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
     const elem = ast_.AST.create_binding(
         token,
         pattern,
@@ -1240,7 +1240,7 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         else_block = try self.control_flow();
     }
 
-    return ast_.AST.create_for(token, let, elem, iterable, body_block, else_block, self.allocator);
+    return ast_.AST.create_for(token, let, elem, into_iter, body_block, else_block, self.allocator);
 }
 
 fn fn_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

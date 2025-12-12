@@ -231,7 +231,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .@"for" => {
             try walk_ast(ast.@"for".let, new_context);
             try walk_ast(ast.@"for".elem, new_context);
-            try walk_ast(ast.@"for".iterable, new_context);
+            try walk_ast(ast.@"for".into_iter, new_context);
             try walk_ast(ast.body_block(), new_context);
             try walk_ast(ast.else_block(), new_context);
         },
