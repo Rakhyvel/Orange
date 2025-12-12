@@ -27,3 +27,9 @@ pub const Validation_State = union(enum) {
     /// Validation completed unsuccessfully.
     invalid,
 };
+
+pub const Process_State = union(enum) {
+    unprocessed,
+    processing,
+    processed,
+};

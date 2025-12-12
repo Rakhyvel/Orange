@@ -12,6 +12,7 @@ const core_ = @import("../hierarchy/core.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const process_state_ = @import("../util/process_state.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
@@ -141,7 +142,7 @@ pub const AST = union(enum) {
         _lhs: *AST,
         _children: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
-        state: enum { unmorphed, morphing, morphed } = .unmorphed,
+        state: process_state_.Process_State = .unprocessed,
     },
     select: struct {
         common: AST_Common,
