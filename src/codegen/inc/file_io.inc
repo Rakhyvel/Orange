@@ -52,7 +52,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__file_read(void *
 
     while (1)
     {
-        Orange_String slice;
+        orange_type_String slice;
         struct orange_type_C53265BF4F923210 write_result;
 
         size_t n = fread(buffer, 1, MIN(sizeof(buffer), limit - total), file);
