@@ -245,10 +245,10 @@ fn output_impls(self: *Self) CodeGen_Error!void {
 }
 
 fn output_variant_names(self: *Self) CodeGen_Error!void {
-    if (self.module.enums.items.len > 0) {
+    if (self.module.enums.keys().len > 0) {
         try self.writer.print("\n/* Enum variant name table declarations */\n", .{});
     }
-    for (self.module.enums.items) |enum_decl| {
+    for (self.module.enums.keys()) |enum_decl| {
         try self.writer.print("extern const ", .{});
         try self.emitter.output_type(prelude_.string_type);
         try self.writer.print(" ", .{});

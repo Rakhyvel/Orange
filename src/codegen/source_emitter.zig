@@ -249,10 +249,10 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
 }
 
 fn output_variant_names(self: *Self) CodeGen_Error!void {
-    if (self.module.enums.items.len > 0) {
+    if (self.module.enums.keys().len > 0) {
         try self.writer.print("\n/* Enum variant name tables */\n", .{});
     }
-    for (self.module.enums.items, 0..) |enum_decl, i| {
+    for (self.module.enums.keys(), 0..) |enum_decl, i| {
         if (i != 0) try self.writer.print("\n", .{});
         try self.writer.print("const ", .{});
         try self.emitter.output_type(prelude_.string_type);

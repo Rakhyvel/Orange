@@ -22,7 +22,7 @@ children: std.array_list.Managed(*Self),
 symbols: std.StringArrayHashMap(*Symbol),
 traits: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), // Set of all `trait`s in this scope. Added to in the `decorate` phase.
 impls: std.array_list.Managed(*ast_.AST), // List of all `impl`s in this scope Added to in the `decorate` phase.
-enums: std.array_list.Managed(*ast_.AST), // List of all `enum`s in this scope Added to in the `decorate` phase. This is so we can generate the variant_name functions.
+enums: std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), // List of all `enum`s in this scope Added to in the `decorate` phase. This is so we can generate the variant_name functions.
 tests: std.array_list.Managed(*ast_.AST), // List of all `test`s in this scope Added to in the `decorate` phase.
 module: ?*module_.Module, // Enclosing module
 uid: usize,
@@ -38,7 +38,7 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.symbols = std.StringArrayHashMap(*Symbol).init(allocator);
     retval.traits = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.impls = std.array_list.Managed(*ast_.AST).init(allocator);
-    retval.enums = std.array_list.Managed(*ast_.AST).init(allocator);
+    retval.enums = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
     retval.uid_gen = uid_gen;
@@ -441,13 +441,15 @@ pub fn collect_traits_and_impls_and_enums(
     self: *Self,
     traits: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     impls: *std.array_list.Managed(*ast_.AST),
-    enums: *std.array_list.Managed(*ast_.AST),
+    enums: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
 ) void {
     for (self.traits.keys()) |trait| {
         traits.put(trait, void{}) catch unreachable;
     }
     impls.appendSlice(self.impls.items) catch unreachable;
-    enums.appendSlice(self.enums.items) catch unreachable;
+    for (self.enums.keys()) |@"enum"| {
+        enums.put(@"enum", void{}) catch unreachable;
+    }
 
     for (self.children.items) |child| {
         child.collect_traits_and_impls_and_enums(traits, impls, enums);

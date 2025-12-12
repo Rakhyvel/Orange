@@ -287,7 +287,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             try generic_apply_.instantiate(ast, self.ctx);
         },
         .trait => try self.scope.traits.put(ast, void{}),
-        .enum_decl => try self.scope.enums.append(ast),
+        .enum_decl => try self.scope.enums.put(ast, void{}),
         .@"test" => try self.scope.tests.append(ast),
     }
 }
