@@ -292,74 +292,72 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
     switch (ast.*) {
         .access => {
-            ast.set_symbol(try self.resolve_access_ast(ast));
+            ast.set_symbol(try self.resolve_access_type(ast));
         },
 
         else => {},
     }
 }
 
-fn resolve_access_ast(self: Self, ast: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(ast);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
+fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     std.debug.assert(ast.* == .access);
 
-    const stripped_lhs = if (Ast_Type == *ast_.AST and ast.lhs().* == .addr_of)
+    const stripped_lhs = if (ast.lhs().* == .addr_of)
         ast.lhs().expr()
-    else if (Ast_Type == *Type_AST and ast.lhs().* == .addr_of)
+    else
+        ast.lhs();
+
+    const symbol = stripped_lhs.symbol().?;
+    const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope().?, stripped_lhs_type);
+}
+
+fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
+    std.debug.assert(ast.* == .access);
+
+    const stripped_lhs = if (ast.lhs().* == .addr_of)
         ast.lhs().child()
     else
         ast.lhs();
 
-    if (Ast_Type == *Type_AST) {
-        if (stripped_lhs.* == .type_of) {
-            try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
-        } else if (stripped_lhs.* == .generic_apply) {
-            try self.monomorphize_generic_apply_type(stripped_lhs);
-        }
-        if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
-            return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
-        }
+    if (stripped_lhs.* == .type_of) {
+        try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
+    } else if (stripped_lhs.* == .generic_apply) {
+        try self.monomorphize_generic_apply_type(stripped_lhs);
+    }
+    if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
+        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
     }
 
     const symbol = stripped_lhs.symbol().?;
-    return self.resolve_access_symbol(symbol, ast, stripped_lhs);
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope().?, stripped_lhs);
 }
 
-fn resolve_access_symbol(self: Self, symbol: *Symbol, ast: anytype, stripped_lhs: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(ast);
-    const Stripped_Lhs_Type = @TypeOf(stripped_lhs);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
-    comptime std.debug.assert(Stripped_Lhs_Type == *ast_.AST or Stripped_Lhs_Type == *Type_AST);
-    comptime std.debug.assert(Stripped_Lhs_Type == Ast_Type);
-
+fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: *Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
     switch (symbol.kind) {
-        .module => return try self.resolve_access_module(symbol, ast.rhs()),
+        .module => return try self.resolve_access_module(symbol, rhs),
 
         .import => {
             const module_symbol = symbol.kind.import.real_symbol.?;
-            return try self.resolve_access_module(module_symbol, ast.rhs());
+            return try self.resolve_access_module(module_symbol, rhs);
         },
 
         .import_inner => {
             const new_symbol =
                 if (symbol.decl.?.* == .type_alias)
-                    try self.resolve_access_ast(symbol.init_typedef().?)
+                    try self.resolve_access_type(symbol.init_typedef().?)
                 else
                     try self.resolve_access_ast(symbol.init_value().?);
-            return self.resolve_access_symbol(new_symbol, ast, stripped_lhs);
+            return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
         },
 
-        .type => {
-            const stripped_lhs_type = if (Stripped_Lhs_Type == *ast_.AST) Type_AST.from_ast(stripped_lhs, self.ctx.allocator()) else stripped_lhs;
-            return try self.resolve_access_const(stripped_lhs_type, ast.rhs().token(), ast.scope().?);
-        },
+        .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope),
 
         else => {
             self.ctx.errors.add_error(errs_.Error{
                 .member_not_in_module = .{
-                    .span = ast.rhs().token().span,
-                    .identifier = ast.rhs().token().data,
+                    .span = rhs.span,
+                    .identifier = rhs.data,
                     .name = "symbol",
                     .module_name = symbol.name,
                 },
@@ -497,74 +495,12 @@ fn monomorphize_generic_apply_type(self: Self, @"type": *Type_AST) walk_.Error!v
     }
 }
 
-/// Takes in an a qualified-name AST and returns the symbol that it refers to. This requires looking up modules and packages, and so the
-/// compiler instance is required.
-fn resolve_symbol_from_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
-    switch (ast.*) {
-        .access => return self.resolve_symbol_from_access(ast),
-        .identifier, .pattern_symbol => return self.resolve_symbol_from_identlike(ast),
-        .generic_apply => return ast.symbol().?,
-        else => std.debug.panic("compiler error: fell through {f}", .{ast}),
-    }
-}
-
-/// Takes in an access-ast and resolves the symbol it refers to
-fn resolve_symbol_from_access(self: Self, access_ast: *ast_.AST) walk_.Error!*Symbol {
-    const stripped_lhs = if (access_ast.lhs().* == .addr_of) access_ast.lhs().expr() else access_ast.lhs();
-    const expanded_lhs = stripped_lhs.symbol().?;
-    const symbol = try self.resolve_access_symbol(expanded_lhs, access_ast.rhs(), access_ast.scope().?);
-    access_ast.set_symbol(symbol);
-    return symbol;
-}
-
-/// Takes in a identifier-like AST (such as an identifier or a pattern symbol) and returns the symbol it refers to
-fn resolve_symbol_from_identlike(self: Self, identlike_ast: *ast_.AST) walk_.Error!*Symbol {
-    switch (identlike_ast.symbol().?.kind) {
-        .module => {
-            // We found it as a module _because_ it wasn't imported
-            self.ctx.errors.add_error(errs_.Error{ .undeclared_identifier = .{ .identifier = identlike_ast.token(), .expected = null } });
-            return error.CompileError;
-        },
-        .import => return try self.resolve_symbol_from_import_identlike(identlike_ast),
-        else => return identlike_ast.symbol().?,
-    }
-}
-
-/// Takes in an identlike AST that refers to an import symbol, and returns the module symbol that it imports
-fn resolve_symbol_from_import_identlike(self: Self, identlike_ast: *ast_.AST) !*Symbol {
-    const this_module = identlike_ast.symbol().?.scope.module.?;
-    const curr_package_path = this_module.get_package_abs_path();
-    var module_path_name = std.array_list.Managed(u8).init(self.ctx.allocator());
-    defer module_path_name.deinit();
-    try module_path_name.print("{s}.orng", .{identlike_ast.token().data});
-    const package_build_paths = [_][]const u8{ curr_package_path, module_path_name.items };
-    const other_module_dir = try std.fs.path.join(self.ctx.allocator(), &package_build_paths);
-
-    if (std.mem.eql(u8, identlike_ast.symbol().?.kind.import.real_name, "core")) {
-        return core_.core_symbol.?;
-    }
-
-    // TODO: If these are both non-null, report the ambiguity
-    //       If these are both null, report that the module was not found
-
-    const local_module_lookup = self.ctx.lookup_module(other_module_dir);
-    const foreign_module_lookup = self.ctx.lookup_package_root_module(curr_package_path, identlike_ast.symbol().?.kind.import.real_name);
-
-    // TODO: This doesn't work when we do:
-    //   import module::member
-    return (local_module_lookup orelse foreign_module_lookup) orelse {
-        std.debug.panic("couldn't find module {s} or package {s}", .{ other_module_dir, identlike_ast.symbol().?.kind.import.real_name });
-    };
-}
-
 /// Resolves a symbol access from a module
-fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: anytype) walk_.Error!*Symbol {
-    const Ast_Type = @TypeOf(rhs);
-    comptime std.debug.assert(Ast_Type == *ast_.AST or Ast_Type == *Type_AST);
+fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: Token) walk_.Error!*Symbol {
     std.debug.assert(module_symbol.kind == .module);
 
     const module_lookup_res = module_symbol.init_value().?.scope().?.lookup(
-        rhs.token().data,
+        rhs.data,
         .{},
     );
     const rhs_decl = switch (module_lookup_res) {
@@ -572,8 +508,8 @@ fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: anytype) walk_
         else => {
             self.ctx.errors.add_error(errs_.Error{
                 .member_not_in_module = .{
-                    .span = rhs.token().span,
-                    .identifier = rhs.token().data,
+                    .span = rhs.span,
+                    .identifier = rhs.data,
                     .name = "module",
                     .module_name = module_symbol.name,
                 },
