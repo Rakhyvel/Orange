@@ -224,7 +224,7 @@ impl for String_Buffer {
                 let rend = get_index(buffer, end, true).some
                 let difference = rend - rstart
 
-                while let mut i = rend; i < self.size; i += 1 {
+                for i in rend...self.size {
                     buffer[i - difference] = buffer[i]
                 }
 

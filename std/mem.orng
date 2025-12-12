@@ -69,7 +69,7 @@ fn index_of(haystack: []Byte, needle: []Byte) -> ?Int {
     while let mut i = 0; i <= haystack.length - needle.length; i += 1 {
         let mut found = true
 
-        while let mut j = 0; j < needle.length; j += 1 {
+        for j in 0...needle.length {
             if haystack[i + j] != needle[j] {
                 found = false
                 break
