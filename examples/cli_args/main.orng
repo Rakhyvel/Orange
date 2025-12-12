@@ -4,7 +4,7 @@ import std::fmt
 fn main() -> ()!() with (core::IO, core::Args) {
     try @println("given {core::Args.args.length} args:")
 
-    for i in core::Range(0, core::Args.args.length) {
+    for i in 0...core::Args.args.length {
         try @println("arg[{i}]: {core::Args.args[i]}")
     }
 

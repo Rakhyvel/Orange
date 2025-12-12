@@ -266,6 +266,7 @@ pub const AST = union(enum) {
         mut: bool,
     },
     sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
+    range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
         common: AST_Common,
         kind: Receiver_Kind,
@@ -1029,6 +1030,20 @@ pub const AST = union(enum) {
         return AST.box(AST{ .sub_slice = .{
             .common = _common,
             .super = super,
+            .lower = lower,
+            .upper = upper,
+        } }, allocator);
+    }
+
+    pub fn create_range(
+        _token: Token,
+        lower: *AST,
+        upper: *AST,
+        allocator: std.mem.Allocator,
+    ) *AST {
+        const _common: AST_Common = .{ ._token = _token };
+        return AST.box(AST{ .range = .{
+            .common = _common,
             .lower = lower,
             .upper = upper,
         } }, allocator);
@@ -1813,6 +1828,12 @@ pub const AST = union(enum) {
                 if (self.sub_slice.upper) |upper| upper.clone(substs, allocator) else null,
                 allocator,
             ),
+            .range => return create_range(
+                self.token(),
+                self.range.lower.clone(substs, allocator),
+                self.range.upper.clone(substs, allocator),
+                allocator,
+            ),
             .receiver => {
                 var retval = create_receiver(
                     self.token(),
@@ -2553,6 +2574,7 @@ pub const AST = union(enum) {
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
             .slice_of => try out.print("slice_of()", .{}),
             .sub_slice => try out.print("sub_slice()", .{}),
+            .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),
 
             .@"if" => try out.print("if()", .{}),

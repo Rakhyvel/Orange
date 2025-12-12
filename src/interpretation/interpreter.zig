@@ -454,6 +454,7 @@ pub fn alloc(self: *Self, nbytes: i64, align_to: i64) error{CompileError}!usize 
 pub fn extract_ast(self: *Self, address: i64, _type: *Type_AST, span: Span) Error!*ast_.AST {
     // FIXME: High Cyclo
     std.debug.assert(address >= 0);
+    std.debug.assert(address < self.memory.memory.len);
     switch (_type.*) {
         .identifier => return self.extract_identifier(address, _type, span),
         .addr_of => return ast_.AST.create_int(

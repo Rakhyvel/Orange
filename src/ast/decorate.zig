@@ -333,10 +333,10 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
     }
 
     const symbol = stripped_lhs.symbol().?;
-    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope().?, stripped_lhs);
+    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs);
 }
 
-fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: *Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
+fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: ?*Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
     switch (symbol.kind) {
         .module => return try self.resolve_access_module(symbol, rhs),
 
@@ -351,10 +351,10 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: *Scope,
                     try self.resolve_access_type(symbol.init_typedef().?)
                 else
                     try self.resolve_access_ast(symbol.init_value().?);
-            return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
+            return self.resolve_access_symbol(new_symbol, rhs, scope.?, stripped_lhs_type);
         },
 
-        .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope),
+        .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?),
 
         else => {
             self.ctx.errors.add_error(errs_.Error{

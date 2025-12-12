@@ -191,7 +191,7 @@ pub fn lookup_interned_string_set(self: *Self, module_uid: u32) ?*Interned_Strin
     return self.module_interned_strings.get(module_uid);
 }
 
-pub fn lookup_package(self: *Self, package_absolute_path: []const u8) ?*Package {
+pub inline fn lookup_package(self: *Self, package_absolute_path: []const u8) ?*Package {
     std.debug.assert(std.fs.path.isAbsolute(package_absolute_path));
     return self.packages.get(package_absolute_path);
 }
@@ -214,7 +214,7 @@ pub fn register_package(self: *Self, package_absolute_path: []const u8, kind: Pa
     }
 }
 
-pub fn make_package_requirement_link(self: *Self, package_absolute_path: []const u8, requirement_name: []const u8, requirement_absolute_path: []const u8) !void {
+pub inline fn make_package_requirement_link(self: *Self, package_absolute_path: []const u8, requirement_name: []const u8, requirement_absolute_path: []const u8) !void {
     const package = self.lookup_package(package_absolute_path).?;
     const requirement = self.lookup_package(requirement_absolute_path).?;
     try package.requirements.put(requirement_name, requirement.root);

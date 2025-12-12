@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
+const core_ = @import("../hierarchy/core.zig");
 const errs_ = @import("../util/errors.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Token = @import("../lexer/token.zig");
@@ -32,6 +33,7 @@ fn expand_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         // TOOD: A pass that ensures that there are no duplicate fields in product and sum types
 
         .sub_slice => self.expand_subslice(ast),
+        .range => try self.expand_range(ast),
     }
 
     return self;
@@ -50,4 +52,11 @@ fn expand_subslice(self: Self, ast: *ast_.AST) void {
             self.allocator,
         );
     }
+}
+
+fn expand_range(self: Self, ast: *ast_.AST) !void {
+    var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    try terms.append(ast.range.lower);
+    try terms.append(ast.range.upper);
+    ast.* = ast_.AST.create_struct_value(ast.token(), core_.range_type, terms, self.allocator).*;
 }

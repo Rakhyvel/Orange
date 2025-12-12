@@ -695,21 +695,30 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    var exp = try self.coalesce_expr();
+    var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
-        exp = ast_.AST.create_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
-        exp = ast_.AST.create_not_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {
-        exp = ast_.AST.create_greater(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_greater(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser)) |token| {
-        exp = ast_.AST.create_lesser(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_lesser(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater_equal)) |token| {
-        exp = ast_.AST.create_greater_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_greater_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser_equal)) |token| {
-        exp = ast_.AST.create_lesser_equal(token, exp, try self.coalesce_expr(), self.allocator);
+        exp = ast_.AST.create_lesser_equal(token, exp, try self.range_expr(), self.allocator);
     }
     return exp;
+}
+
+fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const exp = try self.coalesce_expr();
+    if (self.accept(.triple_period)) |token| {
+        return ast_.AST.create_range(token, exp, try self.coalesce_expr(), self.allocator);
+    } else {
+        return exp;
+    }
 }
 
 fn coalesce_expr(self: *Self) Parser_Error_Enum!*ast_.AST {

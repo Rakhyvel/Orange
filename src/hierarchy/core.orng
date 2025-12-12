@@ -245,6 +245,39 @@ impl[I] Into_Iterator for []I {
     }
 }
 
+struct Range {
+    start: Int
+    end: Int
+}
+
+struct Range_Iter {
+    range: Range
+    counter: Int
+}
+
+impl Into_Iterator for Range {
+    type Item = Int
+    type Iter = Range_Iter
+
+    fn into_iter(self) -> Self::Iter {
+        Range_Iter(self, self.start)
+    }
+}
+
+impl Iterator for Range_Iter {
+    type Item = Int
+
+    fn next(&mut self) -> ?Int {
+        if self.counter == self.range.end {
+            .none
+        } else {
+            let retval = self.counter
+            self.counter += 1
+            .some(retval)
+        }
+    }
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }
