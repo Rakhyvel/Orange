@@ -10,7 +10,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self, struct orange_type_73877515D86B0F5 bytes)
+static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self, orange_type_String bytes)
 {
     (void)self;
 
@@ -49,7 +49,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self,
 
     while (1)
     {
-        struct orange_type_73877515D86B0F5 slice;
+        orange_type_String slice;
         struct orange_type_C53265BF4F923210 write_result;
 
         size_t n = fread(buffer, 1, MIN(sizeof(buffer), limit - total), stdin);

@@ -6,15 +6,11 @@
 
 #include <string.h>
 
-typedef struct orange_type_73877515D86B0F5 String;
-typedef struct orange_type_8DD94FB2CD582B67 StringSlice;
-typedef struct orange_type_864264E9D1D1FECD ArgsCtx;
-
-static inline ArgsCtx orange__core__convert_args(int argc, char **argv)
+static inline orange_type_ArgsCtx orange__core__convert_args(int argc, char **argv)
 {
-    StringSlice result;
+    orange_type_StringSlice result;
 
-    result._0 = malloc(sizeof(String) * (size_t)argc);
+    result._0 = malloc(sizeof(orange_type_String) * (size_t)argc);
     result._1 = (int64_t)argc;
 
     for (int i = 0; i < argc; i += 1)
@@ -26,7 +22,7 @@ static inline ArgsCtx orange__core__convert_args(int argc, char **argv)
         result._0[i]._1 = (int64_t)len;
     }
 
-    return (ArgsCtx){._0 = result};
+    return (orange_type_ArgsCtx){._0 = result};
 }
 
 #endif
