@@ -94,11 +94,7 @@ fn hash_type_internal(
         },
         .anyptr_type => try writer.print("void", .{}),
         .unit_type => try writer.print("unit", .{}),
-        .struct_type => {
-            try writer.print("struct{}", .{non_unit_len(real_type)});
-            try append_struct_fields(real_type, seen_map, next_id, writer);
-        },
-        .tuple_type => {
+        .struct_type, .tuple_type => {
             try writer.print("tuple{}", .{non_unit_len(real_type)});
             try append_fields(real_type, seen_map, next_id, writer);
         },
@@ -148,22 +144,7 @@ fn append_fields(
     writer: *std.io.Writer,
 ) !void {
     for (_type.children().items) |child| {
-        if (child.is_c_void_type()) continue;
         try writer.print("_", .{});
-        try hash_type_internal(child, seen_map, next_id, writer);
-    }
-}
-
-fn append_struct_fields(
-    _type: *Type_AST,
-    seen_map: *C_Type_Map(usize),
-    next_id: *usize,
-    writer: *std.io.Writer,
-) !void {
-    for (_type.children().items) |child| {
-        if (child.is_c_void_type()) continue;
-        // structs need to append their field name, since it is signfiicant when codegening to C
-        try writer.print("_F{s}E", .{child.annotation.pattern.token().data});
         try hash_type_internal(child, seen_map, next_id, writer);
     }
 }
