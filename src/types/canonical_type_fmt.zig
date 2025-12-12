@@ -96,11 +96,11 @@ fn hash_type_internal(
         .unit_type => try writer.print("unit", .{}),
         .struct_type, .tuple_type => {
             try writer.print("tuple{}", .{non_unit_len(real_type)});
-            try append_fields(real_type, seen_map, next_id, writer);
+            try append_tuple_fields(real_type, seen_map, next_id, writer);
         },
         .context_type => {
             try writer.print("context{}", .{non_unit_len(real_type)});
-            try append_fields(real_type, seen_map, next_id, writer);
+            try append_tuple_fields(real_type, seen_map, next_id, writer);
         },
         .array_of => {
             try writer.print("array{}_", .{real_type.array_of.len.int.data});
@@ -109,18 +109,18 @@ fn hash_type_internal(
         .enum_type => {
             // TODO will likely need to emit the tag size, too
             try writer.print("enum{}", .{non_unit_len(real_type)});
-            try append_fields(real_type, seen_map, next_id, writer);
+            try append_enum_fields(real_type, seen_map, next_id, writer);
         },
         .untagged_sum_type => {
             try writer.print("union", .{});
-            try append_fields(real_type.child().expand_identifier(), seen_map, next_id, writer);
+            try append_enum_fields(real_type.child().expand_identifier(), seen_map, next_id, writer);
         },
         .dyn_type => {
             try writer.print("dyn_{s}", .{real_type.child().symbol().?.name});
         },
         .function => {
             try writer.print("function{}", .{non_unit_len(real_type)});
-            try append_fields(real_type, seen_map, next_id, writer);
+            try append_tuple_fields(real_type, seen_map, next_id, writer);
             try writer.print("_", .{});
             try hash_type_internal(real_type.rhs(), seen_map, next_id, writer);
         },
@@ -137,13 +137,26 @@ fn non_unit_len(real_type: *Type_AST) usize {
     return ret;
 }
 
-fn append_fields(
+fn append_tuple_fields(
     _type: *Type_AST,
     seen_map: *C_Type_Map(usize),
     next_id: *usize,
     writer: *std.io.Writer,
 ) !void {
     for (_type.children().items) |child| {
+        try writer.print("_", .{});
+        try hash_type_internal(child, seen_map, next_id, writer);
+    }
+}
+
+fn append_enum_fields(
+    _type: *Type_AST,
+    seen_map: *C_Type_Map(usize),
+    next_id: *usize,
+    writer: *std.io.Writer,
+) !void {
+    for (_type.children().items) |child| {
+        if (child.is_c_void_type()) continue;
         try writer.print("_", .{});
         try hash_type_internal(child, seen_map, next_id, writer);
     }
