@@ -1,4 +1,4 @@
-// access_not_found.orng:6:13: error: the type `Int` does not implement the method `new`
+// access_not_found.orng:6:13: error: the type `Int` does not contain the member `new`
 //     Int::new()
 //            ^
 // 

@@ -1,4 +1,4 @@
-// constraint_mismatch.orng:11:25: error: type `T` does not implement trait `Show`
+// constraint_mismatch.orng:11:25: error: the type `T` does not implement the trait `Show`
 // impl[T: Eq] for Holder[T] {
 //                        ^
 // 

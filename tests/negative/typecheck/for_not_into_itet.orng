@@ -1,4 +1,4 @@
-// for_not_into_iter.orng:7:15: error: the type `Int` does not implement the method `Item`
+// for_not_into_itet.orng:7:15: error: the type `Int` does not contain the member `Item`
 //     for x in 4 {
 //              ^
 // 

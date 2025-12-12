@@ -452,7 +452,7 @@ pub const Error = union(enum) {
             .type_not_impl_method => {
                 writer.print("the type `", .{}) catch unreachable;
                 err.type_not_impl_method._type.print_type(writer) catch unreachable;
-                writer.print("` does not implement the method `{s}`\n", .{err.type_not_impl_method.method_name}) catch unreachable;
+                writer.print("` does not contain the member `{s}`\n", .{err.type_not_impl_method.method_name}) catch unreachable;
             },
             .type_not_impl_trait => {
                 writer.print("the type `", .{}) catch unreachable;

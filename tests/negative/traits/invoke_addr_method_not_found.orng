@@ -1,4 +1,4 @@
-// invoke_addr_method_not_found.orng:8:8: error: the type `&Int` does not implement the method `add`
+// invoke_addr_method_not_found.orng:8:8: error: the type `&Int` does not contain the member `add`
 //     y.>add(56)
 //       ^
 // 
