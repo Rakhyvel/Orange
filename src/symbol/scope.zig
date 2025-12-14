@@ -144,20 +144,15 @@ const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_Trait_Lookup_Result {
-    if (false) {
+    if (true) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
-        std.debug.print("is identifier: {}\n", .{for_type.* == .identifier});
-        if (for_type.* == .identifier) {
-            std.debug.print("symbol isnt null: {}\n", .{for_type.symbol() != null});
-            if (for_type.symbol() != null) {
-                std.debug.print("symbol kind: {t}\n", .{for_type.symbol().?.kind});
-            }
-        }
+        Tree_Writer.print_type_tree(for_type);
         self.pprint();
     }
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null };
 
-    if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
+    // Type param with the constraint, return positive count with null ast if traits match
+    if ((for_type.* == .identifier or for_type.* == .access) and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = constraint.symbol().?;
@@ -167,16 +162,28 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
         }
     }
 
+    // As-trait ascription, return positive count with null ast if traits match
+    if (for_type.* == .as_trait and for_type.rhs().symbol().? == trait) {
+        return self.impl_trait_lookup(for_type.lhs(), trait);
+    }
+
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
+        const traits_match = impl.impl.trait.?.symbol() == trait;
+        if (!traits_match) continue;
+
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
-        unification_.unify(impl.impl._type, for_type, &subst) catch continue;
-        const traits_match = impl.impl.trait.?.symbol() == trait;
-        if (traits_match) {
-            retval.count += 1;
-            retval.ast = retval.ast orelse impl;
-        }
+        std.debug.print("STARTING UNIFY: {s}\n", .{impl.impl.trait.?.symbol().?.name});
+        Tree_Writer.print_type_tree(impl.impl._type);
+        unification_.unify(impl.impl._type, for_type, &subst) catch {
+            std.debug.print("NOT FOUND\n", .{});
+            continue;
+        };
+        std.debug.print("FOUND, {s} == {s}?\n", .{ impl.impl.trait.?.symbol().?.name, trait.name });
+
+        retval.count += 1;
+        retval.ast = retval.ast orelse impl;
     }
 
     // Go through imports
@@ -236,7 +243,8 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
     return null;
 }
 
-fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+/// Searches a trait declaration for a declaration. Clones and substitutes any references to `Self` with `for_type`.
+pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     // TODO: (for next release) De-duplicate this
     for (trait_decl.trait.method_decls.items) |method_decl| {
         if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
@@ -379,7 +387,8 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 
-fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
+/// Searches an impl for a field name
+pub fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     for (impl.impl.method_defs.items) |method_def| {
         if (std.mem.eql(u8, method_def.method_decl.name.token().data, name)) {
             return method_def;

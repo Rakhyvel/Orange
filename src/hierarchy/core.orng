@@ -278,6 +278,15 @@ impl Iterator for Range_Iter {
     }
 }
 
+impl[T: Iterator] Into_Iterator for T {
+    type Item = (T as Iterator)::Item
+    type Iter = T
+
+    fn into_iter(self) -> Self::Iter {
+        self
+    }
+}
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

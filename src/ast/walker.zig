@@ -338,7 +338,7 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
 
         .type_of => try walk_ast(_type.type_of._expr, new_context),
 
-        .access => {
+        .access, .as_trait => {
             try walk_type(_type.lhs(), new_context);
             try walk_type(_type.rhs(), new_context);
         },

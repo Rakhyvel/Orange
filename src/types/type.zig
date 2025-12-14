@@ -58,6 +58,11 @@ pub const Type_AST = union(enum) {
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
+    as_trait: struct {
+        common: Type_AST_Common,
+        _lhs: *Type_AST,
+        _rhs: *Type_AST,
+    },
     generic_apply: struct {
         common: Type_AST_Common,
         _lhs: *Type_AST,
@@ -254,6 +259,15 @@ pub const Type_AST = union(enum) {
     pub fn create_type_access(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .access = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
+        } }, allocator);
+    }
+
+    pub fn create_as_trait(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+        const _common: Type_AST_Common = .{ ._token = _token };
+        return Type_AST.box(Type_AST{ .as_trait = .{
             .common = _common,
             ._lhs = _lhs,
             ._rhs = _rhs,
@@ -562,6 +576,7 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn symbol(self: Type_AST) ?*Symbol {
+        if (self == .as_trait) return self.lhs().symbol();
         return union_fields_.get_struct_field(self, "_symbol");
     }
 
@@ -750,7 +765,7 @@ pub const Type_AST = union(enum) {
                     }
                 }
             },
-            .struct_type, .tuple_type, .context_type => if (self.* == .struct_type and self.struct_type.was_slice) {
+            .struct_type => if (self.struct_type.was_slice) {
                 const data_ptr = self.children().items[0].child();
                 if (data_ptr.addr_of.mut) {
                     try out.print("[mut]", .{});
@@ -759,6 +774,26 @@ pub const Type_AST = union(enum) {
                 }
                 try data_ptr.child().print_type(out);
             } else {
+                try out.print("struct {{", .{});
+                for (self.children().items, 0..) |term, i| {
+                    try term.print_type(out);
+                    if (i + 1 < self.children().items.len) {
+                        try out.print(", ", .{});
+                    }
+                }
+                try out.print("}}", .{});
+            },
+            .context_type => {
+                try out.print("context {{", .{});
+                for (self.children().items, 0..) |term, i| {
+                    try term.print_type(out);
+                    if (i + 1 < self.children().items.len) {
+                        try out.print(", ", .{});
+                    }
+                }
+                try out.print("}}", .{});
+            },
+            .tuple_type => {
                 try out.print("(", .{});
                 for (self.children().items, 0..) |term, i| {
                     try term.print_type(out);
@@ -789,6 +824,7 @@ pub const Type_AST = union(enum) {
             .access => {
                 try out.print("{f}::{s}", .{ self.lhs(), self.rhs().token().data });
             },
+            .as_trait => try out.print("({f} as {f})", .{ self.lhs(), self.rhs() }),
             .generic_apply => {
                 try out.print("{f}[{f}", .{ self.generic_apply._lhs, self.generic_apply.args.items[0] });
                 for (self.generic_apply.args.items[1..]) |arg| {
@@ -834,6 +870,8 @@ pub const Type_AST = union(enum) {
                 return primitive_info.size;
             },
 
+            .access => return self.symbol().?.init_typedef().?.sizeof(),
+
             .struct_type, .tuple_type, .context_type => {
                 var total_size: i64 = 0;
                 for (self.children().items) |_child| {
@@ -870,7 +908,7 @@ pub const Type_AST = union(enum) {
 
             .annotation => return self.child().sizeof(),
 
-            else => std.debug.panic("compiler error: unimplemented sizeof() for {f}", .{self}),
+            else => std.debug.panic("compiler error: unimplemented sizeof() for {t}", .{self.*}),
         }
     }
 
@@ -1021,6 +1059,7 @@ pub const Type_AST = union(enum) {
                 // std.debug.print("{s} == {s}\n", .{ A.symbol().?.name, B.symbol().?.name });
                 return A.symbol().? == B.symbol().?;
             },
+            .as_trait => return types_match(A.lhs(), B.lhs()),
             .addr_of => return (!B.addr_of.mut or B.addr_of.mut == A.addr_of.mut) and (B.addr_of.multiptr == A.addr_of.multiptr) and types_match(A.child(), B.child()),
             .array_of => return types_match(A.child(), B.child()) and A.array_of.len.int.data == B.array_of.len.int.data,
             .anyptr_type => return B.* == .anyptr_type,
@@ -1127,12 +1166,20 @@ pub const Type_AST = union(enum) {
                 const trait = constraint.base_symbol().?;
                 const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
                 if (res.count == 0) {
+                    std.debug.print("not impl 1\n", .{});
                     return .{ .not_impl = trait };
                 }
 
                 if (constraint.* == .generic_apply) {
                     for (constraint.children().items) |eq_constraint| {
-                        const impl = res.ast orelse return .{ .not_impl = trait };
+                        const impl = res.ast orelse {
+                            if (self.* == .identifier and self.symbol().?.decl.?.* == .type_param_decl) {
+                                self.symbol().?.decl.?.type_param_decl.constraints.append(constraint) catch unreachable;
+                                continue;
+                            }
+                            std.debug.print("not impl 2\n", .{});
+                            return .{ .not_impl = trait };
+                        };
                         const associated_type_name = eq_constraint.lhs().token().data;
 
                         var type_def: ?*AST = null;
@@ -1143,12 +1190,14 @@ pub const Type_AST = union(enum) {
                             }
                         }
                         if (type_def == null) {
+                            std.debug.print("no assoc 1\n", .{});
                             return .{ .no_such_assoc_type = .{
                                 .eq_constraint = eq_constraint,
                                 .trait_name = trait.name,
                             } };
                         }
                         if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
+                            std.debug.print("not eq 1\n", .{});
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
                                 .expected = eq_constraint.rhs(),
@@ -1250,6 +1299,7 @@ pub const Type_AST = union(enum) {
             },
             .field => return self,
             .access => return create_type_access(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
+            .as_trait => return create_as_trait(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .type_of => {
                 const _expr = self.expr().clone(substs, allocator);
                 return create_type_of(self.token(), _expr, allocator);
@@ -1318,6 +1368,33 @@ pub const Type_AST = union(enum) {
             retval.append(_child.clone(substs, allocator)) catch unreachable;
         }
         return retval;
+    }
+
+    pub fn is_generic(_type: *Type_AST) bool {
+        return switch (_type.*) {
+            .anyptr_type, .unit_type, .dyn_type => false,
+            .identifier => _type.symbol().?.decl.?.* == .type_param_decl,
+            .addr_of, .array_of => _type.child().refers_to_self(),
+            .annotation => _type.child().refers_to_self(),
+            .function => {
+                for (_type.function.args.items) |arg| {
+                    if (arg.refers_to_self()) {
+                        return true;
+                    }
+                }
+                return _type.rhs().refers_to_self();
+            },
+            .struct_type, .tuple_type, .enum_type => {
+                for (_type.children().items) |item| {
+                    if (item.refers_to_self()) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            // I think everything above covers everything, but just in case, error out
+            else => true,
+        };
     }
 
     pub fn refers_to_self(_type: *Type_AST) bool {

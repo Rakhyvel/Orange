@@ -73,6 +73,7 @@ pub fn generate_default(_type: *Type_AST, span: Span, errors: *errs_.Errors, all
         } else {
             return generate_default(_type.child(), span, errors, allocator);
         },
+        .as_trait => return generate_default(_type.lhs(), span, errors, allocator),
         .array_of => {
             var value_terms = std.array_list.Managed(*ast_.AST).init(allocator);
             const child = try generate_default(_type.child(), span, errors, allocator);

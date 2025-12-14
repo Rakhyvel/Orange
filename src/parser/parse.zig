@@ -450,6 +450,13 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
                 Type_AST.create_field(try self.expect(.identifier), self.allocator),
                 self.allocator,
             );
+        } else if (self.accept(.as)) |token| {
+            exp = Type_AST.create_as_trait(
+                token,
+                exp,
+                try self.type_expr(),
+                self.allocator,
+            );
         } else if (self.peek_kind(.left_square)) {
             const args = try self.generics_args();
             exp = Type_AST.create_generic_apply_type(exp.token(), exp, args, self.allocator);

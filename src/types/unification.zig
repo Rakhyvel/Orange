@@ -7,8 +7,8 @@ pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 
 // Attempt to match the rhs with the lhs
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
-    // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
-    // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
+    std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
+    std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
 
     if (lhs.is_ident_type("Void")) {
         return; // Bottom type - vacuously true
@@ -103,12 +103,6 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
             if (lhs_constructor.symbol() != rhs_constructor.symbol()) {
                 return error.TypesMismatch;
             }
-            // if (!std.mem.eql(u8, lhs_constructor.token().data, rhs_constructor.token().data)) {
-            //     std.debug.print("constructors differ: {s} vs {s}\n", .{ lhs_constructor.token().data, rhs_constructor.token().data });
-            //     Tree_Writer.print_type_tree(lhs_constructor);
-            //     Tree_Writer.print_type_tree(rhs_constructor);
-            //     return error.TypesMismatch;
-            // }
             if (lhs.children().items.len != rhs.children().items.len) {
                 std.debug.print("arg lengths differ\n", .{});
                 return error.TypesMismatch;

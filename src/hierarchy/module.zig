@@ -309,6 +309,7 @@ pub const Module = struct {
 
     fn collect_impls_cfgs(self: *Module, compiler: *Compiler_Context) Module_Errors!void {
         for (self.impls.items) |impl| {
+            if (impl.impl._type.is_generic()) continue;
             if (impl.impl.instantiations.pairs.items.len == 0) {
                 try self.collect_impl_cfgs(impl, compiler);
             } else {

@@ -1,0 +1,42 @@
+// 450
+
+trait Wrapper {
+    type Elem
+    fn get_value(self) -> Self::Elem
+}
+
+trait Into_Wrapper {
+    type Elem
+    type Wrapper_Type: Wrapper[Elem = Self::Elem]
+
+    fn into_wrapper(self) -> Self::Wrapper_Type
+}
+
+impl[T: Wrapper] Into_Wrapper for T {
+    type Elem = (T as Wrapper)::Elem
+    type Wrapper_Type = T
+
+    fn into_wrapper(self) -> Self::Wrapper_Type {
+        self
+    }
+}
+
+fn unwrap[T: Into_Wrapper](t: T) -> T::Elem {
+    t.>into_wrapper().>get_value()
+}
+
+struct Int_Wrapper {
+    x: Int
+}
+
+impl Wrapper for Int_Wrapper {
+    type Elem = Int
+    fn get_value(self) -> Self::Elem {
+        self.x
+    }
+}
+
+fn main() -> Int {
+    let wrapper = Int_Wrapper(450)
+    unwrap[Int_Wrapper](wrapper)
+}

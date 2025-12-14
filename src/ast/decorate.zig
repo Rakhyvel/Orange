@@ -328,6 +328,17 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
     } else if (stripped_lhs.* == .generic_apply) {
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
+    if (stripped_lhs.* == .as_trait) {
+        const res = self.scope.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?);
+        if (res.ast != null) {
+            const decl = Scope.search_impl(res.ast.?, ast.rhs().token().data);
+            try walk_.walk_ast(decl, self);
+            return decl.?.symbol().?;
+        } else {
+            const decl = try self.scope.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), ast.rhs().token().data, self.ctx);
+            return decl.?.symbol().?;
+        }
+    }
     if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
         return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
     }
