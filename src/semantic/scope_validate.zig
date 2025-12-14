@@ -21,12 +21,18 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
-    for (scope.symbols.keys()) |key| {
+    var i: usize = 0;
+    while (i < scope.symbols.keys().len) : (i += 1) {
+        const key = scope.symbols.keys()[i];
         const symbol = scope.symbols.get(key).?;
 
+        if (i > 600) {
+            scope.pprint();
+            std.debug.panic("nah", .{});
+        }
         try self.ctx.validate_symbol.validate_symbol(symbol);
     }
-    var i: usize = 0;
+    i = 0;
     while (i < scope.children.items.len) : (i += 1) {
         const child = scope.children.items[i];
         try self.validate_scope(child);

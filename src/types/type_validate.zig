@@ -2,6 +2,7 @@
 const std = @import("std");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const Decorate = @import("../ast/decorate.zig");
 const generic_apply_ = @import("../ast/generic_apply.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
@@ -33,7 +34,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
         },
 
         .identifier => {
-            const type_symbol = @"type".symbol().?;
+            const type_symbol = try Decorate.symbol(@"type", self.ctx);
             if (!(type_symbol.is_type() or type_symbol.kind == .context)) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "expected a type", .span = @"type".token().span } });
                 return error.CompileError;
@@ -41,7 +42,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
         },
 
         .access => {
-            const type_symbol = @"type".symbol().?;
+            const type_symbol = try Decorate.symbol(@"type", self.ctx);
             if (type_symbol.init_typedef()) |typ| {
                 try self.validate_type(typ);
             } else if (@"type".lhs().symbol().?.decl.?.* == .type_param_decl) {

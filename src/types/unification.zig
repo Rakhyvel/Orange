@@ -36,6 +36,9 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
         return;
     }
 
+    if (lhs.* == .annotation) return try unify(lhs.child(), rhs, subst);
+    if (rhs.* == .annotation) return try unify(lhs, rhs.child(), subst);
+
     switch (lhs.*) {
         .identifier => {
             std.debug.assert(lhs.token().data.len > 0);
@@ -82,7 +85,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
 
         .addr_of => {
             if (rhs.* != .addr_of) return error.TypesMismatch;
-            if (lhs.addr_of.mut != rhs.addr_of.mut) return error.TypesMismatch;
+            if (rhs.addr_of.mut and !lhs.addr_of.mut) return error.TypesMismatch;
             if (lhs.addr_of.multiptr != rhs.addr_of.multiptr) return error.TypesMismatch;
 
             try unify(lhs.child(), rhs.child(), subst);

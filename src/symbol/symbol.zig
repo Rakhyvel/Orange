@@ -253,7 +253,6 @@ pub fn monomorphize(
         const decl = self.decl.?.clone(&subst, ctx.allocator());
 
         const Symbol_Tree = @import("../ast/symbol-tree.zig");
-        const Decorate = @import("../ast/decorate.zig");
         const walker_ = @import("../ast/walker.zig");
 
         var all_concrete: bool = true;
@@ -267,12 +266,9 @@ pub fn monomorphize(
             decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
         }
 
-        // Decorate identifiers, validate
-
         const scope = self.decl.?.scope().?.parent.?;
 
         const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
-        const decorate_context = Decorate.new(ctx);
 
         decl.set_decl_name(ast_.AST.create_pattern_symbol(
             Token.init_simple(name),
@@ -283,7 +279,6 @@ pub fn monomorphize(
         ));
 
         try walker_.walk_ast(decl, symbol_tree_context);
-        try walker_.walk_ast(decl, decorate_context);
 
         const clone = decl.symbol().?;
         std.debug.assert(clone.cfg == null);

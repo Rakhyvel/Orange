@@ -10,6 +10,7 @@ const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
 

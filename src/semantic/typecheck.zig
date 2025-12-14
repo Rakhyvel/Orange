@@ -7,6 +7,7 @@ const Const_Eval = @import("../semantic/const_eval.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const core_ = @import("../hierarchy/core.zig");
 const defaults_ = @import("defaults.zig");
+const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
 const poison_ = @import("../ast/poison.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
@@ -85,25 +86,13 @@ pub fn typecheck_AST(
         expected_type = null;
     }
 
-    if (expected_type) |_| {
-        const expanded = expected_type.?.expand_identifier();
-        if (expected_type.?.* == .type_of) {
-            expected_type.?.* = expanded.*;
-        }
-        if (expected_type.?.* == .annotation) {
-            expected_type = expected_type.?.child();
-        }
-        if (expected_type.?.* == .access) {
-            expected_type = expected_type.?.symbol().?.init_typedef();
-        }
-    }
-
     const actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
         ast.common().validation_state = .invalid;
         return e;
     };
 
     if (expected_type) |_| {
+        try walk_.walk_type(expected_type, Decorate.new(self.ctx));
         if (!prelude_.unit_type.types_match(expected_type.?) or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
             typing_.type_check(ast.token().span, actual_type, expected_type.?, subst, &self.ctx.errors) catch |e| {
                 ast.common().validation_state = .invalid;
@@ -151,7 +140,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
         .identifier => {
             // look up symbol, that's the type
-            const symbol = ast.symbol().?;
+            const symbol = try Decorate.symbol(ast, self.ctx);
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
@@ -180,7 +169,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             };
 
             // look up symbol, that's the type
-            const symbol = ast.symbol().?;
+            const symbol = try Decorate.symbol(ast, self.ctx);
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
@@ -393,7 +382,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .generic_apply => {
             // look up symbol, that's the type
-            const symbol = ast.symbol().?;
+            const symbol = try Decorate.symbol(ast, self.ctx);
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }

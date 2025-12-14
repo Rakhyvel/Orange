@@ -150,11 +150,13 @@ pub fn collect_generated_symbvers(self: *Self) void {
 
 pub fn collect_cfg_types(self: *Self, type_set: *Type_Set) void {
     // Don't collect types from generic CFGs
-    if (self.symbol.decl.?.* == .fn_decl and self.symbol.decl.?.num_generic_params() > 0) {
-        return;
+    if (self.symbol.decl.?.* == .fn_decl) {
+        const decl = self.symbol.decl.?;
+        if (decl.num_generic_params() > 0) return;
     }
-    if (self.symbol.decl.?.* == .method_decl and self.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) {
-        return;
+    if (self.symbol.decl.?.* == .method_decl) {
+        const impl = self.symbol.decl.?.method_decl.impl.?;
+        if (impl.num_generic_params() > 0) return;
     }
 
     // Add parameter types to type set

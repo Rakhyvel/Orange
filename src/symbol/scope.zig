@@ -251,7 +251,6 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
     }
     for (trait_decl.trait.const_decls.items) |const_decl| {
@@ -263,7 +262,6 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {
@@ -278,10 +276,6 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-
-        // TODO: This was a hack to make sure the impl type is always decorated. Decorations should probably be needs-driven?
-        const decorate_context = Decorate.new(compiler);
-        try walker_.walk_type(impl.impl._type, decorate_context);
 
         try compiler.validate_type.validate_type(impl.impl._type);
         unification_.unify(impl.impl._type, for_type, &subst) catch {
@@ -366,12 +360,10 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
         );
         try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         new_impl.impl.trait = ast_.AST.create_identifier(token, compiler.allocator());
+        try walker_.walk_ast(new_impl.impl.trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         new_impl.impl.impls_anon_trait = true;
     }
 
-    // Decorate identifiers, validate
-    const new_decorate_context = Decorate.new(compiler);
-    try walker_.walk_ast(new_impl, new_decorate_context); // this doesn't know about the anonymous trait
     try compiler.validate_scope.validate_scope(new_scope);
 
     // Set all method_decls to be monomorphed

@@ -44,8 +44,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     // std.debug.print("validating type for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
 
     if (expected) |expected_type| {
-        const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_type(expected_type, Decorate.new(self.ctx));
         try self.ctx.validate_type.validate_type(expected_type);
         if (self.ctx.validate_type.detect_cycle(expected_type, null)) {
             self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
@@ -61,8 +59,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
-        const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_ast(_init, Decorate.new(self.ctx));
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
@@ -77,7 +73,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
             try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
         }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {
-        // std.debug.print("validate type\n", .{});
         try self.ctx.validate_type.validate_type(symbol.init_typedef().?);
         if (self.ctx.validate_type.detect_cycle(symbol.init_typedef().?, symbol)) {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
@@ -94,7 +89,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         symbol.validation_state = .invalid;
         symbol.init_validation_state = .invalid;
         return error.CompileError;
-        // unreachable;
     }
 
     // Check that tests are requesting good contexts

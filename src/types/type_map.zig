@@ -86,7 +86,8 @@ pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_l
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
         unification_.unify(lhs_item, rhs_item, &subst) catch return false;
-        if (subst.keys().len != 0) return false;
+
+        if (subst.keys().len != 0 and !unification_.substitution_contains_generics(&subst)) return false;
     }
 
     return true;
