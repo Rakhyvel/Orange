@@ -126,6 +126,11 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_type(ast.type(), new_context);
         },
 
+        .type_access => {
+            try walk_type(ast.type_access._lhs_type, new_context);
+            try walk_ast(ast.rhs(), new_context);
+        },
+
         .assign,
         .@"or",
         .@"and",

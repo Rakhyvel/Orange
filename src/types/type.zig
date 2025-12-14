@@ -157,11 +157,11 @@ pub const Type_AST = union(enum) {
             var offset: i64 = 0;
             for (0..field) |i| {
                 var item = self._terms.items[i].expand_identifier();
-                if (self._terms.items[i + 1].alignof() == 0) {
+                if (self._terms.items[i + 1].alignof().? == 0) {
                     continue;
                 }
-                offset += item.sizeof();
-                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof());
+                offset += item.sizeof().?;
+                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof().?);
             }
             return offset;
         }
@@ -175,11 +175,11 @@ pub const Type_AST = union(enum) {
             var offset: i64 = 0;
             for (0..field) |i| {
                 var item = self._terms.items[i].expand_identifier();
-                if (self._terms.items[i + 1].alignof() == 0) {
+                if (self._terms.items[i + 1].alignof().? == 0) {
                     continue;
                 }
-                offset += item.sizeof();
-                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof());
+                offset += item.sizeof().?;
+                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof().?);
             }
             return offset;
         }
@@ -204,7 +204,7 @@ pub const Type_AST = union(enum) {
         len: *AST,
 
         pub fn get_offset(self: *@This(), field: usize) i64 {
-            return self._child.sizeof() * @as(i64, @intCast(field));
+            return self._child.sizeof().? * @as(i64, @intCast(field));
         }
     },
     type_of: struct {
@@ -521,6 +521,14 @@ pub const Type_AST = union(enum) {
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
+            .type_access => blk: {
+                const typed_lhs = ast.type_access._lhs_type;
+                const typed_rhs = from_ast(ast.rhs(), allocator);
+                const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
+                id.set_scope(ast.scope().?);
+                id.set_symbol(ast.symbol().?);
+                break :blk id;
+            },
             .index => blk: {
                 const base = from_ast(ast.lhs(), allocator);
                 var args = std.array_list.Managed(*Type_AST).init(allocator);
@@ -545,11 +553,11 @@ pub const Type_AST = union(enum) {
         return union_fields_.get_field_const_ref(self, "common");
     }
 
-    pub fn set_alignof(self: *Type_AST, _alignof: i64) void {
+    pub fn set_alignof(self: *Type_AST, _alignof: ?i64) void {
         union_fields_.get_field_ref(self, "common")._alignof = _alignof;
     }
 
-    pub fn set_sizeof(self: *Type_AST, _sizeof: i64) void {
+    pub fn set_sizeof(self: *Type_AST, _sizeof: ?i64) void {
         union_fields_.get_field_ref(self, "common")._size = _sizeof;
     }
 
@@ -858,44 +866,52 @@ pub const Type_AST = union(enum) {
     }
 
     /// Retrieves the size in bytes of an AST node.
-    pub fn sizeof(self: *Type_AST) i64 {
+    pub fn sizeof(self: *Type_AST) ?i64 {
         if (self.common()._size == null) {
             self.set_sizeof(self.expand_identifier().sizeof_internal()); // memoize call
         }
 
-        return self.common()._size.?;
+        return self.common()._size;
     }
 
     /// Non-memoized slow-path for calculating the size of an AST type in bytes.
-    fn sizeof_internal(self: *Type_AST) i64 {
+    /// TODO: Sized trait
+    fn sizeof_internal(self: *Type_AST) ?i64 {
         switch (self.*) {
             .identifier => if (self.symbol() != null and self.symbol().?.init_typedef() != null) {
                 return self.symbol().?.init_typedef().?.sizeof();
             } else {
-                const primitive_info = prelude_.info_from_name(self.token().data) orelse return 4; // gotta return something... TODO: Sized trait
+                const primitive_info = prelude_.info_from_name(self.token().data) orelse return null;
                 return primitive_info.size;
             },
 
-            .access => return self.symbol().?.init_typedef().?.sizeof(),
+            .access => if (self.symbol().?.init_typedef()) |typedef| {
+                return typedef.sizeof();
+            } else {
+                return null;
+            },
 
             .struct_type, .tuple_type, .context_type => {
                 var total_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    total_size = alignment_.next_alignment(total_size, _child.alignof());
-                    total_size += _child.sizeof();
+                    const child_alignof = _child.alignof() orelse return null;
+                    total_size = alignment_.next_alignment(total_size, child_alignof);
+                    const child_size = _child.sizeof() orelse return null;
+                    total_size += child_size;
                 }
                 return total_size;
             },
 
             .array_of => {
-                const child_size = self.child().sizeof();
+                const child_size = self.child().sizeof() orelse return null;
                 return child_size * @as(i64, @intCast(self.array_of.len.int.data));
             },
 
             .enum_type => {
                 var max_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_size = @max(max_size, _child.sizeof());
+                    const child_size = _child.sizeof() orelse return null;
+                    max_size = @max(max_size, child_size);
                 }
                 return alignment_.next_alignment(max_size, 8) + 8;
             },
@@ -903,7 +919,8 @@ pub const Type_AST = union(enum) {
                 std.debug.assert(self.child().expand_identifier().* == .enum_type); // TOOD: validate...
                 var max_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_size = @max(max_size, _child.sizeof());
+                    const child_size = _child.sizeof() orelse return null;
+                    max_size = @max(max_size, child_size);
                 }
                 return max_size; // Same as the sum type, but without the tag and without the padding for the tag
             },
@@ -920,28 +937,30 @@ pub const Type_AST = union(enum) {
 
     /// Calculates the alignment of an AST type in bytes. Call is memoized.
     /// Alignments are gauranteed to be positive.
-    pub fn alignof(self: *Type_AST) i64 {
+    /// TODO: Sized trait
+    pub fn alignof(self: *Type_AST) ?i64 {
         if (self.common()._alignof == null) {
             self.set_alignof(self.expand_identifier().alignof_internal()); // memoize call
         }
 
-        return self.common()._alignof.?;
+        return self.common()._alignof;
     }
 
     /// Non-memoized slow-path of alignment calculation.
-    fn alignof_internal(self: *Type_AST) i64 {
+    fn alignof_internal(self: *Type_AST) ?i64 {
         switch (self.*) {
             .identifier => if (self.symbol() != null and self.symbol().?.init_typedef() != null) {
                 return self.symbol().?.init_typedef().?.alignof();
             } else {
-                const primitive_info = prelude_.info_from_name(self.token().data) orelse return 4; // gotta return something... TODO: Sized trait
+                const primitive_info = prelude_.info_from_name(self.token().data) orelse return null;
                 return primitive_info._align;
             },
 
             .struct_type, .tuple_type, .context_type => {
                 var max_align: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_align = @max(max_align, _child.alignof());
+                    const child_align = _child.alignof() orelse return null;
+                    max_align = @max(max_align, child_align);
                 }
                 return @max(1, max_align);
             },
@@ -957,7 +976,8 @@ pub const Type_AST = union(enum) {
                 std.debug.assert(self.child().expand_identifier().* == .enum_type);
                 var max_align: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_align = @max(max_align, _child.alignof());
+                    const child_align = _child.alignof() orelse return null;
+                    max_align = @max(max_align, child_align);
                 }
                 return @max(1, max_align);
             },
@@ -968,6 +988,12 @@ pub const Type_AST = union(enum) {
 
             else => std.debug.panic("compiler error: unimplemented alignof for {s}", .{@tagName(self.*)}),
         }
+    }
+
+    pub fn is_zero_sized(self: *Type_AST) bool {
+        const size = self.sizeof();
+        if (size == null) return false;
+        return size.? == 0;
     }
 
     /// For two types `A` and `B`, we say `A <: B` iff for every value `a` belonging to the type `A`, `a` belongs to the
@@ -1005,17 +1031,11 @@ pub const Type_AST = union(enum) {
         } else if (B.* == .annotation) {
             return types_match(A, B.child());
         }
-        // if (A.* == .access) {
-        //     if (A.symbol().?.decl.?.* == .type_param_decl) {
-        //         return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        //     }
-        //     return types_match(A.symbol().?.init_typedef().?, B);
-        // } else if (B.* == .access) {
-        //     if (B.symbol().?.decl.?.* == .type_param_decl) {
-        //         return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        //     }
-        //     return types_match(A, B.symbol().?.init_typedef().?);
-        // }
+        if (A.* == .access) {
+            return types_match(A.symbol().?.init_typedef().?, B);
+        } else if (B.* == .access) {
+            return types_match(A, B.symbol().?.init_typedef().?);
+        }
         if (A.* == .generic_apply and A.generic_apply._symbol != null and B.* != .generic_apply) {
             return types_match(A.generic_apply._symbol.?.init_typedef().?, B);
         } else if (B.* == .generic_apply and B.generic_apply._symbol != null and A.* != .generic_apply) {
@@ -1028,12 +1048,6 @@ pub const Type_AST = union(enum) {
         if (A.is_ident_type("Void")) {
             return true; // Bottom type - vacuously true
         }
-        // if (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl) {
-        //     return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        // }
-        // if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-        //     return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 and A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        // }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
             // std.debug.print("{f} => {f}\n", .{ A, A.expand_identifier() });
@@ -1166,11 +1180,11 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
                 const trait = constraint.base_symbol().?;
-                const res = try constraint.base_symbol().?.scope.impl_trait_lookup(self, trait, ctx);
+                const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
                     std.debug.print("not impl 1\n", .{});
                     return .{ .not_impl = trait };

@@ -121,7 +121,7 @@ pub fn num_visible_contexts(self: *Self) usize {
     return result + parent_contrib;
 }
 
-pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Context) ?*Symbol {
+pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Context) !?*Symbol {
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
         if (symbol.kind == .let) {
@@ -129,6 +129,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
             if (symbol_type.* == .addr_of and context_type.* != .addr_of) {
                 symbol_type = symbol_type.child();
             }
+            try walker_.walk_type(symbol_type, Decorate.new(ctx)); // TODO: Needed?
             if (context_type.types_match(symbol_type)) {
                 return symbol;
             }

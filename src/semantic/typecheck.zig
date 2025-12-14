@@ -93,7 +93,8 @@ pub fn typecheck_AST(
 
     if (expected_type) |_| {
         try walk_.walk_type(expected_type, Decorate.new(self.ctx));
-        if (!prelude_.unit_type.types_match(expected_type.?) or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
+        const expanded_expected = expected_type.?.expand_identifier();
+        if (expanded_expected.* != .unit_type or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
             typing_.type_check(ast.token().span, actual_type, expected_type.?, subst, &self.ctx.errors) catch |e| {
                 ast.common().validation_state = .invalid;
                 return e;
@@ -167,6 +168,36 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 error.UnexpectedTypeType => {}, // This is expected
                 else => return e,
             };
+
+            // look up symbol, that's the type
+            const symbol = try Decorate.symbol(ast, self.ctx);
+            if (symbol.validation_state == .invalid) {
+                return error.CompileError;
+            }
+            try self.ctx.validate_symbol.validate_symbol(symbol);
+
+            if (symbol.decl.?.num_generic_params() > 0) {
+                self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
+                    .span = ast.token().span,
+                    .symbol_name = symbol.name,
+                    .num_generics = symbol.decl.?.num_generic_params(),
+                } });
+                return error.CompileError;
+            }
+
+            if (symbol.is_type()) {
+                if (expected != null) {
+                    self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
+                    return error.CompileError;
+                } else {
+                    return prelude_.unit_type;
+                }
+            } else {
+                return symbol.type();
+            }
+        },
+        .type_access => {
+            try self.ctx.validate_type.validate_type(ast.type_access._lhs_type);
 
             // look up symbol, that's the type
             const symbol = try Decorate.symbol(ast, self.ctx);
@@ -1010,7 +1041,7 @@ pub fn validate_args_type(
 fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Validate_Error_Enum!void {
     for (function_type.function.contexts.items) |context| {
         var fn_ctx = context;
-        const symbol = ast.scope().?.context_lookup(fn_ctx, self.ctx) orelse {
+        const symbol = try ast.scope().?.context_lookup(fn_ctx, self.ctx) orelse {
             if (fn_ctx.* == .addr_of) {
                 fn_ctx = fn_ctx.child();
             }

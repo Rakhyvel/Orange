@@ -268,5 +268,7 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
 }
 
 pub fn is_storable(arg_type: *Type_AST) bool {
-    return !arg_type.is_c_void_type() and arg_type.sizeof() > 0;
+    if (arg_type.is_c_void_type()) return false;
+    if (arg_type.sizeof()) |size| if (size == 0) return false;
+    return true;
 }

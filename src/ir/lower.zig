@@ -117,7 +117,7 @@ fn lower_AST_inner(
             self.instructions.append(Instruction.init_string(temp, id, ast.token().span, self.ctx.allocator())) catch unreachable;
             return temp;
         },
-        .access, .identifier, .generic_apply => {
+        .access, .identifier, .generic_apply, .type_access => {
             const symbol = ast.symbol().?;
             if (symbol.init_validation_state == .validating) {
                 self.ctx.errors.add_error(errs_.Error{ .recursive_definition = .{

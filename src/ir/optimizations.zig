@@ -73,7 +73,7 @@ fn propagate_instruction(instr: *Instruction, src1_def: ?*Instruction, src2_def:
 
     switch (instr.kind) {
         .copy => {
-            if (instr.src1 == null or (instr.src1.?.expanded_type_sizeof() == 0)) {
+            if (instr.src1 == null or (instr.src1.?.get_expanded_type().is_zero_sized())) {
                 logfln("unit-copy elimination {?f} {f}", .{ instr.src1, instr.src1.?.get_expanded_type() });
                 instr.in_block.?.mark_for_removal(instr); // Mark for deletion in a later pass
             } else if (instr.dest.?.* == .symbver and

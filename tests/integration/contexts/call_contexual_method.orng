@@ -8,7 +8,14 @@ context My_Context {
     x: Int
 }
 
-impl[T] for Thingy[T] {
+trait Sized {
+    const size: Int
+}
+
+type My_Type = [45]Int
+impl Sized for My_Type { const size: Int = 360 }
+
+impl[T: Sized] for Thingy[T] {
     fn init() -> Self with My_Context {
         Self(0, 0)
     }
@@ -19,13 +26,12 @@ impl[T] for Thingy[T] {
     }
 
     fn calc_size(&mut self) {
-        self.x = @sizeof(T)
+        self.x = T::size
     }
 }
 
 fn main() -> Int {
     with My_Context(0) {
-        type My_Type = [45]Int
         let mut my_thingy = Thingy[My_Type]::init()
         my_thingy.>get_val() + 5
     }

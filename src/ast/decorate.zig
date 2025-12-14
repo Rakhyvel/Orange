@@ -96,14 +96,6 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 },
             }
 
-            // if ((ast.symbol().?.kind == .let or ast.symbol().?.kind == .mut) // local variable
-            // and ast.symbol().?.decl.?.decl_init() != null // not a parameter
-            // and !ast.symbol().?.defined // not defined
-            // ) {
-            //     self.ctx.errors.add_error(errs_.Error{ .use_before_def = .{ .identifier = ast.token() } });
-            //     return error.CompileError;
-            // }
-
             return self;
         },
     }
@@ -153,7 +145,18 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     switch (ast.*) {
         else => {},
 
-        .access => ast.set_symbol(try self.resolve_access_ast(ast)),
+        .access => {
+            if (ast.lhs().refers_to_type()) {
+                const scope = ast.scope();
+                ast.* = ast_.AST.create_type_access(ast.token(), Type_AST.from_ast(ast.lhs(), self.ctx.allocator()), ast.rhs(), self.ctx.allocator()).*;
+                ast.set_scope(scope);
+                ast.set_symbol(try self.resolve_type_access_ast(ast));
+            } else {
+                ast.set_symbol(try self.resolve_access_ast(ast));
+            }
+        },
+
+        .type_access => ast.set_symbol(try self.resolve_type_access_ast(ast)),
 
         .call => {
             if (ast.lhs().* == .enum_value) {
@@ -209,7 +212,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
             if (decl.* == .context_decl) {
                 const fn_ctx = decl.decl_typedef().?;
-                const context_val_symbol = ast.scope().?.parent.?.context_lookup(fn_ctx, self.ctx) orelse {
+                const context_val_symbol = try child.scope().?.parent.?.context_lookup(fn_ctx, self.ctx) orelse {
                     self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                         .span = ast.token().span,
                         .context = Type_AST.create_type_identifier(decl.token(), self.ctx.allocator()),
@@ -230,7 +233,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
 
         .print => {
-            const context_val_symbol = ast.scope().?.parent.?.context_lookup(core_.io_context, self.ctx) orelse {
+            const context_val_symbol = try ast.scope().?.context_lookup(core_.io_context, self.ctx) orelse {
                 self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                     .span = ast.token().span,
                     .context = Type_AST.create_type_identifier(core_.io_context.token(), self.ctx.allocator()),
@@ -313,13 +316,19 @@ fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs_type);
 }
 
-fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
-    std.debug.assert(ast.* == .access);
+fn resolve_type_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
+    return self.resolve_lhs_type_access(ast.type_access._lhs_type, ast.rhs().token(), ast.scope());
+}
 
-    const stripped_lhs = if (ast.lhs().* == .addr_of)
-        ast.lhs().child()
+fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
+    return self.resolve_lhs_type_access(ast.lhs(), ast.rhs().token(), ast.scope());
+}
+
+fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scope) walk_.Error!*Symbol {
+    const stripped_lhs = if (lhs.* == .addr_of)
+        lhs.child()
     else
-        ast.lhs();
+        lhs;
 
     if (stripped_lhs.* == .type_of) {
         try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
@@ -327,22 +336,22 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
     if (stripped_lhs.* == .as_trait) {
-        const res = try ast.scope().?.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?, self.ctx);
+        const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?, self.ctx);
         if (res.ast != null) {
-            const decl = Scope.search_impl(res.ast.?, ast.rhs().token().data);
+            const decl = Scope.search_impl(res.ast.?, rhs.data);
             try walk_.walk_ast(decl, self);
             return decl.?.symbol().?;
         } else {
-            const decl = try ast.scope().?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), ast.rhs().token().data, self.ctx);
+            const decl = try scope.?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
             return decl.?.symbol().?;
         }
     }
     if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
-        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), ast.scope().?);
+        return try self.resolve_access_const(stripped_lhs, rhs, scope.?);
     }
 
     const sym = stripped_lhs.symbol().?;
-    return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs);
+    return self.resolve_access_symbol(sym, rhs, scope, stripped_lhs);
 }
 
 fn resolve_access_symbol(self: Self, sym: *Symbol, rhs: Token, scope: ?*Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {

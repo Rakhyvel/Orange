@@ -55,7 +55,7 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(*Type_A
         try ctx.validate_type.validate_type(child);
 
         const param = params.items[i];
-        const sat_res = try child.satisfies_all_constraints(param.type_param_decl.constraints.items, ctx);
+        const sat_res = try child.satisfies_all_constraints(param.type_param_decl.constraints.items, sym.scope, ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {

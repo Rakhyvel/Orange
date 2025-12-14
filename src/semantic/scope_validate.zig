@@ -222,7 +222,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
-        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, self.ctx);
+        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.scope().?, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {

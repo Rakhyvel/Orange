@@ -150,7 +150,7 @@ pub fn output_function_definition(self: *Self, cfg: *CFG) CodeGen_Error!void {
 
     // Declare local variables
     for (cfg.symbvers.items) |symbver| {
-        if (symbver.symbol.expanded_type().sizeof() == 0 or // symbol's C type is `void`
+        if (symbver.symbol.expanded_type().is_zero_sized() or // symbol's C type is `void`
             (symbver.symbol.uses == 0 and symbver.symbol.name[0] != '_' and symbver.symbol.aliases == 0) // non-bookkeeping symbol is not used
         ) {
             continue; // Do not output unit variables
@@ -220,7 +220,7 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
     try self.emitter.output_context_defs(&contexts_used);
 
     if (specifier != null) {
-        try self.writer.print("printf(\"%{s}{s}\", ", .{ if (codomain.sizeof() == 8) "l" else "", specifier.? });
+        try self.writer.print("printf(\"%{s}{s}\", ", .{ if (codomain.sizeof().? == 8) "l" else "", specifier.? });
         try self.emitter.output_symbol(symbol);
         try self.writer.print("(){s});", .{string_access});
     } else {
@@ -391,13 +391,13 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
             try self.output_var_assign(instr.dest.?);
             try self.writer.print("{}", .{instr.data.int});
             if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .unsigned_integer) {
-                if (instr.dest.?.expanded_type_sizeof() == 8) {
+                if (instr.dest.?.expanded_type_sizeof().? == 8) {
                     try self.writer.print("ULL", .{});
                 } else {
                     try self.writer.print("U", .{});
                 }
             } else if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .signed_integer) {
-                if (instr.dest.?.expanded_type_sizeof() == 8) {
+                if (instr.dest.?.expanded_type_sizeof().? == 8) {
                     try self.writer.print("LL", .{});
                 }
             }
@@ -820,7 +820,7 @@ fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
 
 /// Outputs the C code for an lvalue expression.
 fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruction.Precedence) CodeGen_Error!void {
-    if (lvalue.expanded_type_sizeof() == 0) {
+    if (lvalue.get_expanded_type().is_zero_sized()) {
         try self.writer.print("(void *)0xAAAAAAAA", .{});
         return;
     }

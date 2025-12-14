@@ -78,7 +78,16 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
                 } });
                 return error.CompileError;
             }
-            ast.* = ast_.AST.create_int(ast.token(), _type.sizeof(), self.ctx.allocator()).*;
+            const size = _type.sizeof();
+            if (size == null) {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = ast.token().span,
+                    ._type = _type,
+                    .trait_name = "Sized",
+                } });
+                return error.CompileError;
+            }
+            ast.* = ast_.AST.create_int(ast.token(), size.?, self.ctx.allocator()).*;
             var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(ast, null, &subst) catch return error.CompileError;
