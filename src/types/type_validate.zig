@@ -10,6 +10,7 @@ const Type_AST = @import("type.zig").Type_AST;
 const Symbol = @import("../symbol/symbol.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 const Self: type = @This();
@@ -49,7 +50,9 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
         },
 
         .array_of => {
-            _ = self.ctx.typecheck.typecheck_AST(@"type".array_of.len, prelude_.int_type) catch return error.CompileError;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            _ = self.ctx.typecheck.typecheck_AST(@"type".array_of.len, prelude_.int_type, &subst) catch return error.CompileError;
             try walk_.walk_ast(@"type".array_of.len, Const_Eval.new(self.ctx));
             if (@"type".array_of.len.* != .int) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = @"type".token().span, .msg = "not a constant integer" } });

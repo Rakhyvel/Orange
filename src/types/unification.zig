@@ -7,8 +7,8 @@ pub const Substitutions = std.StringArrayHashMap(*Type_AST);
 
 // Attempt to match the rhs with the lhs
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
-    std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
-    std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
+    // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
+    // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
 
     if (lhs.is_ident_type("Void")) {
         return; // Bottom type - vacuously true

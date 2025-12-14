@@ -46,7 +46,9 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
-    _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null) catch |e| switch (e) {
+    var subst = unification_.Substitutions.init(self.ctx.allocator());
+    defer subst.deinit();
+    _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null, &subst) catch |e| switch (e) {
         error.UnexpectedTypeType => {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
                 .span = impl.impl.trait.?.token().span,
@@ -148,8 +150,6 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that parameters match
-        var subst = unification_.Substitutions.init(self.ctx.allocator());
-        defer subst.deinit();
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
             const impl_type = impl_param.binding.type;
             unification_.unify(impl_type, trait_param.binding.type, &subst) catch {
@@ -276,7 +276,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
-        _ = self.ctx.typecheck.typecheck_AST(def, null) catch return error.CompileError;
+        _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
     }
 }
 

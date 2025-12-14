@@ -13,6 +13,7 @@ const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 
@@ -63,7 +64,9 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         // Tree_Writer.print_tree(_init);
         const Decorate = @import("../ast/decorate.zig");
         try walk_.walk_ast(_init, Decorate.new(symbol.scope, self.ctx));
-        _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
+        var subst = unification_.Substitutions.init(self.ctx.allocator());
+        defer subst.deinit();
+        _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,
             error.UnexpectedTypeType => {
@@ -164,7 +167,9 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.storage == .@"extern") {
         if (symbol.storage.@"extern".c_name != null) {
-            _ = self.ctx.typecheck.typecheck_AST(symbol.storage.@"extern".c_name.?, prelude_.string_type) catch return error.CompileError;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            _ = self.ctx.typecheck.typecheck_AST(symbol.storage.@"extern".c_name.?, prelude_.string_type, &subst) catch return error.CompileError;
         } else {
             symbol.storage.@"extern".c_name = ast_.AST.create_string(Token.init_simple(symbol.name), symbol.name, self.ctx.allocator());
         }

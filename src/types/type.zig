@@ -1166,7 +1166,6 @@ pub const Type_AST = union(enum) {
                 const trait = constraint.base_symbol().?;
                 const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
                 if (res.count == 0) {
-                    std.debug.print("not impl 1\n", .{});
                     return .{ .not_impl = trait };
                 }
 
@@ -1177,7 +1176,6 @@ pub const Type_AST = union(enum) {
                                 self.symbol().?.decl.?.type_param_decl.constraints.append(constraint) catch unreachable;
                                 continue;
                             }
-                            std.debug.print("not impl 2\n", .{});
                             return .{ .not_impl = trait };
                         };
                         const associated_type_name = eq_constraint.lhs().token().data;

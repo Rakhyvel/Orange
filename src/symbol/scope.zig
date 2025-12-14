@@ -144,7 +144,7 @@ const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_Trait_Lookup_Result {
-    if (true) {
+    if (false) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
         Tree_Writer.print_type_tree(for_type);
         self.pprint();
@@ -174,13 +174,9 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
-        std.debug.print("STARTING UNIFY: {s}\n", .{impl.impl.trait.?.symbol().?.name});
-        Tree_Writer.print_type_tree(impl.impl._type);
         unification_.unify(impl.impl._type, for_type, &subst) catch {
-            std.debug.print("NOT FOUND\n", .{});
             continue;
         };
-        std.debug.print("FOUND, {s} == {s}?\n", .{ impl.impl.trait.?.symbol().?.name, trait.name });
 
         retval.count += 1;
         retval.ast = retval.ast orelse impl;
