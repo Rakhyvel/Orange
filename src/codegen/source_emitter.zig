@@ -105,12 +105,13 @@ fn output_impls(
         for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
             const super_trait_decl = super_trait_symbol.decl.?;
+            const super_trait_impl = trait_decl.trait.super_trait_impls.items[i];
             if (super_trait_decl.trait.num_virtual_methods == 0 and super_trait_decl.trait.super_traits.items.len == 0) continue;
             try self.writer.print("    ._{} = &{s}__{s}_{}__vtable,\n", .{
                 i,
                 self.module.package_name,
                 self.module.name(),
-                impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol).ast.?.scope().?.uid,
+                super_trait_impl.scope().?.uid,
             });
         }
         try self.writer.print("}};\n", .{});

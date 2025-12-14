@@ -40,6 +40,10 @@ pub fn prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
     return self.symbol_tree_prefix(ast);
 }
 
+pub fn prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
+    return self.symbol_tree_type_prefix(_type);
+}
+
 pub fn postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     return self.symbol_tree_postfix(ast);
 }
@@ -49,7 +53,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         else => {},
 
         // Capture scope
-        .@"comptime", .access, .call, .invoke, .addr_of => ast.set_scope(self.scope),
+        .@"comptime", .access, .call, .invoke, .addr_of, .identifier, .generic_apply => ast.set_scope(self.scope),
 
         // Check that AST is inside a loop
         .@"break", .@"continue" => try self.in_loop_check(ast, self.errors),
@@ -247,14 +251,14 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try walk_.walk_ast(self_type_decl, new_self);
 
-            for (ast.impl.method_defs.items, 0..) |method_def, i| {
-                var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
-                defer subst.deinit();
+            // for (ast.impl.method_defs.items, 0..) |method_def, i| {
+            //     var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
+            //     defer subst.deinit();
 
-                try subst.put("Self", ast.impl._type);
+            //     try subst.put("Self", ast.impl._type);
 
-                ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
-            }
+            //     ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
+            // }
 
             if (ast.impl.trait == null) {
                 // impl'd for an anon trait, create an anon trait for it
@@ -315,6 +319,16 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
     }
 
+    return self;
+}
+
+fn symbol_tree_type_prefix(self: Self, _type: *Type_AST) walk_.Error!?Self {
+    switch (_type.*) {
+        .access, .generic_apply, .identifier => {
+            _type.set_scope(self.scope);
+        },
+        else => {},
+    }
     return self;
 }
 

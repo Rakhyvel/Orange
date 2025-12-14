@@ -225,7 +225,7 @@ pub const Module = struct {
             Apply_Flat_Ast_Walk(Import).init(Import.new(compiler, module.get_package_abs_path(), &module.local_imported_modules)),
             Apply_Flat_Ast_Walk(Cinclude).init(Cinclude.new(&module.cincludes)),
             Apply_Ast_Walk(Symbol_Tree).init(Symbol_Tree.new(file_root, &compiler.errors, compiler.allocator())),
-            Apply_Ast_Walk(Decorate).init(Decorate.new(file_root, compiler)),
+            Apply_Ast_Walk(Decorate).init(Decorate.new(compiler)),
             Apply_Ast_Walk(Type_Decorate).init(Type_Decorate.new(compiler)),
         });
 

@@ -8,6 +8,7 @@ const Span = @import("../util/span.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
+const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
@@ -47,6 +48,7 @@ pub const Type_AST = union(enum) {
     identifier: struct {
         common: Type_AST_Common,
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
     },
     /// This tag is used for the right-hand-side of selects. They do not refer to symbols.
     field: struct { common: Type_AST_Common },
@@ -68,6 +70,7 @@ pub const Type_AST = union(enum) {
         _lhs: *Type_AST,
         args: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
     },
     eq_constraint: struct {
@@ -502,6 +505,7 @@ pub const Type_AST = union(enum) {
         return switch (ast.*) {
             .identifier => blk: {
                 const id = Type_AST.create_type_identifier(ast.token(), allocator);
+                id.set_scope(ast.scope().?);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
@@ -513,6 +517,7 @@ pub const Type_AST = union(enum) {
                 const typed_lhs = from_ast(ast.lhs(), allocator);
                 const typed_rhs = from_ast(ast.rhs(), allocator);
                 const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
+                id.set_scope(ast.scope().?);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
@@ -527,6 +532,7 @@ pub const Type_AST = union(enum) {
             .generic_apply => blk: {
                 const _lhs = from_ast(ast.lhs(), allocator);
                 const gen_apply = Type_AST.create_generic_apply_type(ast.token(), _lhs, ast.generic_apply._children, allocator);
+                gen_apply.set_scope(ast.scope());
                 gen_apply.set_symbol(ast.symbol());
                 break :blk gen_apply;
             },
@@ -999,17 +1005,17 @@ pub const Type_AST = union(enum) {
         } else if (B.* == .annotation) {
             return types_match(A, B.child());
         }
-        if (A.* == .access) {
-            if (A.symbol().?.decl.?.* == .type_param_decl) {
-                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-            }
-            return types_match(A.symbol().?.init_typedef().?, B);
-        } else if (B.* == .access) {
-            if (B.symbol().?.decl.?.* == .type_param_decl) {
-                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-            }
-            return types_match(A, B.symbol().?.init_typedef().?);
-        }
+        // if (A.* == .access) {
+        //     if (A.symbol().?.decl.?.* == .type_param_decl) {
+        //         return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+        //     }
+        //     return types_match(A.symbol().?.init_typedef().?, B);
+        // } else if (B.* == .access) {
+        //     if (B.symbol().?.decl.?.* == .type_param_decl) {
+        //         return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+        //     }
+        //     return types_match(A, B.symbol().?.init_typedef().?);
+        // }
         if (A.* == .generic_apply and A.generic_apply._symbol != null and B.* != .generic_apply) {
             return types_match(A.generic_apply._symbol.?.init_typedef().?, B);
         } else if (B.* == .generic_apply and B.generic_apply._symbol != null and A.* != .generic_apply) {
@@ -1022,12 +1028,12 @@ pub const Type_AST = union(enum) {
         if (A.is_ident_type("Void")) {
             return true; // Bottom type - vacuously true
         }
-        if (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl) {
-            return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        }
-        if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 and A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        }
+        // if (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl) {
+        //     return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+        // }
+        // if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
+        //     return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 and A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
+        // }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
             // std.debug.print("{f} => {f}\n", .{ A, A.expand_identifier() });
@@ -1160,22 +1166,29 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
                 const trait = constraint.base_symbol().?;
-                const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
+                const res = try constraint.base_symbol().?.scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
+                    std.debug.print("not impl 1\n", .{});
                     return .{ .not_impl = trait };
                 }
 
                 if (constraint.* == .generic_apply) {
                     for (constraint.children().items) |eq_constraint| {
                         const impl = res.ast orelse {
-                            if (self.* == .identifier and self.symbol().?.decl.?.* == .type_param_decl) {
-                                self.symbol().?.decl.?.type_param_decl.constraints.append(constraint) catch unreachable;
+                            if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
+                                const param_constraints = self.symbol().?.decl.?.type_param_decl.constraints;
+                                for (param_constraints.items) |param_constraint| {
+                                    if (constraint.base_symbol().? == param_constraint.base_symbol().?) break;
+                                } else {
+                                    self.symbol().?.decl.?.type_param_decl.constraints.append(constraint) catch unreachable;
+                                }
                                 continue;
                             }
+                            Tree_Writer.print_type_tree(self);
                             return .{ .not_impl = trait };
                         };
                         const associated_type_name = eq_constraint.lhs().token().data;
@@ -1194,8 +1207,9 @@ pub const Type_AST = union(enum) {
                                 .trait_name = trait.name,
                             } };
                         }
-                        if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
-                            std.debug.print("not eq 1\n", .{});
+                        var subst = unification_.Substitutions.init(ctx.allocator());
+                        defer subst.deinit();
+                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst) catch {
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
                                 .expected = eq_constraint.rhs(),
@@ -1203,7 +1217,7 @@ pub const Type_AST = union(enum) {
                                 .constraint_span = eq_constraint.token().span,
                                 .impl_span = type_def.?.token().span,
                             } };
-                        }
+                        };
                     }
                 }
             }

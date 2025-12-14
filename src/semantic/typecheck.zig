@@ -536,6 +536,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     }
                 }
                 if (!found_constraint) {
+                    std.debug.print("not impl 4\n", .{});
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
                         .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
@@ -544,8 +545,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 }
             } else {
-                const impl = ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?);
+                const impl = try ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
                 if (impl.ast == null) {
+                    std.debug.print("not impl 5\n", .{});
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
                         .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
@@ -857,8 +859,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 _ = self.typecheck_AST(let, null, subst) catch return error.CompileError;
             }
             const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null, subst) catch return error.CompileError;
-            const impl = ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait);
+            const impl = try ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
             if (impl.ast == null) {
+                std.debug.print("not impl 6\n", .{});
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
                     .trait_name = core_.into_iterator_trait.name,

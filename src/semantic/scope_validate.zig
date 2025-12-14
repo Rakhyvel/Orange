@@ -87,8 +87,9 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     // Check that super traits are implemented
     for (trait_ast.trait.super_traits.items) |super_trait| {
         const super_trait_symbol = super_trait.symbol().?;
-        const super_lookup_res = impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol);
+        const super_lookup_res = try impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol, self.ctx);
         if (super_lookup_res.count == 0) {
+            std.debug.print("not impl 2\n", .{});
             self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                 ._type = impl.impl._type,
                 .span = impl.token().span,
@@ -96,6 +97,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             } });
             return error.CompileError;
         }
+        try trait_ast.trait.super_trait_impls.append(super_lookup_res.ast.?);
     }
 
     // Construct a map of all trait decls
@@ -214,12 +216,13 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
-        const sat_res = typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items);
+        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
+                std.debug.print("not impl 3\n", .{});
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = typedef.decl_typedef().?.token().span,
+                    .span = typedef.token().span,
                     .trait_name = unimpld.name,
                     ._type = typedef.decl_typedef().?,
                 } });
@@ -227,7 +230,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             },
             .not_eq => |uneqd| {
                 self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
-                    .call_span = typedef.decl_typedef().?.token().span,
+                    .call_span = typedef.token().span,
                     .associated_type_name = uneqd.associated_type_name,
                     .constraint_span = uneqd.constraint_span,
                     .impl_span = uneqd.impl_span,

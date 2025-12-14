@@ -14,16 +14,37 @@ const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Decorate = @import("../ast/type_decorate.zig");
 const walk_ = @import("../ast/walker.zig");
 
-scope: *Scope,
 ctx: *Compiler_Context,
 
 const Self = @This();
 
-pub fn new(scope: *Scope, ctx: *Compiler_Context) Self {
+pub fn new(ctx: *Compiler_Context) Self {
     return Self{
-        .scope = scope,
         .ctx = ctx,
     };
+}
+
+pub fn symbol(ast: anytype, ctx: *Compiler_Context) walk_.Error!*Symbol {
+    const Ast_Type = @TypeOf(ast);
+    if (Ast_Type == *ast_.AST) {
+        return ast_symbol(ast, ctx);
+    } else if (Ast_Type == *Type_AST) {
+        return type_symbol(ast, ctx);
+    } else {
+        std.debug.panic("cannot call symbol() with type {}", .{Ast_Type});
+    }
+}
+
+fn ast_symbol(ast: *ast_.AST, ctx: *Compiler_Context) walk_.Error!*Symbol {
+    const self = Self.new(ctx);
+    try walk_.walk_ast(ast, self);
+    return ast.symbol().?;
+}
+
+fn type_symbol(_type: *Type_AST, ctx: *Compiler_Context) walk_.Error!*Symbol {
+    const self = Self.new(ctx);
+    try walk_.walk_type(_type, self);
+    return _type.symbol().?;
 }
 
 pub fn prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
@@ -51,7 +72,7 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 return self;
             }
 
-            const res = self.scope.lookup(ast.token().data, .{ .allow_modules = false });
+            const res = ast.scope().?.lookup(ast.token().data, .{ .allow_modules = false });
             switch (res) {
                 // Found the symbol, decorate the identifier AST with it
                 .found => ast.set_symbol(res.found),
@@ -85,26 +106,6 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
             return self;
         },
-
-        .@"if", .match, .mapping, .@"while", .@"for", .block, .impl, .trait, .struct_decl, .enum_decl, .type_alias, .fn_decl => {
-            var new_context = self;
-            new_context.scope = ast.scope().?;
-            return new_context;
-        },
-
-        .method_decl => {
-            var new_context = self;
-            if (ast.symbol() != null) {
-                new_context.scope = ast.symbol().?.scope;
-            }
-            return new_context;
-        },
-
-        .access => {
-            // Capture scope, so that `Trait::member` accesses are began at the access point
-            ast.set_scope(self.scope);
-            return self;
-        },
     }
 }
 
@@ -119,7 +120,7 @@ fn decorate_prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
                 // Keep those symbols the way they are, even if they're not "visible" from this scope!
                 return self;
             }
-            const res = self.scope.lookup(_type.token().data, .{});
+            const res = _type.scope().?.lookup(_type.token().data, .{});
             switch (res) {
                 // Found the symbol, decorate the identifier AST with it
                 .found => _type.set_symbol(res.found),
@@ -143,12 +144,6 @@ fn decorate_prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
                 },
             }
 
-            return self;
-        },
-
-        .access => {
-            // Capture scope, so that `Trait::member` accesses are began at the access point
-            _type.set_scope(self.scope);
             return self;
         },
     }
@@ -214,7 +209,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
             if (decl.* == .context_decl) {
                 const fn_ctx = decl.decl_typedef().?;
-                const context_val_symbol = self.scope.parent.?.context_lookup(fn_ctx, self.ctx) orelse {
+                const context_val_symbol = ast.scope().?.parent.?.context_lookup(fn_ctx, self.ctx) orelse {
                     self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                         .span = ast.token().span,
                         .context = Type_AST.create_type_identifier(decl.token(), self.ctx.allocator()),
@@ -235,7 +230,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
 
         .print => {
-            const context_val_symbol = self.scope.parent.?.context_lookup(core_.io_context, self.ctx) orelse {
+            const context_val_symbol = ast.scope().?.parent.?.context_lookup(core_.io_context, self.ctx) orelse {
                 self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                     .span = ast.token().span,
                     .context = Type_AST.create_type_identifier(core_.io_context.token(), self.ctx.allocator()),
@@ -286,9 +281,9 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         .generic_apply => {
             try generic_apply_.instantiate(ast, self.ctx);
         },
-        .trait => try self.scope.traits.put(ast, void{}),
-        .enum_decl => try self.scope.enums.put(ast, void{}),
-        .@"test" => try self.scope.tests.append(ast),
+        .trait => try ast.scope().?.traits.put(ast, void{}),
+        .enum_decl => try ast.scope().?.enums.put(ast, void{}),
+        .@"test" => try ast.scope().?.tests.append(ast),
     }
 }
 
@@ -298,6 +293,9 @@ fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
             ast.set_symbol(try self.resolve_access_type(ast));
         },
 
+        .generic_apply => {
+            try generic_apply_.instantiate(ast, self.ctx);
+        },
         else => {},
     }
 }
@@ -310,9 +308,9 @@ fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     else
         ast.lhs();
 
-    const symbol = stripped_lhs.symbol().?;
+    const sym = stripped_lhs.symbol().?;
     const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
-    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs_type);
+    return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs_type);
 }
 
 fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
@@ -329,39 +327,39 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
     if (stripped_lhs.* == .as_trait) {
-        const res = self.scope.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?);
+        const res = try ast.scope().?.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?, self.ctx);
         if (res.ast != null) {
             const decl = Scope.search_impl(res.ast.?, ast.rhs().token().data);
             try walk_.walk_ast(decl, self);
             return decl.?.symbol().?;
         } else {
-            const decl = try self.scope.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), ast.rhs().token().data, self.ctx);
+            const decl = try ast.scope().?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), ast.rhs().token().data, self.ctx);
             return decl.?.symbol().?;
         }
     }
     if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
-        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), self.scope);
+        return try self.resolve_access_const(stripped_lhs, ast.rhs().token(), ast.scope().?);
     }
 
-    const symbol = stripped_lhs.symbol().?;
-    return self.resolve_access_symbol(symbol, ast.rhs().token(), ast.scope(), stripped_lhs);
+    const sym = stripped_lhs.symbol().?;
+    return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs);
 }
 
-fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: ?*Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
-    switch (symbol.kind) {
-        .module => return try self.resolve_access_module(symbol, rhs),
+fn resolve_access_symbol(self: Self, sym: *Symbol, rhs: Token, scope: ?*Scope, stripped_lhs_type: *Type_AST) walk_.Error!*Symbol {
+    switch (sym.kind) {
+        .module => return try self.resolve_access_module(sym, rhs),
 
         .import => {
-            const module_symbol = symbol.kind.import.real_symbol.?;
+            const module_symbol = sym.kind.import.real_symbol.?;
             return try self.resolve_access_module(module_symbol, rhs);
         },
 
         .import_inner => {
             const new_symbol =
-                if (symbol.decl.?.* == .type_alias)
-                    try self.resolve_access_type(symbol.init_typedef().?)
+                if (sym.decl.?.* == .type_alias)
+                    try self.resolve_access_type(sym.init_typedef().?)
                 else
-                    try self.resolve_access_ast(symbol.init_value().?);
+                    try self.resolve_access_ast(sym.init_value().?);
             return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
         },
 
@@ -373,7 +371,7 @@ fn resolve_access_symbol(self: Self, symbol: *Symbol, rhs: Token, scope: ?*Scope
                     .span = rhs.span,
                     .identifier = rhs.data,
                     .name = "symbol",
-                    .module_name = symbol.name,
+                    .module_name = sym.name,
                 },
             });
             return error.CompileError;
@@ -461,7 +459,7 @@ fn create_format_args_slice(self: *const Self, ast: *ast_.AST) !*ast_.AST {
             child.token(),
             dyn_type,
             child,
-            self.scope,
+            ast.scope().?,
             false,
             self.ctx.allocator(),
         );

@@ -272,7 +272,7 @@ pub fn monomorphize(
         const scope = self.decl.?.scope().?.parent.?;
 
         const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
-        const decorate_context = Decorate.new(scope, ctx);
+        const decorate_context = Decorate.new(ctx);
 
         decl.set_decl_name(ast_.AST.create_pattern_symbol(
             Token.init_simple(name),

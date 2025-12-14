@@ -45,7 +45,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (expected) |expected_type| {
         const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_type(expected_type, Decorate.new(symbol.scope, self.ctx));
+        try walk_.walk_type(expected_type, Decorate.new(self.ctx));
         try self.ctx.validate_type.validate_type(expected_type);
         if (self.ctx.validate_type.detect_cycle(expected_type, null)) {
             self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
@@ -61,9 +61,8 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
-        // Tree_Writer.print_tree(_init);
         const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_ast(_init, Decorate.new(symbol.scope, self.ctx));
+        try walk_.walk_ast(_init, Decorate.new(self.ctx));
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {

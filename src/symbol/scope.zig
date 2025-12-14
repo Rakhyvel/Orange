@@ -143,7 +143,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
 const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
-pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_Trait_Lookup_Result {
+pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) !Impl_Trait_Lookup_Result {
     if (false) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
         Tree_Writer.print_type_tree(for_type);
@@ -155,7 +155,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
     if ((for_type.* == .identifier or for_type.* == .access) and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-            const trait_symbol = constraint.symbol().?;
+            const trait_symbol = try Decorate.symbol(constraint, ctx);
             if (trait_symbol == trait) {
                 return .{ .count = 1, .ast = null };
             }
@@ -164,7 +164,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
     // As-trait ascription, return positive count with null ast if traits match
     if (for_type.* == .as_trait and for_type.rhs().symbol().? == trait) {
-        return self.impl_trait_lookup(for_type.lhs(), trait);
+        return self.impl_trait_lookup(for_type.lhs(), trait, ctx);
     }
 
     // Go through the scope's list of implementations, check to see if the types and traits match
@@ -189,7 +189,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
             var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
-            const parent_res = module_scope.impl_trait_lookup(for_type, trait);
+            const parent_res = try module_scope.impl_trait_lookup(for_type, trait, ctx);
             if (parent_res.count > 0) {
                 retval.count += parent_res.count;
                 retval.ast = retval.ast orelse parent_res.ast;
@@ -200,7 +200,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol) Impl_
 
     if (self.parent != null) {
         // Did not match in this scope. Try parent scope
-        const parent_res = self.parent.?.impl_trait_lookup(for_type, trait);
+        const parent_res = try self.parent.?.impl_trait_lookup(for_type, trait, ctx);
         retval.count += parent_res.count;
         retval.ast = retval.ast orelse parent_res.ast;
         return retval;
@@ -251,7 +251,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
+        try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
     }
     for (trait_decl.trait.const_decls.items) |const_decl| {
@@ -263,7 +263,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        try walker_.walk_ast(cloned, Decorate.new(new_scope, compiler));
+        try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {
@@ -280,7 +280,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         defer subst.deinit();
 
         // TODO: This was a hack to make sure the impl type is always decorated. Decorations should probably be needs-driven?
-        const decorate_context = Decorate.new(self, compiler);
+        const decorate_context = Decorate.new(compiler);
         try walker_.walk_type(impl.impl._type, decorate_context);
 
         try compiler.validate_type.validate_type(impl.impl._type);
@@ -370,7 +370,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
     }
 
     // Decorate identifiers, validate
-    const new_decorate_context = Decorate.new(new_scope, compiler);
+    const new_decorate_context = Decorate.new(compiler);
     try walker_.walk_ast(new_impl, new_decorate_context); // this doesn't know about the anonymous trait
     try compiler.validate_scope.validate_scope(new_scope);
 

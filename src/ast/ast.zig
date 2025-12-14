@@ -87,6 +87,7 @@ pub const AST = union(enum) {
     identifier: struct {
         common: AST_Common,
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
     },
 
     not: struct { common: AST_Common, _expr: *AST },
@@ -142,6 +143,7 @@ pub const AST = union(enum) {
         _lhs: *AST,
         _children: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
     },
     select: struct {
@@ -163,6 +165,7 @@ pub const AST = union(enum) {
         name: *AST, //
         _generic_params: std.array_list.Managed(*AST),
         super_traits: std.array_list.Managed(*Type_AST),
+        super_trait_impls: std.array_list.Managed(*AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
         type_decls: std.array_list.Managed(*AST),
@@ -890,6 +893,7 @@ pub const AST = union(enum) {
             .name = name,
             ._generic_params = std.array_list.Managed(*AST).init(allocator),
             .super_traits = super_traits,
+            .super_trait_impls = std.array_list.Managed(*AST).init(allocator),
             .method_decls = method_decls,
             .const_decls = const_decls,
             .type_decls = type_decls,
