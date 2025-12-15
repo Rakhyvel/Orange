@@ -261,14 +261,14 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
     // TODO: (for next release) De-duplicate this
     for (trait_decl.trait.method_decls.items) |method_decl| {
         if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
-        return method_decl;
-        // var subst = unification_.Substitutions.init(compiler.allocator());
-        // defer subst.deinit();
-        // subst.put("Self", for_type) catch unreachable;
-        // const cloned = method_decl.clone(&subst, compiler.allocator());
-        // const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
-        // try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        // return cloned;
+
+        var subst = unification_.Substitutions.init(compiler.allocator());
+        defer subst.deinit();
+        subst.put("Self", for_type) catch unreachable;
+        const cloned = method_decl.clone(&subst, compiler.allocator());
+        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        return cloned;
     }
     for (trait_decl.trait.const_decls.items) |const_decl| {
         if (!std.mem.eql(u8, const_decl.binding.decls.items[0].decl.name.token().data, name)) continue;
