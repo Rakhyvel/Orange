@@ -129,7 +129,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
             if (symbol_type.* == .addr_of and context_type.* != .addr_of) {
                 symbol_type = symbol_type.child();
             }
-            try walker_.walk_type(symbol_type, Decorate.new(ctx)); // TODO: Needed?
+            try walker_.walk_type(symbol_type, Decorate.new(ctx));
             if (context_type.types_match(symbol_type)) {
                 return symbol;
             }
