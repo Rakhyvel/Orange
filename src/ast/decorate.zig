@@ -417,6 +417,7 @@ fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: Token) walk_.E
 fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Scope) walk_.Error!*Symbol {
     const rhs_decl = scope.lookup_impl_member(lhs, rhs_token.data, self.ctx) catch return error.CompileError;
     if (rhs_decl == null) {
+        std.debug.panic("here", .{});
         self.ctx.errors.add_error(errs_.Error{
             .type_not_impl_method = .{
                 .span = rhs_token.span,

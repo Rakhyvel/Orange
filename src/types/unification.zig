@@ -185,6 +185,18 @@ pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std
     return retval;
 }
 
+pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
+    for (subst.keys()) |key| {
+        const ty = subst.get(key).?;
+        std.debug.assert(ty.* != .identifier or ty.symbol() != null);
+        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.* == .type_param_decl;
+        if (bad) {
+            return true;
+        }
+    }
+    return false;
+}
+
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;

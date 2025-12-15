@@ -1398,27 +1398,27 @@ pub const Type_AST = union(enum) {
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier => _type.symbol().?.decl.?.* == .type_param_decl,
-            .addr_of, .array_of => _type.child().refers_to_self(),
-            .annotation => _type.child().refers_to_self(),
+            .identifier, .access => _type.symbol().?.decl.?.* == .type_param_decl,
+            .addr_of, .array_of => _type.child().is_generic(),
+            .annotation => _type.child().is_generic(),
             .function => {
                 for (_type.function.args.items) |arg| {
-                    if (arg.refers_to_self()) {
+                    if (arg.is_generic()) {
                         return true;
                     }
                 }
-                return _type.rhs().refers_to_self();
+                return _type.rhs().is_generic();
             },
-            .struct_type, .tuple_type, .enum_type => {
+            .generic_apply, .struct_type, .tuple_type, .enum_type => {
                 for (_type.children().items) |item| {
-                    if (item.refers_to_self()) {
+                    if (item.is_generic()) {
                         return true;
                     }
                 }
                 return false;
             },
             // I think everything above covers everything, but just in case, error out
-            else => true,
+            else => std.debug.panic("{t}", .{_type.*}),
         };
     }
 
