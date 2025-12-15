@@ -131,8 +131,10 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         },
 
         .dyn_type => {
+            if (rhs.* == .anyptr_type) return;
+            if (rhs.* != .dyn_type) return error.TypesMismatch;
             if (rhs.dyn_type.mut and !lhs.dyn_type.mut) return error.TypesMismatch;
-            if (lhs.child().symbol() != lhs.child().symbol()) return error.TypesMismatch;
+            if (lhs.child().symbol() != rhs.child().symbol()) return error.TypesMismatch;
         },
 
         .unit_type => {
@@ -151,7 +153,6 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
                 return error.TypesMismatch;
             }
             if (lhs.children().items.len != rhs.children().items.len) {
-                std.debug.print("arg lengths differ\n", .{});
                 return error.TypesMismatch;
             }
 

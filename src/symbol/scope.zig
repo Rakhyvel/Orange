@@ -168,6 +168,12 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
         return self.impl_trait_lookup(for_type.lhs(), trait, ctx);
     }
 
+    const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
+        for_type.symbol().?.decl.?.type_param_decl.constraints.items
+    else
+        &[_]*Type_AST{}; // empty slice
+    const is_type_param = constraints.len > 0;
+
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
         const traits_match = impl.impl.trait.?.symbol() == trait;
@@ -175,11 +181,17 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
 
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
-        unification_.unify(impl.impl._type, for_type, &subst, .{}) catch {
+        unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
             continue;
         };
-        if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(for_type.symbol().?.decl.?.type_param_decl.constraints.items, self, ctx) catch continue;
+
+        if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, self, ctx) catch continue;
+            if (sat_res != .satisfies) continue;
+        }
+
+        if (is_type_param) {
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, ctx) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
@@ -293,6 +305,11 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
             continue;
         };
+
+        if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, self, compiler) catch continue;
+            if (sat_res != .satisfies) continue;
+        }
 
         if (is_type_param) {
             const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, compiler) catch continue;

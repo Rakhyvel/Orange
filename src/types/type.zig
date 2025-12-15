@@ -1201,7 +1201,7 @@ pub const Type_AST = union(enum) {
                                 }
                                 continue;
                             }
-                            Tree_Writer.print_type_tree(self);
+                            std.debug.print("not impl B\n", .{});
                             return .{ .not_impl = trait };
                         };
                         const associated_type_name = eq_constraint.lhs().token().data;

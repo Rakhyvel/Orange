@@ -1,15 +1,15 @@
 import debug
 import ffi
 
-fn new[T]() -> ()!&mut T with core::Allocating {
-    match core::Allocating.alloc.>alloc(@sizeof(T)) {
+fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
+    match core::Allocating.alloc.>alloc(T::size) {
         .some(bytes) => ffi::ref_from_ptr_mut[T](bytes as [*mut]T)
         .none => .err
     }
 }
 
-fn make[T](length: Int) -> ()![mut]T with core::Allocating {
-    match core::Allocating.alloc.>alloc(@sizeof(T) * length) {
+fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
+    match core::Allocating.alloc.>alloc(T::size * length) {
         .some(bytes) => .ok(mut_slice_from_parts[T](bytes as [*mut]T, length))
         .none => .err
     }

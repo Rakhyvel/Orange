@@ -13,7 +13,7 @@ enum Error {
     out_of_memory
 }
 
-impl[K: core::Hash + core::Eq, V] for Map[K, V] {
+impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn init() -> Self with core::Allocating {
         Self(
             .hashes = mem::mut_slice_from_parts[Word64](0 as [*mut]Word64, 0),
@@ -145,19 +145,19 @@ impl[K: core::Hash + core::Eq, V] for Map[K, V] {
                 return .err(.out_of_memory)
             }) as [*mut]Word64
 
-            if @sizeof(K) > 0 {
+            if K::size > 0 {
                 self.keys.data = (self.alloc.>realloc(
                     self.keys.data as [*mut]Byte,
-                    new_cap_elements * @sizeof(K)
+                    new_cap_elements * K::size
                 ) orelse {
                     return .err(.out_of_memory)
                 }) as [*mut]K
             }
 
-            if @sizeof(V) > 0 {
+            if V::size > 0 {
                 self.values.data = (self.alloc.>realloc(
                     self.values.data as [*mut]Byte,
-                    new_cap_elements * @sizeof(V)
+                    new_cap_elements * V::size
                 ) orelse {
                     return .err(.out_of_memory)
                 }) as [*mut]V

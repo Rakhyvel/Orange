@@ -287,6 +287,15 @@ impl[T: Iterator] Into_Iterator for T {
     }
 }
 
+trait Sized {
+    const size: Int
+}
+
+impl Sized for Byte { const size = 1 }
+impl Sized for Int { const size = 8 }
+impl Sized for () { const size = 0 }
+impl[T] Sized for []T { const size = 16 }
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

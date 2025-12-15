@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
+const Decorate = @import("../ast/decorate.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Scope = @import("../symbol/scope.zig");
@@ -222,11 +223,11 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
+        _ = try Decorate.symbol(typedef.decl_typedef().?, self.ctx);
         const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.scope().?, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
-                std.debug.print("not impl 3\n", .{});
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = typedef.token().span,
                     .trait_name = unimpld.name,
