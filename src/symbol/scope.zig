@@ -278,14 +278,26 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
 var count: usize = 0;
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+    const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
+        for_type.symbol().?.decl.?.type_param_decl.constraints.items
+    else
+        &[_]*Type_AST{}; // empty slice
+    const is_type_param = constraints.len > 0;
+
     for (self.impls.items) |impl| {
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
 
         try compiler.validate_type.validate_type(impl.impl._type);
-        unification_.unify(impl.impl._type, for_type, &subst, .{}) catch {
+
+        unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
             continue;
         };
+
+        if (is_type_param) {
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, compiler) catch continue;
+            if (sat_res != .satisfies) continue;
+        }
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
         if (search_impl(instantiated_impl, name)) |res| return res;
