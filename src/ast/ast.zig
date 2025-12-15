@@ -440,6 +440,7 @@ pub const AST = union(enum) {
     },
     type_param_decl: struct {
         common: AST_Common,
+        rigid: bool,
         _symbol: ?*Symbol = null,
         constraints: std.array_list.Managed(*Type_AST),
     },
@@ -1348,9 +1349,10 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_type_param_decl(_token: Token, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
+    pub fn create_type_param_decl(_token: Token, rigid: bool, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .type_param_decl = .{
             .common = AST_Common{ ._token = _token },
+            .rigid = rigid,
             .constraints = constraints,
         } }, allocator);
     }
@@ -1743,6 +1745,7 @@ pub const AST = union(enum) {
             },
             .type_param_decl => return create_type_param_decl(
                 self.token(),
+                self.type_param_decl.rigid,
                 Type_AST.clone_types(self.type_param_decl.constraints, substs, allocator),
                 allocator,
             ),

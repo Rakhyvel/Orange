@@ -282,7 +282,7 @@ impl[T: Iterator] Into_Iterator for T {
     type Item = (T as Iterator)::Item
     type Iter = T
 
-    fn into_iter(self) -> Self::Iter {
+    fn into_iter(self) -> (T as Into_Iterator)::Iter {
         self
     }
 }

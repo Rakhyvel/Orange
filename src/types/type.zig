@@ -1186,7 +1186,6 @@ pub const Type_AST = union(enum) {
                 const trait = constraint.base_symbol().?;
                 const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
-                    std.debug.print("not impl 1\n", .{});
                     return .{ .not_impl = trait };
                 }
 
@@ -1223,7 +1222,7 @@ pub const Type_AST = union(enum) {
                         }
                         var subst = unification_.Substitutions.init(ctx.allocator());
                         defer subst.deinit();
-                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst) catch {
+                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst, .{}) catch {
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
                                 .expected = eq_constraint.rhs(),

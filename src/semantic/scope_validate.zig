@@ -21,6 +21,9 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
+    for (scope.impls.items) |impl| {
+        try self.validate_impl(impl);
+    }
     var i: usize = 0;
     while (i < scope.symbols.keys().len) : (i += 1) {
         const key = scope.symbols.keys()[i];
@@ -36,9 +39,6 @@ pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
     while (i < scope.children.items.len) : (i += 1) {
         const child = scope.children.items[i];
         try self.validate_scope(child);
-    }
-    for (scope.impls.items) |impl| {
-        try self.validate_impl(impl);
     }
 }
 
@@ -160,7 +160,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         // Check that parameters match
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
             const impl_type = impl_param.binding.type;
-            unification_.unify(impl_type, trait_param.binding.type, &subst) catch {
+            unification_.unify(impl_type, trait_param.binding.type, &subst, .{}) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                     .span = impl_param.binding.type.token().span,
                     .method_name = def.method_decl.name.token().data,
@@ -173,7 +173,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that return type matches
-        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst) catch {
+        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst, .{}) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,

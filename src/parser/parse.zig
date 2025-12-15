@@ -1489,7 +1489,7 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     const constraints = try self.contraint_list();
 
-    return ast_.AST.create_type_param_decl(identifier, constraints, self.allocator);
+    return ast_.AST.create_type_param_decl(identifier, false, constraints, self.allocator);
 }
 
 fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
@@ -1498,7 +1498,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
             const constraints = try self.contraint_list();
-            const param_ident = ast_.AST.create_type_param_decl(param_token, constraints, self.allocator);
+            const param_ident = ast_.AST.create_type_param_decl(param_token, true, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
                 break;

@@ -1,4 +1,4 @@
-// multiptr_mismatch.orng:11:22: error: expected a value of type `[*]T`, got a value of type `[*]Int`
+// multiptr_mismatch.orng:11:22: error: expected a value of type `items: [*]T`, got a value of type `[*]Int`
 //         Self(items as [*]Int)
 //                     ^
 // 

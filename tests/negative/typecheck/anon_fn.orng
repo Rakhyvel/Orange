@@ -4,5 +4,6 @@
 // 
 fn main() -> Int {
     let x: Int = fn ()->() {}
+    _ = x
     0
 }

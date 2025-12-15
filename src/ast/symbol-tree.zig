@@ -223,6 +223,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             try self_type_constraints.append(self_identifier);
             const self_type_decl = ast_.AST.create_type_param_decl(
                 self_token,
+                true,
                 self_type_constraints,
                 self.allocator,
             );

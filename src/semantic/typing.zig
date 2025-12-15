@@ -13,9 +13,9 @@ const Validate_Error_Enum = error{CompileError};
 
 pub fn type_check(span: Span, got: *Type_AST, maybe_expected: ?*Type_AST, subst: *unification_.Substitutions, errors: *errs_.Errors) Validate_Error_Enum!void {
     if (maybe_expected) |expected| {
-        if (unification_.unify(got, expected, subst)) |_| {} else |_| {
+        unification_.unify(got, expected, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
             return throw_unexpected_type(span, expected, got, errors);
-        }
+        };
     }
 }
 
