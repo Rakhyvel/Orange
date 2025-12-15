@@ -91,14 +91,17 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
             continue;
         }
 
-        var debug_alloc = Debug_Allocator{};
+        var debug_alloc = Debug_Allocator.init;
         const test_name = get_test_name(next) orelse continue;
         if (mode == .regular) {
             try term_.outputColor(succeed_color, "[ RUN      ... ] ", writer);
             try writer.print("{s}\n", .{test_name});
         }
 
-        const res = try test_file(next, mode, &debug_alloc);
+        const res = test_file(next, mode, &debug_alloc) catch |err| {
+            _ = debug_alloc.deinit();
+            return err;
+        };
 
         const debug_result = debug_alloc.deinit();
         var memory_leak_detected: bool = undefined;
