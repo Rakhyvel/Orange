@@ -145,6 +145,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
 fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
     const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    defer allocator.free(absolute_filename);
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
@@ -195,6 +196,7 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
 
     // execute (make sure no signals)
     var output_name = try String.init_with_contents(allocator, "");
+    defer output_name.deinit();
     var output_name_writer = output_name.writer(output_name.buffer.?);
     const out_name_writer_intfc = &output_name_writer.interface;
     try out_name_writer_intfc.print("{s}/build/{s}", .{ package_abs_path, module.package_name });
@@ -218,6 +220,7 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
     const writer = &writer_struct.interface;
 
     const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    defer allocator.free(absolute_filename);
     // Try to compile Orange (make sure no errors)
     var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();
