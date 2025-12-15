@@ -180,6 +180,7 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
     }
 
     const contents = try Read_File.init(compiler.allocator()).run(absolute_filename);
+    defer compiler.allocator().free(contents);
     const header_comment_contents = try header_comment(contents, debug_alloc.allocator());
     defer debug_alloc.allocator().free(header_comment_contents);
     var expected_out = try String.init_with_contents(debug_alloc.allocator(), header_comment_contents[0]);

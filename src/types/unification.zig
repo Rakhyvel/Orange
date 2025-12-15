@@ -143,6 +143,15 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             }
         },
 
+        .function => {
+            if (rhs.* != .function) return error.TypesMismatch;
+            if (lhs.children().items.len != rhs.children().items.len) {
+                return error.TypesMismatch;
+            }
+
+            try unify_inner(lhs.rhs(), rhs.rhs(), subst, visited_map, options);
+        },
+
         .generic_apply => {
             if (rhs.* != .generic_apply) {
                 return error.TypesMismatch;

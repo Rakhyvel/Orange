@@ -95,6 +95,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         // Create symbols (potentially >1) from pattern, put inside scope
         .binding => {
             var symbols = std.array_list.Managed(*Symbol).init(self.allocator);
+            defer symbols.deinit();
             try create_symbol(
                 &symbols,
                 ast.binding.pattern,

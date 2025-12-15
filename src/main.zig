@@ -108,6 +108,7 @@ fn run(compiler: *Compiler_Context, package_abs_path: []const u8, args: *std.pro
     }
 
     var output_name = std.array_list.Managed(u8).init(allocator);
+    defer output_name.deinit();
     try output_name.print("{s}", .{curr_package.output_absolute_path});
 
     var argv = std.array_list.Managed([]const u8).init(allocator);

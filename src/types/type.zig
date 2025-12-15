@@ -1201,7 +1201,6 @@ pub const Type_AST = union(enum) {
                                 }
                                 continue;
                             }
-                            std.debug.print("not impl B\n", .{});
                             return .{ .not_impl = trait };
                         };
                         const associated_type_name = eq_constraint.lhs().token().data;
@@ -1214,7 +1213,6 @@ pub const Type_AST = union(enum) {
                             }
                         }
                         if (type_def == null) {
-                            std.debug.print("no assoc 1\n", .{});
                             return .{ .no_such_assoc_type = .{
                                 .eq_constraint = eq_constraint,
                                 .trait_name = trait.name,

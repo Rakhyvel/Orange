@@ -1,4 +1,4 @@
-// recursive.orng:6:14: error: error: recursive definition detected
+// recursive.orng:6:14: error: use of identifier `x` before its definition
 //     let x = x
 //             ^
 // 

@@ -96,6 +96,14 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 },
             }
 
+            if ((ast.symbol().?.kind == .let or ast.symbol().?.kind == .mut) // local variable
+            and ast.symbol().?.decl.?.decl_init() != null // not a parameter
+            and !ast.symbol().?.defined // not defined
+            ) {
+                self.ctx.errors.add_error(errs_.Error{ .use_before_def = .{ .identifier = ast.token() } });
+                return error.CompileError;
+            }
+
             return self;
         },
     }

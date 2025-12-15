@@ -10,6 +10,7 @@ const Symbol = @import("../symbol/symbol.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const unification_ = @import("../types/unification.zig");
+const walk_ = @import("../ast/walker.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 
@@ -96,7 +97,6 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         const super_trait_symbol = super_trait.symbol().?;
         const super_lookup_res = try impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol, self.ctx);
         if (super_lookup_res.count == 0) {
-            std.debug.print("not impl 2\n", .{});
             self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                 ._type = impl.impl._type,
                 .span = impl.token().span,
@@ -223,7 +223,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
-        _ = try Decorate.symbol(typedef.decl_typedef().?, self.ctx);
+        try walk_.walk_type(typedef.decl_typedef().?, Decorate.new(self.ctx));
         const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.scope().?, self.ctx);
         switch (sat_res) {
             .satisfies => {},
@@ -286,6 +286,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
+        try walk_.walk_ast(def, Decorate.new(self.ctx));
         _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
     }
 }
