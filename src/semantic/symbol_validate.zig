@@ -4,7 +4,6 @@ const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Const_Eval = @import("const_eval.zig");
-const Decorate = @import("../ast/decorate.zig");
 const typecheck_AST = @import("typecheck.zig").typecheck_AST;
 const errs_ = @import("../util/errors.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
@@ -60,7 +59,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
-        try walk_.walk_ast(_init, Decorate.new(self.ctx));
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {

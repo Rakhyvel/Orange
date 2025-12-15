@@ -286,7 +286,6 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
-        try walk_.walk_ast(def, Decorate.new(self.ctx));
         _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
     }
 }

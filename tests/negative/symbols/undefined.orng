@@ -1,9 +1,0 @@
-// undefined.orng:6:14: error: use of identifier `x` before its definition
-//     let y = x
-//             ^
-// 
-fn main() -> Int {
-    let y = x
-    let x = 0
-    y
-}
