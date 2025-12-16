@@ -224,6 +224,11 @@ struct Slice_Iter[T] {
     pos: Int
 }
 
+struct Mut_Slice_Iter[T] {
+    items: [mut]T
+    pos: Int
+}
+
 impl[T] Iterator for Slice_Iter[T] {
     type Item = T
     fn next(&mut self) -> ?Self::Item {
@@ -236,9 +241,30 @@ impl[T] Iterator for Slice_Iter[T] {
     }
 }
 
+impl[T] Iterator for Mut_Slice_Iter[T] {
+    type Item = &mut T
+    fn next(&mut self) -> ?Self::Item {
+        if self.pos >= self.items.length {
+            return .none
+        }
+        let retval = &mut self.items[self.pos]
+        self.pos += 1
+        .some(retval)
+    }
+}
+
 impl[I] Into_Iterator for []I {
     type Item = I
     type Iter = Slice_Iter[I]
+
+    fn into_iter(self) -> Self::Iter {
+        Self::Iter(.items = self, .pos = 0)
+    }
+}
+
+impl[I] Into_Iterator for [mut]I {
+    type Item = &mut I
+    type Iter = Mut_Slice_Iter[I]
 
     fn into_iter(self) -> Self::Iter {
         Self::Iter(.items = self, .pos = 0)
