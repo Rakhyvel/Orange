@@ -31,10 +31,6 @@ pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
         const key = scope.symbols.keys()[i];
         const symbol = scope.symbols.get(key).?;
 
-        if (i > 600) {
-            scope.pprint();
-            std.debug.panic("nah", .{});
-        }
         try self.ctx.validate_symbol.validate_symbol(symbol);
     }
     i = 0;
