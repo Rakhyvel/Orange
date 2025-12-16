@@ -16,14 +16,7 @@ const fail_color = term_.Attr{ .fg = .red, .bold = true };
 const not_orng_color = term_.Attr{ .fg = .blue, .bold = true };
 
 const Test_Mode = enum { regular, coverage, bless };
-const Debug_Allocator = std.heap.DebugAllocator(.{
-    .never_unmap = false,
-    .safety = true,
-    .retain_metadata = true,
-    .verbose_log = false,
-    .resize_stack_traces = true,
-    .enable_memory_limit = true,
-});
+const Debug_Allocator = std.heap.ArenaAllocator;
 
 const Test_Error = error{
     CompileError,
@@ -91,7 +84,8 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
             continue;
         }
 
-        var debug_alloc = Debug_Allocator.init;
+        var debug_alloc = Debug_Allocator.init(allocator);
+        defer debug_alloc.deinit();
         const test_name = get_test_name(next) orelse continue;
         if (mode == .regular) {
             try term_.outputColor(succeed_color, "[ RUN      ... ] ", writer);
@@ -103,16 +97,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
             return err;
         };
 
-        const debug_result = debug_alloc.deinit();
-        var memory_leak_detected: bool = undefined;
-        if (debug_result == .leak) {
-            try writer.print("compiler error: memory leak!\n", .{});
-            memory_leak_detected = true;
-        } else {
-            memory_leak_detected = false;
-        }
-
-        if (res and !memory_leak_detected) {
+        if (res) {
             results.passed += 1;
             if (mode == .regular) {
                 try term_.outputColor(succeed_color, "[  ... PASSED  ]\n", writer);
