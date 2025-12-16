@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
+const Decorate = @import("../ast/decorate.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Scope = @import("../symbol/scope.zig");
@@ -9,6 +10,7 @@ const Symbol = @import("../symbol/symbol.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const unification_ = @import("../types/unification.zig");
+const walk_ = @import("../ast/walker.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 
@@ -21,18 +23,20 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
-    for (scope.symbols.keys()) |key| {
+    for (scope.impls.items) |impl| {
+        try self.validate_impl(impl);
+    }
+    var i: usize = 0;
+    while (i < scope.symbols.keys().len) : (i += 1) {
+        const key = scope.symbols.keys()[i];
         const symbol = scope.symbols.get(key).?;
 
         try self.ctx.validate_symbol.validate_symbol(symbol);
     }
-    var i: usize = 0;
+    i = 0;
     while (i < scope.children.items.len) : (i += 1) {
         const child = scope.children.items[i];
         try self.validate_scope(child);
-    }
-    for (scope.impls.items) |impl| {
-        try self.validate_impl(impl);
     }
 }
 
@@ -46,7 +50,9 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
-    _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null) catch |e| switch (e) {
+    var subst = unification_.Substitutions.init(self.ctx.allocator());
+    defer subst.deinit();
+    _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null, &subst) catch |e| switch (e) {
         error.UnexpectedTypeType => {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
                 .span = impl.impl.trait.?.token().span,
@@ -85,7 +91,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     // Check that super traits are implemented
     for (trait_ast.trait.super_traits.items) |super_trait| {
         const super_trait_symbol = super_trait.symbol().?;
-        const super_lookup_res = impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol);
+        const super_lookup_res = try impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol, self.ctx);
         if (super_lookup_res.count == 0) {
             self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                 ._type = impl.impl._type,
@@ -94,6 +100,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             } });
             return error.CompileError;
         }
+        try trait_ast.trait.super_trait_impls.append(super_lookup_res.ast.?);
     }
 
     // Construct a map of all trait decls
@@ -148,11 +155,9 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that parameters match
-        var subst = unification_.Substitutions.init(self.ctx.allocator());
-        defer subst.deinit();
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
             const impl_type = impl_param.binding.type;
-            unification_.unify(impl_type, trait_param.binding.type, &subst) catch {
+            unification_.unify(impl_type, trait_param.binding.type, &subst, .{}) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                     .span = impl_param.binding.type.token().span,
                     .method_name = def.method_decl.name.token().data,
@@ -165,7 +170,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that return type matches
-        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst) catch {
+        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst, .{}) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,
@@ -214,12 +219,13 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that contraints match
-        const sat_res = typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items);
+        try walk_.walk_type(typedef.decl_typedef().?, Decorate.new(self.ctx));
+        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.scope().?, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = typedef.decl_typedef().?.token().span,
+                    .span = typedef.token().span,
                     .trait_name = unimpld.name,
                     ._type = typedef.decl_typedef().?,
                 } });
@@ -227,7 +233,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             },
             .not_eq => |uneqd| {
                 self.ctx.errors.add_error(errs_.Error{ .eq_constraint_failed = .{
-                    .call_span = typedef.decl_typedef().?.token().span,
+                    .call_span = typedef.token().span,
                     .associated_type_name = uneqd.associated_type_name,
                     .constraint_span = uneqd.constraint_span,
                     .impl_span = uneqd.impl_span,
@@ -276,7 +282,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
-        _ = self.ctx.typecheck.typecheck_AST(def, null) catch return error.CompileError;
+        _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
     }
 }
 

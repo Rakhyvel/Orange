@@ -4,9 +4,26 @@ const Type_AST = @import("../types/type.zig").Type_AST;
 const Tree_Writer = @import("../ast/tree_writer.zig");
 
 pub const Substitutions = std.StringArrayHashMap(*Type_AST);
+const Pair = struct { lhs: *Type_AST, rhs: *Type_AST };
+const Visited_Map = std.array_hash_map.AutoArrayHashMap(Pair, void);
+
+const Check_Mode = enum { unify, assignable };
+const Options = struct { allow_rigid: bool = true, mode: Check_Mode = .unify };
 
 // Attempt to match the rhs with the lhs
-pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
+pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, options: Options) !void {
+    var visited_map = Visited_Map.init(std.heap.page_allocator);
+    defer visited_map.deinit();
+
+    try unify_inner(lhs, rhs, subst, &visited_map, options);
+}
+
+fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_map: *Visited_Map, options: Options) !void {
+    if (visited_map.contains(Pair{ .lhs = lhs, .rhs = rhs })) {
+        return;
+    }
+    try visited_map.put(Pair{ .lhs = lhs, .rhs = rhs }, void{});
+
     // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
     // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
 
@@ -14,25 +31,50 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
         return; // Bottom type - vacuously true
     }
 
-    if (lhs.* == .identifier and lhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs.symbol().?.init_typedef().?, rhs, subst);
+    if (lhs.* == .annotation) return try unify_inner(lhs.child(), rhs, subst, visited_map, options);
+    if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
+
+    if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
+        return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
     } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
+        return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
-    if (rhs.* == .access and rhs.symbol().?.init_typedef() != null) {
-        return try unify(lhs, rhs.symbol().?.init_typedef().?, subst);
-    }
-    if (rhs.* == .access and rhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
-        if (rhs.associated_type_from_constraint()) |assoc_type| return try unify(lhs, assoc_type, subst);
+    if (lhs.* == .access) {
+        if (lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
+            return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
+        }
+        // if (lhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
+        //     if (lhs.associated_type_from_constraint()) |assoc_type|
+        //         return try unify_inner(assoc_type, rhs, subst, visited_map, options);
+        // }
     }
 
-    if ((lhs.* == .identifier or lhs.* == .access) and lhs.symbol().?.decl.?.* == .type_param_decl) {
+    if (rhs.* == .access) {
+        if (rhs.symbol() != null and rhs.symbol().?.init_typedef() != null) {
+            return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
+        }
+        if (rhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
+            if (rhs.associated_type_from_constraint()) |assoc_type|
+                return try unify_inner(lhs, assoc_type, subst, visited_map, options);
+        }
+    }
+
+    const lhs_is_type_param = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl;
+    const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl;
+
+    if (lhs_is_type_param) {
         try subst.put(lhs.symbol().?.name, rhs);
+        if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
+            return error.TypesMismatch;
+        }
         return;
     }
-    if ((rhs.* == .identifier or rhs.* == .access) and rhs.symbol().?.decl.?.* == .type_param_decl) {
+    if (rhs_is_type_param) {
         try subst.put(rhs.symbol().?.name, lhs);
+        if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
+            return error.TypesMismatch;
+        }
         return;
     }
 
@@ -54,7 +96,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
             }
 
             for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
-                try unify(l_arg, r_arg, subst);
+                try unify_inner(l_arg, r_arg, subst, visited_map, options);
             }
         },
 
@@ -68,7 +110,7 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
                 const this_name = term.annotation.pattern.token().data;
                 const B_name = B_term.annotation.pattern.token().data;
                 if (!std.mem.eql(u8, this_name, B_name)) return error.TypeMismatch;
-                try unify(term, B_term, subst);
+                try unify_inner(term, B_term, subst, visited_map, options);
             }
         },
 
@@ -77,21 +119,37 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
                 return error.TypesMismatch;
             }
 
-            try unify(lhs.child(), rhs.child(), subst);
+            try unify_inner(lhs.child(), rhs.child(), subst, visited_map, options);
         },
 
         .addr_of => {
             if (rhs.* != .addr_of) return error.TypesMismatch;
-            if (lhs.addr_of.mut != rhs.addr_of.mut) return error.TypesMismatch;
+            if (rhs.addr_of.mut and !lhs.addr_of.mut) return error.TypesMismatch;
             if (lhs.addr_of.multiptr != rhs.addr_of.multiptr) return error.TypesMismatch;
 
-            try unify(lhs.child(), rhs.child(), subst);
+            try unify_inner(lhs.child(), rhs.child(), subst, visited_map, options);
+        },
+
+        .dyn_type => {
+            if (rhs.* == .anyptr_type) return;
+            if (rhs.* != .dyn_type) return error.TypesMismatch;
+            if (rhs.dyn_type.mut and !lhs.dyn_type.mut) return error.TypesMismatch;
+            if (lhs.child().symbol() != rhs.child().symbol()) return error.TypesMismatch;
         },
 
         .unit_type => {
             if (rhs.* != .unit_type) {
                 return error.TypesMismatch;
             }
+        },
+
+        .function => {
+            if (rhs.* != .function) return error.TypesMismatch;
+            if (lhs.children().items.len != rhs.children().items.len) {
+                return error.TypesMismatch;
+            }
+
+            try unify_inner(lhs.rhs(), rhs.rhs(), subst, visited_map, options);
         },
 
         .generic_apply => {
@@ -103,24 +161,25 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions) !void {
             if (lhs_constructor.symbol() != rhs_constructor.symbol()) {
                 return error.TypesMismatch;
             }
-            // if (!std.mem.eql(u8, lhs_constructor.token().data, rhs_constructor.token().data)) {
-            //     std.debug.print("constructors differ: {s} vs {s}\n", .{ lhs_constructor.token().data, rhs_constructor.token().data });
-            //     Tree_Writer.print_type_tree(lhs_constructor);
-            //     Tree_Writer.print_type_tree(rhs_constructor);
-            //     return error.TypesMismatch;
-            // }
             if (lhs.children().items.len != rhs.children().items.len) {
-                std.debug.print("arg lengths differ\n", .{});
                 return error.TypesMismatch;
             }
 
             for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
-                try unify(l_arg, r_arg, subst);
+                try unify_inner(l_arg, r_arg, subst, visited_map, options);
             }
         },
 
         else => return, // TODO: Support more types, add error for unsupported constructs
     }
+}
+
+fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
+    if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.* == .type_param_decl) {
+        return true;
+    }
+    const expanded_arg = arg.expand_identifier();
+    return param.types_match(expanded_arg);
 }
 
 fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.array_list.Managed(*Type_AST)) bool {
@@ -136,10 +195,22 @@ pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std
     return retval;
 }
 
+pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
+    for (subst.keys()) |key| {
+        const ty = subst.get(key).?;
+        std.debug.assert(ty.* != .identifier or ty.symbol() != null);
+        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.* == .type_param_decl;
+        if (bad) {
+            return true;
+        }
+    }
+    return false;
+}
+
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
-        const bad = ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl;
+        const bad = ty.is_generic();
         if (bad) {
             return true;
         }
@@ -151,7 +222,7 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     std.debug.print("{} substitutions: {{\n", .{subst.keys().len});
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
-        const bad = ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl;
+        const bad = ty.is_generic();
         std.debug.print("    {s}: {?f} ({})\n", .{ key, subst.get(key), bad });
     }
     std.debug.print("}}\n", .{});

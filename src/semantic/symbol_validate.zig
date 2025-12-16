@@ -13,6 +13,7 @@ const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{ OutOfMemory, CompileError };
 
@@ -43,8 +44,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     // std.debug.print("validating type for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
 
     if (expected) |expected_type| {
-        const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_type(expected_type, Decorate.new(symbol.scope, self.ctx));
         try self.ctx.validate_type.validate_type(expected_type);
         if (self.ctx.validate_type.detect_cycle(expected_type, null)) {
             self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
@@ -60,10 +59,9 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
-        // Tree_Writer.print_tree(_init);
-        const Decorate = @import("../ast/decorate.zig");
-        try walk_.walk_ast(_init, Decorate.new(symbol.scope, self.ctx));
-        _ = self.ctx.typecheck.typecheck_AST(_init, expected) catch |e| switch (e) {
+        var subst = unification_.Substitutions.init(self.ctx.allocator());
+        defer subst.deinit();
+        _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,
             error.UnexpectedTypeType => {
@@ -75,7 +73,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
             try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
         }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {
-        // std.debug.print("validate type\n", .{});
         try self.ctx.validate_type.validate_type(symbol.init_typedef().?);
         if (self.ctx.validate_type.detect_cycle(symbol.init_typedef().?, symbol)) {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
@@ -92,7 +89,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         symbol.validation_state = .invalid;
         symbol.init_validation_state = .invalid;
         return error.CompileError;
-        // unreachable;
     }
 
     // Check that tests are requesting good contexts
@@ -164,7 +160,9 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.storage == .@"extern") {
         if (symbol.storage.@"extern".c_name != null) {
-            _ = self.ctx.typecheck.typecheck_AST(symbol.storage.@"extern".c_name.?, prelude_.string_type) catch return error.CompileError;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            _ = self.ctx.typecheck.typecheck_AST(symbol.storage.@"extern".c_name.?, prelude_.string_type, &subst) catch return error.CompileError;
         } else {
             symbol.storage.@"extern".c_name = ast_.AST.create_string(Token.init_simple(symbol.name), symbol.name, self.ctx.allocator());
         }

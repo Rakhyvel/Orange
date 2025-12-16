@@ -8,6 +8,7 @@ const Span = @import("../util/span.zig");
 const String = @import("../zig-string/zig-string.zig").String;
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
+const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
@@ -47,6 +48,7 @@ pub const Type_AST = union(enum) {
     identifier: struct {
         common: Type_AST_Common,
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
     },
     /// This tag is used for the right-hand-side of selects. They do not refer to symbols.
     field: struct { common: Type_AST_Common },
@@ -58,11 +60,17 @@ pub const Type_AST = union(enum) {
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
+    as_trait: struct {
+        common: Type_AST_Common,
+        _lhs: *Type_AST,
+        _rhs: *Type_AST,
+    },
     generic_apply: struct {
         common: Type_AST_Common,
         _lhs: *Type_AST,
         args: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
     },
     eq_constraint: struct {
@@ -149,11 +157,11 @@ pub const Type_AST = union(enum) {
             var offset: i64 = 0;
             for (0..field) |i| {
                 var item = self._terms.items[i].expand_identifier();
-                if (self._terms.items[i + 1].alignof() == 0) {
+                if (self._terms.items[i + 1].alignof().? == 0) {
                     continue;
                 }
-                offset += item.sizeof();
-                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof());
+                offset += item.sizeof().?;
+                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof().?);
             }
             return offset;
         }
@@ -167,11 +175,11 @@ pub const Type_AST = union(enum) {
             var offset: i64 = 0;
             for (0..field) |i| {
                 var item = self._terms.items[i].expand_identifier();
-                if (self._terms.items[i + 1].alignof() == 0) {
+                if (self._terms.items[i + 1].alignof().? == 0) {
                     continue;
                 }
-                offset += item.sizeof();
-                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof());
+                offset += item.sizeof().?;
+                offset = alignment_.next_alignment(offset, self._terms.items[i + 1].alignof().?);
             }
             return offset;
         }
@@ -196,7 +204,7 @@ pub const Type_AST = union(enum) {
         len: *AST,
 
         pub fn get_offset(self: *@This(), field: usize) i64 {
-            return self._child.sizeof() * @as(i64, @intCast(field));
+            return self._child.sizeof().? * @as(i64, @intCast(field));
         }
     },
     type_of: struct {
@@ -254,6 +262,15 @@ pub const Type_AST = union(enum) {
     pub fn create_type_access(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .access = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
+        } }, allocator);
+    }
+
+    pub fn create_as_trait(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+        const _common: Type_AST_Common = .{ ._token = _token };
+        return Type_AST.box(Type_AST{ .as_trait = .{
             .common = _common,
             ._lhs = _lhs,
             ._rhs = _rhs,
@@ -488,6 +505,7 @@ pub const Type_AST = union(enum) {
         return switch (ast.*) {
             .identifier => blk: {
                 const id = Type_AST.create_type_identifier(ast.token(), allocator);
+                id.set_scope(ast.scope().?);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
@@ -499,6 +517,15 @@ pub const Type_AST = union(enum) {
                 const typed_lhs = from_ast(ast.lhs(), allocator);
                 const typed_rhs = from_ast(ast.rhs(), allocator);
                 const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
+                id.set_scope(ast.scope().?);
+                id.set_symbol(ast.symbol().?);
+                break :blk id;
+            },
+            .type_access => blk: {
+                const typed_lhs = ast.type_access._lhs_type;
+                const typed_rhs = from_ast(ast.rhs(), allocator);
+                const id = Type_AST.create_type_access(ast.token(), typed_lhs, typed_rhs, allocator);
+                id.set_scope(ast.scope().?);
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
@@ -513,6 +540,7 @@ pub const Type_AST = union(enum) {
             .generic_apply => blk: {
                 const _lhs = from_ast(ast.lhs(), allocator);
                 const gen_apply = Type_AST.create_generic_apply_type(ast.token(), _lhs, ast.generic_apply._children, allocator);
+                gen_apply.set_scope(ast.scope());
                 gen_apply.set_symbol(ast.symbol());
                 break :blk gen_apply;
             },
@@ -525,11 +553,11 @@ pub const Type_AST = union(enum) {
         return union_fields_.get_field_const_ref(self, "common");
     }
 
-    pub fn set_alignof(self: *Type_AST, _alignof: i64) void {
+    pub fn set_alignof(self: *Type_AST, _alignof: ?i64) void {
         union_fields_.get_field_ref(self, "common")._alignof = _alignof;
     }
 
-    pub fn set_sizeof(self: *Type_AST, _sizeof: i64) void {
+    pub fn set_sizeof(self: *Type_AST, _sizeof: ?i64) void {
         union_fields_.get_field_ref(self, "common")._size = _sizeof;
     }
 
@@ -562,6 +590,7 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn symbol(self: Type_AST) ?*Symbol {
+        if (self == .as_trait) return self.lhs().symbol();
         return union_fields_.get_struct_field(self, "_symbol");
     }
 
@@ -750,7 +779,7 @@ pub const Type_AST = union(enum) {
                     }
                 }
             },
-            .struct_type, .tuple_type, .context_type => if (self.* == .struct_type and self.struct_type.was_slice) {
+            .struct_type => if (self.struct_type.was_slice) {
                 const data_ptr = self.children().items[0].child();
                 if (data_ptr.addr_of.mut) {
                     try out.print("[mut]", .{});
@@ -759,6 +788,26 @@ pub const Type_AST = union(enum) {
                 }
                 try data_ptr.child().print_type(out);
             } else {
+                try out.print("struct {{", .{});
+                for (self.children().items, 0..) |term, i| {
+                    try term.print_type(out);
+                    if (i + 1 < self.children().items.len) {
+                        try out.print(", ", .{});
+                    }
+                }
+                try out.print("}}", .{});
+            },
+            .context_type => {
+                try out.print("context {{", .{});
+                for (self.children().items, 0..) |term, i| {
+                    try term.print_type(out);
+                    if (i + 1 < self.children().items.len) {
+                        try out.print(", ", .{});
+                    }
+                }
+                try out.print("}}", .{});
+            },
+            .tuple_type => {
                 try out.print("(", .{});
                 for (self.children().items, 0..) |term, i| {
                     try term.print_type(out);
@@ -789,6 +838,7 @@ pub const Type_AST = union(enum) {
             .access => {
                 try out.print("{f}::{s}", .{ self.lhs(), self.rhs().token().data });
             },
+            .as_trait => try out.print("({f} as {f})", .{ self.lhs(), self.rhs() }),
             .generic_apply => {
                 try out.print("{f}[{f}", .{ self.generic_apply._lhs, self.generic_apply.args.items[0] });
                 for (self.generic_apply.args.items[1..]) |arg| {
@@ -816,42 +866,52 @@ pub const Type_AST = union(enum) {
     }
 
     /// Retrieves the size in bytes of an AST node.
-    pub fn sizeof(self: *Type_AST) i64 {
+    pub fn sizeof(self: *Type_AST) ?i64 {
         if (self.common()._size == null) {
             self.set_sizeof(self.expand_identifier().sizeof_internal()); // memoize call
         }
 
-        return self.common()._size.?;
+        return self.common()._size;
     }
 
     /// Non-memoized slow-path for calculating the size of an AST type in bytes.
-    fn sizeof_internal(self: *Type_AST) i64 {
+    /// TODO: Sized trait
+    fn sizeof_internal(self: *Type_AST) ?i64 {
         switch (self.*) {
             .identifier => if (self.symbol() != null and self.symbol().?.init_typedef() != null) {
                 return self.symbol().?.init_typedef().?.sizeof();
             } else {
-                const primitive_info = prelude_.info_from_name(self.token().data) orelse return 4; // gotta return something... TODO: Sized trait
+                const primitive_info = prelude_.info_from_name(self.token().data) orelse return null;
                 return primitive_info.size;
+            },
+
+            .access => if (self.symbol().?.init_typedef()) |typedef| {
+                return typedef.sizeof();
+            } else {
+                return null;
             },
 
             .struct_type, .tuple_type, .context_type => {
                 var total_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    total_size = alignment_.next_alignment(total_size, _child.alignof());
-                    total_size += _child.sizeof();
+                    const child_alignof = _child.alignof() orelse return null;
+                    total_size = alignment_.next_alignment(total_size, child_alignof);
+                    const child_size = _child.sizeof() orelse return null;
+                    total_size += child_size;
                 }
                 return total_size;
             },
 
             .array_of => {
-                const child_size = self.child().sizeof();
+                const child_size = self.child().sizeof() orelse return null;
                 return child_size * @as(i64, @intCast(self.array_of.len.int.data));
             },
 
             .enum_type => {
                 var max_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_size = @max(max_size, _child.sizeof());
+                    const child_size = _child.sizeof() orelse return null;
+                    max_size = @max(max_size, child_size);
                 }
                 return alignment_.next_alignment(max_size, 8) + 8;
             },
@@ -859,7 +919,8 @@ pub const Type_AST = union(enum) {
                 std.debug.assert(self.child().expand_identifier().* == .enum_type); // TOOD: validate...
                 var max_size: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_size = @max(max_size, _child.sizeof());
+                    const child_size = _child.sizeof() orelse return null;
+                    max_size = @max(max_size, child_size);
                 }
                 return max_size; // Same as the sum type, but without the tag and without the padding for the tag
             },
@@ -870,34 +931,36 @@ pub const Type_AST = union(enum) {
 
             .annotation => return self.child().sizeof(),
 
-            else => std.debug.panic("compiler error: unimplemented sizeof() for {f}", .{self}),
+            else => std.debug.panic("compiler error: unimplemented sizeof() for {t}", .{self.*}),
         }
     }
 
     /// Calculates the alignment of an AST type in bytes. Call is memoized.
     /// Alignments are gauranteed to be positive.
-    pub fn alignof(self: *Type_AST) i64 {
+    /// TODO: Sized trait
+    pub fn alignof(self: *Type_AST) ?i64 {
         if (self.common()._alignof == null) {
             self.set_alignof(self.expand_identifier().alignof_internal()); // memoize call
         }
 
-        return self.common()._alignof.?;
+        return self.common()._alignof;
     }
 
     /// Non-memoized slow-path of alignment calculation.
-    fn alignof_internal(self: *Type_AST) i64 {
+    fn alignof_internal(self: *Type_AST) ?i64 {
         switch (self.*) {
             .identifier => if (self.symbol() != null and self.symbol().?.init_typedef() != null) {
                 return self.symbol().?.init_typedef().?.alignof();
             } else {
-                const primitive_info = prelude_.info_from_name(self.token().data) orelse return 4; // gotta return something... TODO: Sized trait
+                const primitive_info = prelude_.info_from_name(self.token().data) orelse return null;
                 return primitive_info._align;
             },
 
             .struct_type, .tuple_type, .context_type => {
                 var max_align: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_align = @max(max_align, _child.alignof());
+                    const child_align = _child.alignof() orelse return null;
+                    max_align = @max(max_align, child_align);
                 }
                 return @max(1, max_align);
             },
@@ -913,7 +976,8 @@ pub const Type_AST = union(enum) {
                 std.debug.assert(self.child().expand_identifier().* == .enum_type);
                 var max_align: i64 = 0;
                 for (self.children().items) |_child| {
-                    max_align = @max(max_align, _child.alignof());
+                    const child_align = _child.alignof() orelse return null;
+                    max_align = @max(max_align, child_align);
                 }
                 return @max(1, max_align);
             },
@@ -924,6 +988,12 @@ pub const Type_AST = union(enum) {
 
             else => std.debug.panic("compiler error: unimplemented alignof for {s}", .{@tagName(self.*)}),
         }
+    }
+
+    pub fn is_zero_sized(self: *Type_AST) bool {
+        const size = self.sizeof();
+        if (size == null) return false;
+        return size.? == 0;
     }
 
     /// For two types `A` and `B`, we say `A <: B` iff for every value `a` belonging to the type `A`, `a` belongs to the
@@ -962,14 +1032,8 @@ pub const Type_AST = union(enum) {
             return types_match(A, B.child());
         }
         if (A.* == .access) {
-            if (A.symbol().?.decl.?.* == .type_param_decl) {
-                return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-            }
             return types_match(A.symbol().?.init_typedef().?, B);
         } else if (B.* == .access) {
-            if (B.symbol().?.decl.?.* == .type_param_decl) {
-                return A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-            }
             return types_match(A, B.symbol().?.init_typedef().?);
         }
         if (A.* == .generic_apply and A.generic_apply._symbol != null and B.* != .generic_apply) {
@@ -983,12 +1047,6 @@ pub const Type_AST = union(enum) {
 
         if (A.is_ident_type("Void")) {
             return true; // Bottom type - vacuously true
-        }
-        if (A.* == .identifier and A.symbol().?.decl.?.* == .type_param_decl) {
-            return B.satisfies_all_constraints(A.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
-        }
-        if (B.* == .identifier and B.symbol().?.decl.?.* == .type_param_decl) {
-            return B.symbol().?.decl.?.type_param_decl.constraints.items.len > 0 and A.satisfies_all_constraints(B.symbol().?.decl.?.type_param_decl.constraints.items) == .satisfies;
         }
         if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
@@ -1021,6 +1079,7 @@ pub const Type_AST = union(enum) {
                 // std.debug.print("{s} == {s}\n", .{ A.symbol().?.name, B.symbol().?.name });
                 return A.symbol().? == B.symbol().?;
             },
+            .as_trait => return types_match(A.lhs(), B.lhs()),
             .addr_of => return (!B.addr_of.mut or B.addr_of.mut == A.addr_of.mut) and (B.addr_of.multiptr == A.addr_of.multiptr) and types_match(A.child(), B.child()),
             .array_of => return types_match(A.child(), B.child()) and A.array_of.len.int.data == B.array_of.len.int.data,
             .anyptr_type => return B.* == .anyptr_type,
@@ -1121,18 +1180,29 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST) Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
                 const trait = constraint.base_symbol().?;
-                const res = constraint.base_symbol().?.scope.impl_trait_lookup(self, trait);
+                const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
                     return .{ .not_impl = trait };
                 }
 
                 if (constraint.* == .generic_apply) {
                     for (constraint.children().items) |eq_constraint| {
-                        const impl = res.ast orelse return .{ .not_impl = trait };
+                        const impl = res.ast orelse {
+                            if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
+                                const param_constraints = self.symbol().?.decl.?.type_param_decl.constraints;
+                                for (param_constraints.items) |param_constraint| {
+                                    if (constraint.base_symbol().? == param_constraint.base_symbol().?) break;
+                                } else {
+                                    self.symbol().?.decl.?.type_param_decl.constraints.append(constraint) catch unreachable;
+                                }
+                                continue;
+                            }
+                            return .{ .not_impl = trait };
+                        };
                         const associated_type_name = eq_constraint.lhs().token().data;
 
                         var type_def: ?*AST = null;
@@ -1148,7 +1218,9 @@ pub const Type_AST = union(enum) {
                                 .trait_name = trait.name,
                             } };
                         }
-                        if (!type_def.?.decl_typedef().?.types_match(eq_constraint.rhs())) {
+                        var subst = unification_.Substitutions.init(ctx.allocator());
+                        defer subst.deinit();
+                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst, .{}) catch {
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
                                 .expected = eq_constraint.rhs(),
@@ -1156,7 +1228,7 @@ pub const Type_AST = union(enum) {
                                 .constraint_span = eq_constraint.token().span,
                                 .impl_span = type_def.?.token().span,
                             } };
-                        }
+                        };
                     }
                 }
             }
@@ -1250,6 +1322,7 @@ pub const Type_AST = union(enum) {
             },
             .field => return self,
             .access => return create_type_access(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
+            .as_trait => return create_as_trait(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .type_of => {
                 const _expr = self.expr().clone(substs, allocator);
                 return create_type_of(self.token(), _expr, allocator);
@@ -1318,6 +1391,33 @@ pub const Type_AST = union(enum) {
             retval.append(_child.clone(substs, allocator)) catch unreachable;
         }
         return retval;
+    }
+
+    pub fn is_generic(_type: *Type_AST) bool {
+        return switch (_type.*) {
+            .anyptr_type, .unit_type, .dyn_type => false,
+            .identifier, .access => _type.symbol().?.decl.?.* == .type_param_decl,
+            .addr_of, .array_of => _type.child().is_generic(),
+            .annotation => _type.child().is_generic(),
+            .function => {
+                for (_type.function.args.items) |arg| {
+                    if (arg.is_generic()) {
+                        return true;
+                    }
+                }
+                return _type.rhs().is_generic();
+            },
+            .generic_apply, .struct_type, .tuple_type, .enum_type => {
+                for (_type.children().items) |item| {
+                    if (item.is_generic()) {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            // I think everything above covers everything, but just in case, error out
+            else => std.debug.panic("{t}", .{_type.*}),
+        };
     }
 
     pub fn refers_to_self(_type: *Type_AST) bool {

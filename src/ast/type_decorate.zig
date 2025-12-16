@@ -5,6 +5,7 @@ const errs_ = @import("../util/errors.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 ctx: *Compiler_Context,
 
@@ -24,7 +25,9 @@ pub fn postfix_type(self: Self, _type: *Type_AST) walk_.Error!void {
         }
         switch (_type.*) {
             .type_of => {
-                const typeof_expr = self.ctx.typecheck.typecheck_AST(_type.type_of._expr, null) catch |e| switch (e) {
+                var subst = unification_.Substitutions.init(self.ctx.allocator());
+                defer subst.deinit();
+                const typeof_expr = self.ctx.typecheck.typecheck_AST(_type.type_of._expr, null, &subst) catch |e| switch (e) {
                     error.UnexpectedTypeType => {
                         self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = null, .span = _type.type_of._expr.token().span } });
                         return error.CompileError;

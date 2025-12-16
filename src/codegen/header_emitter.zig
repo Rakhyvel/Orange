@@ -120,9 +120,9 @@ fn output_typedef_include(self: *Self, dep: *Dependency_Node) CodeGen_Error!void
         try self.output_typedef_include(depen);
     }
 
-    if (dep.base.sizeof() == 0) {
+    if (dep.base.sizeof()) |size| {
         // Do not output zero-sized types
-        return;
+        if (size == 0) return;
     }
 
     var str = try Canonical_Type_Fmt.canonical_rep(dep.base);

@@ -126,6 +126,11 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_type(ast.type(), new_context);
         },
 
+        .type_access => {
+            try walk_type(ast.type_access._lhs_type, new_context);
+            try walk_ast(ast.rhs(), new_context);
+        },
+
         .assign,
         .@"or",
         .@"and",
@@ -338,7 +343,7 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
 
         .type_of => try walk_ast(_type.type_of._expr, new_context),
 
-        .access => {
+        .access, .as_trait => {
             try walk_type(_type.lhs(), new_context);
             try walk_type(_type.rhs(), new_context);
         },

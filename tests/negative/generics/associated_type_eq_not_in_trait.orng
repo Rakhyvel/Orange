@@ -14,7 +14,7 @@ fn get[T: A[Kablooah=Int]](t: T) -> T::Item {
 struct Impler {}
 impl A for Impler {
     type Item = Bool
-    fn get_value(self) -> Self::Item { _ = self; 436 }
+    fn get_value(self) -> Self::Item { _ = self; false }
 }
 
 fn main() -> Int { 4 }

@@ -215,7 +215,7 @@ pub fn err_if_var_not_mutated(self: *Self, errors: *errs_.Errors) error{CompileE
 
 pub fn set_offset(self: *Self, local_offsets: i64) i64 {
     self.offset = local_offsets;
-    return @as(i64, @intCast(self.expanded_type().sizeof()));
+    return @as(i64, @intCast(self.expanded_type().sizeof().?));
 }
 
 pub fn represents_method(self: *Self, impl_for_type: *Type_AST, method_name: []const u8) bool {
@@ -245,7 +245,7 @@ pub fn monomorphize(
         var subst = unification_.Substitutions.init(ctx.allocator());
         defer subst.deinit();
         for (self.decl.?.generic_params().items, key.items) |param, arg| {
-            try subst.put(param.token().data, arg);
+            try subst.put(param.symbol().?.name, arg);
         }
 
         // Clone the decl with the substitution
@@ -267,12 +267,10 @@ pub fn monomorphize(
             decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
         }
 
-        // Decorate identifiers, validate
-
         const scope = self.decl.?.scope().?.parent.?;
 
         const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
-        const decorate_context = Decorate.new(scope, ctx);
+        const decorate_context = Decorate.new(ctx);
 
         decl.set_decl_name(ast_.AST.create_pattern_symbol(
             Token.init_simple(name),
@@ -283,12 +281,12 @@ pub fn monomorphize(
         ));
 
         try walker_.walk_ast(decl, symbol_tree_context);
-        try walker_.walk_ast(decl, decorate_context);
 
         const clone = decl.symbol().?;
         std.debug.assert(clone.cfg == null);
         try self.monomorphs.put(try key.clone(), clone);
         clone.is_monomorphed = true;
+        try walker_.walk_ast(decl, decorate_context);
 
         // std.debug.print("brand new one for ya ({*})\n", .{clone});
 

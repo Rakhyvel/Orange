@@ -10,7 +10,9 @@ const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 const Self: type = @This();
 
@@ -52,15 +54,19 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
 
         .@"comptime" => {
             _ = try self.eval_internal(ast.expr());
-            const expected_type = self.ctx.typecheck.typecheck_AST(ast, self.expected_type) catch return error.CompileError;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            const expected_type = self.ctx.typecheck.typecheck_AST(ast, self.expected_type, &subst) catch return error.CompileError;
             ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, ast.scope().?)).*;
-            _ = self.ctx.typecheck.typecheck_AST(ast, expected_type) catch return error.CompileError;
+            _ = self.ctx.typecheck.typecheck_AST(ast, expected_type, &subst) catch return error.CompileError;
         },
 
         .default => {
             const _type = ast.default._type;
             ast.* = (try defaults_.generate_default(ast.default._type, ast.token().span, &self.ctx.errors, self.ctx.allocator())).*;
-            _ = self.ctx.typecheck.typecheck_AST(ast, _type) catch return error.CompileError;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            _ = self.ctx.typecheck.typecheck_AST(ast, _type, &subst) catch return error.CompileError;
         },
 
         .size_of => {
@@ -72,8 +78,19 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
                 } });
                 return error.CompileError;
             }
-            ast.* = ast_.AST.create_int(ast.token(), _type.sizeof(), self.ctx.allocator()).*;
-            _ = self.ctx.typecheck.typecheck_AST(ast, null) catch return error.CompileError;
+            const size = _type.sizeof();
+            if (size == null) {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = ast.token().span,
+                    ._type = _type,
+                    .trait_name = "Sized",
+                } });
+                return error.CompileError;
+            }
+            ast.* = ast_.AST.create_int(ast.token(), size.?, self.ctx.allocator()).*;
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            defer subst.deinit();
+            _ = self.ctx.typecheck.typecheck_AST(ast, null, &subst) catch return error.CompileError;
         },
     }
     return self.*;

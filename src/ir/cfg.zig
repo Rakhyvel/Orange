@@ -46,6 +46,9 @@ return_symbol: *Symbol,
 /// TODO: Remove for LCOM4
 needed_at_runtime: bool,
 
+/// Whether or not this CFG contains unsized types. CFGs with unsized types cannot be interpreted.
+contains_unsizeds: bool,
+
 /// Maps a module UID to the address of the first instruction of this CFG in the module's list of instructions
 /// Used for Instruction interpretation
 /// TODO: Remove for LCOM4
@@ -150,11 +153,13 @@ pub fn collect_generated_symbvers(self: *Self) void {
 
 pub fn collect_cfg_types(self: *Self, type_set: *Type_Set) void {
     // Don't collect types from generic CFGs
-    if (self.symbol.decl.?.* == .fn_decl and self.symbol.decl.?.num_generic_params() > 0) {
-        return;
+    if (self.symbol.decl.?.* == .fn_decl) {
+        const decl = self.symbol.decl.?;
+        if (decl.num_generic_params() > 0) return;
     }
-    if (self.symbol.decl.?.* == .method_decl and self.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) {
-        return;
+    if (self.symbol.decl.?.* == .method_decl) {
+        const impl = self.symbol.decl.?.method_decl.impl.?;
+        if (impl.num_generic_params() > 0) return;
     }
 
     // Add parameter types to type set
@@ -538,7 +543,7 @@ pub fn get_adjacent(self: *Self) []*Self {
 ///
 /// There is padding before, in between, and after parameters, locals, and tuple fields so that each
 /// location is aligned to a multiple of it's size in bytes.
-pub fn calculate_offsets(self: *Self) i64 //< Number of bytes used for locals by the function.
+pub fn calculate_offsets(self: *Self) ?i64 //< Number of bytes used for locals by the function.
 {
     self.return_symbol.offset = null; // return value is set using an out-parameter
 
@@ -550,8 +555,8 @@ pub fn calculate_offsets(self: *Self) i64 //< Number of bytes used for locals by
         var i: i64 = @as(i64, @intCast(param_symbols.len)) - 1;
         while (i >= 0) : (i -= 1) {
             var param: *Symbol = param_symbols[@as(usize, @intCast(i))];
-            const size = param.expanded_type().sizeof();
-            const alignof = param.expanded_type().alignof();
+            const size = param.expanded_type().sizeof().?;
+            const alignof = param.expanded_type().alignof().?;
             phony_sp = alignment_.next_alignment(phony_sp, alignof);
             param.offset = phony_sp;
             phony_sp += size;
@@ -571,7 +576,11 @@ pub fn calculate_offsets(self: *Self) i64 //< Number of bytes used for locals by
     var local_offsets: i64 = locals_starting_offset;
     for (self.symbvers.items) |symbver| {
         if (symbver.symbol.offset == null and !std.mem.eql(u8, symbver.symbol.name, "_retval")) {
-            local_offsets = alignment_.next_alignment(local_offsets, symbver.symbol.expanded_type().alignof());
+            const symbver_align = symbver.symbol.expanded_type().alignof() orelse {
+                self.contains_unsizeds = true;
+                return null;
+            };
+            local_offsets = alignment_.next_alignment(local_offsets, symbver_align);
             local_offsets += symbver.symbol.set_offset(local_offsets);
         }
     }

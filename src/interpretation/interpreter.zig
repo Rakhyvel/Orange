@@ -91,7 +91,9 @@ pub fn set_entry_point(
     entry: *CFG,
     ret_type: *Type_AST,
 ) void {
-    const frame_address = alignment_.next_alignment(ret_type.sizeof(), 8);
+    if (ret_type.sizeof() == null) std.debug.panic("un-sized return type", .{}); // TODO: Is this possible?
+    if (entry.contains_unsizeds or entry.locals_size == null) std.debug.panic("un-sized cfg", .{}); // TODO: Is this possible?
+    const frame_address = alignment_.next_alignment(ret_type.sizeof().?, 8);
     const module = entry.symbol.scope.module.?;
 
     self.stack_pointer = (5 * @sizeOf(i64)) + frame_address + entry.locals_size.?;
@@ -155,9 +157,9 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
         // Load literals
         .load_int => {
             try self.assert_fits(instr.data.int, instr.dest.?.get_expanded_type(), "integer value", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), instr.data.int);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, instr.data.int);
         },
-        .load_float => self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), instr.data.float),
+        .load_float => self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, instr.data.float),
         .load_string => {
             self.memory.store(Interned_String_Set.String_Idx, try self.effective_address(instr.dest.?), instr.data.string_id);
             const interned_strings = self.ctx.lookup_interned_string_set(self.modules.get(instr.data.string_id.module_uid).?.uid).?;
@@ -169,7 +171,7 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
             if (self.modules.get(symbol_module.uid) == null) {
                 self.load_module(symbol_module);
             }
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), @intFromPtr(instr.data.symbol));
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, @intFromPtr(instr.data.symbol));
         },
         .load_struct => try self.move_lval_list(try self.effective_address(instr.dest.?), &instr.data.lval_list),
         .load_union => {
@@ -177,30 +179,30 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
                 // Store data into first field
                 const dest = try self.effective_address(instr.dest.?);
                 const src = try self.effective_address(instr.src1.?);
-                self.memory.move(dest, src, instr.src1.?.expanded_type_sizeof());
+                self.memory.move(dest, src, instr.src1.?.expanded_type_sizeof().?);
             }
             // Store tag in last field
-            const tag_address = try self.effective_address(instr.dest.?) + instr.dest.?.expanded_type_sizeof() - 8;
+            const tag_address = try self.effective_address(instr.dest.?) + instr.dest.?.expanded_type_sizeof().? - 8;
             self.memory.store(i64, tag_address, @as(i64, @intCast(instr.data.int)));
         },
 
         .copy => {
-            std.debug.assert(instr.dest.?.expanded_type_sizeof() == instr.src1.?.expanded_type_sizeof());
+            std.debug.assert(instr.dest.?.expanded_type_sizeof().? == instr.src1.?.expanded_type_sizeof().?);
             const dest = try self.effective_address(instr.dest.?);
             const src = try self.effective_address(instr.src1.?);
-            self.memory.move(dest, src, instr.dest.?.expanded_type_sizeof());
+            self.memory.move(dest, src, instr.dest.?.expanded_type_sizeof().?);
         },
         .not => {
-            const data = self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof());
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data != 0) 0 else 1);
+            const data = self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof().?);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data != 0) 0 else 1);
         },
         .negate_int => {
-            const data = self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof());
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), -data);
+            const data = self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof().?);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, -data);
         },
         .negate_float => {
-            const data = self.memory.load_float(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof());
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), -data);
+            const data = self.memory.load_float(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof().?);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, -data);
         },
         .mut_addr_of, .addr_of => {
             const data = try self.effective_address(instr.src1.?);
@@ -208,73 +210,73 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
         },
         .equal => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 == data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 == data.src2) 1 else 0);
         },
         .not_equal => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 != data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 != data.src2) 1 else 0);
         },
         .greater_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 > data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 > data.src2) 1 else 0);
         },
         .greater_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 > data.src2) 1 else 0);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 > data.src2) 1 else 0);
         },
         .lesser_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 < data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 < data.src2) 1 else 0);
         },
         .lesser_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 < data.src2) 1 else 0);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 < data.src2) 1 else 0);
         },
         .greater_equal_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 >= data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 >= data.src2) 1 else 0);
         },
         .greater_equal_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 >= data.src2) 1 else 0);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 >= data.src2) 1 else 0);
         },
         .lesser_equal_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 <= data.src2) 1 else 0);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 <= data.src2) 1 else 0);
         },
         .lesser_equal_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), if (data.src1 <= data.src2) 1 else 0);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, if (data.src1 <= data.src2) 1 else 0);
         },
         .add_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
             const val = data.src1 + data.src2;
             try self.assert_fits(val, instr.dest.?.get_expanded_type(), "addition result", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), val);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, val);
         },
         .add_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), data.src1 + data.src2);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, data.src1 + data.src2);
         },
         .sub_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
             const val = data.src1 - data.src2;
             try self.assert_fits(val, instr.dest.?.get_expanded_type(), "subtraction result", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), val);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, val);
         },
         .sub_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), data.src1 - data.src2);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, data.src1 - data.src2);
         },
         .mult_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
             const val = data.src1 * data.src2;
             try self.assert_fits(val, instr.dest.?.get_expanded_type(), "multiplication result", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), val);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, val);
         },
         .mult_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), data.src1 * data.src2);
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, data.src1 * data.src2);
         },
         .div_int => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
@@ -284,21 +286,21 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
             }
             const val = @divTrunc(data.src1, data.src2);
             try self.assert_fits(val, instr.dest.?.get_expanded_type(), "division result", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), val);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, val);
         },
         .div_float => {
             const data = try self.binop_load_float(instr.src1.?, instr.src2.?);
-            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), @divTrunc(data.src1, data.src2));
+            self.memory.store_float(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, @divTrunc(data.src1, data.src2));
         },
         .mod => {
             const data = try self.binop_load_int(instr.src1.?, instr.src2.?);
             const val = @rem(data.src1, data.src2);
             try self.assert_fits(val, instr.dest.?.get_expanded_type(), "modulus result", instr.span);
-            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof(), val);
+            self.memory.store_int(try self.effective_address(instr.dest.?), instr.dest.?.expanded_type_sizeof().?, val);
         },
         .get_tag => { // gets the tag of a union value. The tag will be located in the last slot
-            const tag_offset = instr.src1.?.expanded_type_sizeof() - 8;
-            std.debug.assert(instr.dest.?.expanded_type_sizeof() == 8);
+            const tag_offset = instr.src1.?.expanded_type_sizeof().? - 8;
+            std.debug.assert(instr.dest.?.expanded_type_sizeof().? == 8);
             self.memory.move(try self.effective_address(instr.dest.?), try self.effective_address(instr.src1.?) + tag_offset, 8);
         },
         .jump => {
@@ -311,7 +313,7 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
         },
         .branch_if_false => {
             const module_uid = (self.curr_module() catch unreachable).uid;
-            if (self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof()) != 0) {
+            if (self.memory.load_int(try self.effective_address(instr.src1.?), instr.src1.?.expanded_type_sizeof().?) != 0) {
                 if (instr.data.branch_bb.next) |next| {
                     self.instruction_pointer.inst_idx = next.offset_table.get(module_uid).?;
                 } else {
@@ -398,8 +400,9 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     var i: i64 = @as(i64, @intCast(args_list.items.len)) - 1;
     while (i >= 0) : (i -= 1) {
         const arg = args_list.items[@as(usize, @intCast(i))];
-        const size = arg.get_expanded_type().sizeof();
-        const alignof = arg.expanded_type_alignof();
+        if (arg.get_expanded_type().sizeof() == null) std.debug.panic("un-sized arg type", .{}); // TODO: Is this possible?
+        const size = arg.get_expanded_type().sizeof().?;
+        const alignof = arg.expanded_type_alignof().?;
         self.stack_pointer = alignment_.next_alignment(self.stack_pointer, alignof);
         try self.push_move(try self.effective_address(arg), size);
     }
@@ -413,6 +416,7 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     self.base_pointer = self.stack_pointer - 8; //                        bp := sp -1
 
     // allocate space for locals
+    if (function_symbol.cfg.?.contains_unsizeds or function_symbol.cfg.?.locals_size == null) std.debug.panic("un-sized cfg", .{}); // TODO: Is this possible?
     const local_size_bytes = function_symbol.cfg.?.locals_size.?;
     try self.memory_check(local_size_bytes);
     self.stack_pointer += local_size_bytes;
@@ -556,7 +560,8 @@ fn extract_function(self: *Self, address: i64) Error!*ast_.AST {
 
 fn extract_enum_type(self: *Self, address: i64, enum_type: *Type_AST, span: Span) Error!*ast_.AST {
     // self.print_memory(@intCast(address), @intCast(address + _type.sizeof()));
-    const tag = self.memory.load_int(address + enum_type.sizeof() - 8, 8);
+    if (enum_type.sizeof() == null) std.debug.panic("un-sized enum type", .{}); // TODO: Is this possible?
+    const tag = self.memory.load_int(address + enum_type.sizeof().? - 8, 8);
     const token = enum_type.children().items[@intCast(tag)].annotation.pattern.token();
     var retval = ast_.AST.create_enum_value(token, self.ctx.allocator());
     retval.set_pos(@as(usize, @intCast(tag)));
@@ -656,8 +661,8 @@ pub fn curr_module(self: *Self) error{CompileError}!*module_.Module {
 /// values.
 fn binop_load_int(self: *Self, src1: *lval_.L_Value, src2: *lval_.L_Value) !struct { src1: i128, src2: i128 } {
     return .{
-        .src1 = self.memory.load_int(try self.effective_address(src1), src1.expanded_type_sizeof()),
-        .src2 = self.memory.load_int(try self.effective_address(src2), src2.expanded_type_sizeof()),
+        .src1 = self.memory.load_int(try self.effective_address(src1), src1.expanded_type_sizeof().?),
+        .src2 = self.memory.load_int(try self.effective_address(src2), src2.expanded_type_sizeof().?),
     };
 }
 
@@ -665,8 +670,8 @@ fn binop_load_int(self: *Self, src1: *lval_.L_Value, src2: *lval_.L_Value) !stru
 /// loaded values.
 fn binop_load_float(self: *Self, src1: *lval_.L_Value, src2: *lval_.L_Value) !struct { src1: f64, src2: f64 } {
     return .{
-        .src1 = self.memory.load_float(try self.effective_address(src1), src1.expanded_type_sizeof()),
-        .src2 = self.memory.load_float(try self.effective_address(src2), src2.expanded_type_sizeof()),
+        .src1 = self.memory.load_float(try self.effective_address(src1), src1.expanded_type_sizeof().?),
+        .src2 = self.memory.load_float(try self.effective_address(src2), src2.expanded_type_sizeof().?),
     };
 }
 
@@ -680,9 +685,9 @@ fn move_lval_list(
     std.debug.assert(dest >= 0);
     var cursor = dest;
     for (list.items) |lval| {
-        cursor = alignment_.next_alignment(cursor, lval.expanded_type_alignof());
+        cursor = alignment_.next_alignment(cursor, lval.expanded_type_alignof().?);
         const src = try self.effective_address(lval);
-        const len = lval.expanded_type_sizeof();
+        const len = lval.expanded_type_sizeof().?;
         // std.debug.print("dest:0x{X} src:0x{X} len:0x{X}\n", .{ cursor, src, len });
         // std.debug.print("{}\n", .{lval});
         self.memory.move(cursor, src, len);
@@ -721,7 +726,7 @@ fn effective_address(self: *Self, lval: *lval_.L_Value) error{CompileError}!i64 
             const base = try self.effective_address(lval.index.lhs);
             const index = self.memory.load(i64, try self.effective_address(lval.index.rhs));
             // TODO: Check that index isn't greater than lval.index.length
-            return base + index * lval.expanded_type_sizeof();
+            return base + index * lval.expanded_type_sizeof().?;
         },
         .select => {
             const base = try self.effective_address(lval.select.lhs);

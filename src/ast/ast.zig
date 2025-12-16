@@ -87,6 +87,7 @@ pub const AST = union(enum) {
     identifier: struct {
         common: AST_Common,
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
     },
 
     not: struct { common: AST_Common, _expr: *AST },
@@ -142,6 +143,7 @@ pub const AST = union(enum) {
         _lhs: *AST,
         _children: std.array_list.Managed(*Type_AST),
         _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
     },
     select: struct {
@@ -154,7 +156,13 @@ pub const AST = union(enum) {
         common: AST_Common,
         _lhs: *AST,
         _rhs: *AST,
-        // _pos: ?usize,
+        _symbol: ?*Symbol = null,
+        _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
+    },
+    type_access: struct {
+        common: AST_Common,
+        _lhs_type: *Type_AST,
+        _rhs: *AST,
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
@@ -163,6 +171,7 @@ pub const AST = union(enum) {
         name: *AST, //
         _generic_params: std.array_list.Managed(*AST),
         super_traits: std.array_list.Managed(*Type_AST),
+        super_trait_impls: std.array_list.Managed(*AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
         type_decls: std.array_list.Managed(*AST),
@@ -286,16 +295,19 @@ pub const AST = union(enum) {
         common: AST_Common,
         writer: *AST,
         _children: std.array_list.Managed(*AST),
+        _scope: ?*Scope = null,
     },
     /// Print a formatted string to IO.writer
     /// Both `@print` and `@println` use this node, with `@println` having a newline appended
     print: struct {
         common: AST_Common,
         _children: std.array_list.Managed(*AST),
+        _scope: ?*Scope = null,
     },
     format_args: struct {
         common: AST_Common,
         _children: std.array_list.Managed(*AST),
+        _scope: ?*Scope = null,
     },
     variant_tag: struct {
         common: AST_Common,
@@ -428,6 +440,7 @@ pub const AST = union(enum) {
     },
     type_param_decl: struct {
         common: AST_Common,
+        rigid: bool,
         _symbol: ?*Symbol = null,
         constraints: std.array_list.Managed(*Type_AST),
     },
@@ -871,6 +884,15 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
+    pub fn create_type_access(_token: Token, _lhs: *Type_AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+        const _common: AST_Common = .{ ._token = _token };
+        return AST.box(AST{ .type_access = .{
+            .common = _common,
+            ._lhs_type = _lhs,
+            ._rhs = _rhs,
+        } }, allocator);
+    }
+
     pub fn create_enum_value(_token: Token, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
         return AST.box(AST{ .enum_value = .{ .common = _common } }, allocator);
@@ -890,6 +912,7 @@ pub const AST = union(enum) {
             .name = name,
             ._generic_params = std.array_list.Managed(*AST).init(allocator),
             .super_traits = super_traits,
+            .super_trait_impls = std.array_list.Managed(*AST).init(allocator),
             .method_decls = method_decls,
             .const_decls = const_decls,
             .type_decls = type_decls,
@@ -1326,9 +1349,10 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_type_param_decl(_token: Token, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
+    pub fn create_type_param_decl(_token: Token, rigid: bool, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .type_param_decl = .{
             .common = AST_Common{ ._token = _token },
+            .rigid = rigid,
             .constraints = constraints,
         } }, allocator);
     }
@@ -1659,6 +1683,12 @@ pub const AST = union(enum) {
                 self.rhs().clone(substs, allocator),
                 allocator,
             ),
+            .type_access => return create_type_access(
+                self.token(),
+                self.type_access._lhs_type.clone(substs, allocator),
+                self.rhs().clone(substs, allocator),
+                allocator,
+            ),
             .trait => {
                 const cloned_super_traits = Type_AST.clone_types(self.trait.super_traits, substs, allocator);
                 const cloned_method_decls = clone_children(self.trait.method_decls, substs, allocator);
@@ -1715,6 +1745,7 @@ pub const AST = union(enum) {
             },
             .type_param_decl => return create_type_param_decl(
                 self.token(),
+                self.type_param_decl.rigid,
                 Type_AST.clone_types(self.type_param_decl.constraints, substs, allocator),
                 allocator,
             ),
@@ -2368,7 +2399,7 @@ pub const AST = union(enum) {
         return switch (self.*) {
             else => false,
 
-            .identifier, .access => if (self.symbol()) |sym| sym.is_type() else false,
+            .identifier, .access, .type_access => if (self.symbol()) |sym| sym.is_type() else false,
 
             .index => self.lhs().refers_to_type(), // generic type
             .generic_apply => self.lhs().refers_to_type(),
@@ -2408,10 +2439,7 @@ pub const AST = union(enum) {
             .dereference => try out.print("dereference()", .{}),
             .@"try" => try out.print("try()", .{}),
             .default => {
-                try out.print("default(", .{});
-                var writer = out.writer().adaptToNewApi(&.{}).new_interface;
-                try self.default._type.print_type(&writer);
-                try out.print(")", .{});
+                try out.print("default({f})", .{self.default._type});
             },
             .size_of => try out.print("size_of({f})", .{self.type()}),
             .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
@@ -2508,6 +2536,7 @@ pub const AST = union(enum) {
             .access => {
                 try out.print("access({f},{f})", .{ self.lhs(), self.rhs() });
             },
+            .type_access => try out.print("type_access({f},{f})", .{ self.type_access._lhs_type, self.rhs() }),
             .trait => try out.print("trait({*})", .{if (self.symbol() != null) self.symbol() else null}),
             .impl => {
                 try out.print("impl(\n    .trait={?f},\n    .type={f}\n    .method_defs=[\n", .{ self.impl.trait, self.impl._type });

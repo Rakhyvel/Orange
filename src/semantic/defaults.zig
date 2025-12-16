@@ -73,6 +73,7 @@ pub fn generate_default(_type: *Type_AST, span: Span, errors: *errs_.Errors, all
         } else {
             return generate_default(_type.child(), span, errors, allocator);
         },
+        .as_trait => return generate_default(_type.lhs(), span, errors, allocator),
         .array_of => {
             var value_terms = std.array_list.Managed(*ast_.AST).init(allocator);
             const child = try generate_default(_type.child(), span, errors, allocator);
@@ -82,7 +83,13 @@ pub fn generate_default(_type: *Type_AST, span: Span, errors: *errs_.Errors, all
             return ast_.AST.create_array_value(_type.token(), value_terms, allocator);
         },
 
-        .generic_apply => return generate_default(_type.generic_apply._symbol.?.init_typedef().?, span, errors, allocator),
+        .generic_apply => {
+            var retval = try generate_default(_type.generic_apply._symbol.?.init_typedef().?, span, errors, allocator);
+            if (retval.* == .struct_value) {
+                retval.struct_value.parent = _type;
+            }
+            return retval;
+        },
 
         .poison,
         .anyptr_type,

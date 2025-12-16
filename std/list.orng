@@ -11,7 +11,7 @@ enum Error {
     out_of_memory
 }
 
-impl[T] for List[T] {
+impl[T: core::Sized] for List[T] {
     fn init() -> Self with core::Allocating {
         Self(mem::mut_slice_from_parts[T](0 as [*mut]T, 0), 0, core::Allocating.alloc)
     }
@@ -96,13 +96,13 @@ impl[T] for List[T] {
     }
 
     fn ensure_length(&mut self, new_length: Int) -> Error!() {
-        if @sizeof(T) == 0 {
+        if T::size == 0 {
             return .ok
         }
 
         if new_length > self.capacity {
             let new_cap_elements = new_length * 2
-            let new_cap_bytes = new_cap_elements * @sizeof(T)
+            let new_cap_bytes = new_cap_elements * T::size
 
             let new_data = self.alloc.>realloc(
                 self.items.data as [*mut]Byte, 

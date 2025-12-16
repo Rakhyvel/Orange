@@ -278,6 +278,24 @@ impl Iterator for Range_Iter {
     }
 }
 
+impl[T: Iterator] Into_Iterator for T {
+    type Item = (T as Iterator)::Item
+    type Iter = T
+
+    fn into_iter(self) -> (T as Into_Iterator)::Iter {
+        self
+    }
+}
+
+trait Sized {
+    const size: Int
+}
+
+impl Sized for Byte { const size = 1 }
+impl Sized for Int { const size = 8 }
+impl Sized for () { const size = 0 }
+impl[T] Sized for []T { const size = 16 }
+
 context Allocating {
     alloc: &mut dyn Allocator
 }

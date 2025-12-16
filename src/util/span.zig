@@ -56,6 +56,11 @@ pub fn print_debug_line(self: *const Self, writer: *std.array_list.Managed(u8), 
         text_to_write,
         spaces.str(),
     });
+
+    if (span_format.sanitize) {
+        std.heap.page_allocator.free(sanitized_filename);
+        std.heap.page_allocator.free(text_to_write);
+    }
 }
 
 pub fn format(self: Self, writer: *std.io.Writer) !void {

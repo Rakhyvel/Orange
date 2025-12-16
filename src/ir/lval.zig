@@ -193,11 +193,11 @@ pub const L_Value = union(enum) {
         };
     }
 
-    pub fn expanded_type_sizeof(self: *L_Value) i64 {
+    pub fn expanded_type_sizeof(self: *L_Value) ?i64 {
         return self.get_expanded_type().sizeof();
     }
 
-    pub fn expanded_type_alignof(self: *L_Value) i64 {
+    pub fn expanded_type_alignof(self: *L_Value) ?i64 {
         return self.get_expanded_type().alignof();
     }
 

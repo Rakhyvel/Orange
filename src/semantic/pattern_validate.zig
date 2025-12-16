@@ -8,6 +8,7 @@ const errs_ = @import("../util/errors.zig");
 const Span = @import("../util/span.zig");
 const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{CompileError};
 
@@ -28,6 +29,7 @@ pub fn assert_pattern_matches(
     self: *Self,
     pattern: *ast_.AST,
     expr_type: *Type_AST,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!void {
     switch (pattern.*) {
         .unit_value,
@@ -38,7 +40,7 @@ pub fn assert_pattern_matches(
         .false,
         .block,
         .select,
-        => _ = self.ctx.typecheck.typecheck_AST(pattern, expr_type) catch return error.CompileError,
+        => _ = self.ctx.typecheck.typecheck_AST(pattern, expr_type, subst) catch return error.CompileError,
 
         .enum_value => {
             if (pattern.enum_value.base == null) {
@@ -64,29 +66,29 @@ pub fn assert_pattern_matches(
                 pattern.enum_value.init = pattern.enum_value.domain.?.annotation.init orelse
                     try defaults_.generate_default(pattern.enum_value.domain.?.child(), pattern.token().span, &self.ctx.errors, self.ctx.allocator());
             }
-            _ = self.assert_pattern_matches(pattern.enum_value.init.?, pattern.enum_value.domain.?.child()) catch return error.CompileError;
+            _ = self.assert_pattern_matches(pattern.enum_value.init.?, pattern.enum_value.domain.?.child(), subst) catch return error.CompileError;
         },
 
         .tuple_value => {
             const expanded_expr_type = expr_type.expand_identifier();
             if (expanded_expr_type.* != .tuple_type or expanded_expr_type.children().items.len != pattern.children().items.len) {
-                const got = self.ctx.typecheck.typecheck_AST(pattern, null) catch return error.CompileError;
+                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch return error.CompileError;
                 return typing_.throw_unexpected_type(pattern.token().span, expr_type, got, &self.ctx.errors);
             }
             for (pattern.children().items, expanded_expr_type.children().items) |term, expanded_term| {
-                try self.assert_pattern_matches(term, expanded_term);
+                try self.assert_pattern_matches(term, expanded_term, subst);
             }
         },
 
         .array_value => {
             const expanded_expr_type = expr_type.expand_identifier();
             if (expanded_expr_type.* != .array_of or expanded_expr_type.array_of.len.int.data != pattern.children().items.len) {
-                const got = self.ctx.typecheck.typecheck_AST(pattern, null) catch return error.CompileError;
+                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch return error.CompileError;
                 return typing_.throw_unexpected_type(pattern.token().span, expr_type, got, &self.ctx.errors);
             }
             const elem_type = expanded_expr_type.child();
             for (pattern.children().items) |term| {
-                try self.assert_pattern_matches(term, elem_type);
+                try self.assert_pattern_matches(term, elem_type, subst);
             }
         },
 

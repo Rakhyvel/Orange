@@ -30,12 +30,20 @@ fn instantiate_type(_type: *Type_AST, ctx: *Compiler_Context) !void {
 }
 
 fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(*Type_AST), span: Span, state: *process_state_.Process_State, ctx: *Compiler_Context) !*Symbol {
+    var type_args = std.array_list.Managed(*Type_AST).init(ctx.allocator());
+    defer type_args.deinit();
+    for (args.items) |type_arg| {
+        if (type_arg.* == .eq_constraint) continue;
+
+        try type_args.append(type_arg);
+    }
+
     const params = sym.decl.?.generic_params();
-    if (params.items.len != args.items.len) {
+    if (params.items.len != type_args.items.len) {
         ctx.errors.add_error(errs_.Error{ .mismatch_arity = .{
             .span = span,
             .takes = params.items.len,
-            .given = args.items.len,
+            .given = type_args.items.len,
             .thing_name = sym.name,
             .takes_name = "type parameter",
             .given_name = "argument",
@@ -43,11 +51,11 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(*Type_A
         return error.CompileError;
     }
 
-    for (args.items, 0..) |child, i| {
+    for (type_args.items, 0..) |child, i| {
         try ctx.validate_type.validate_type(child);
 
         const param = params.items[i];
-        const sat_res = child.satisfies_all_constraints(param.type_param_decl.constraints.items);
+        const sat_res = try child.satisfies_all_constraints(param.type_param_decl.constraints.items, sym.scope, ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
@@ -82,7 +90,7 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(*Type_A
 
     if (state.* == .unprocessed) {
         state.* = .processing;
-        const new_sym = try sym.monomorphize(args, ctx);
+        const new_sym = try sym.monomorphize(type_args, ctx);
         state.* = .processed;
         return new_sym;
     } else {

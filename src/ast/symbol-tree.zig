@@ -40,6 +40,10 @@ pub fn prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
     return self.symbol_tree_prefix(ast);
 }
 
+pub fn prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
+    return self.symbol_tree_type_prefix(_type);
+}
+
 pub fn postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     return self.symbol_tree_postfix(ast);
 }
@@ -49,7 +53,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         else => {},
 
         // Capture scope
-        .@"comptime", .access, .call, .invoke, .addr_of => ast.set_scope(self.scope),
+        .@"comptime", .access, .call, .invoke, .addr_of, .identifier, .generic_apply, .print, .format_args, .write, .type_access => ast.set_scope(self.scope),
 
         // Check that AST is inside a loop
         .@"break", .@"continue" => try self.in_loop_check(ast, self.errors),
@@ -91,6 +95,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         // Create symbols (potentially >1) from pattern, put inside scope
         .binding => {
             var symbols = std.array_list.Managed(*Symbol).init(self.allocator);
+            defer symbols.deinit();
             try create_symbol(
                 &symbols,
                 ast.binding.pattern,
@@ -219,6 +224,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             try self_type_constraints.append(self_identifier);
             const self_type_decl = ast_.AST.create_type_param_decl(
                 self_token,
+                true,
                 self_type_constraints,
                 self.allocator,
             );
@@ -315,6 +321,16 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         },
     }
 
+    return self;
+}
+
+fn symbol_tree_type_prefix(self: Self, _type: *Type_AST) walk_.Error!?Self {
+    switch (_type.*) {
+        .access, .generic_apply, .identifier => {
+            _type.set_scope(self.scope);
+        },
+        else => {},
+    }
     return self;
 }
 

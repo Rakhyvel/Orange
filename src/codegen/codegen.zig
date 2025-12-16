@@ -115,9 +115,9 @@ fn output_type(
         try output_type(depen, types_path, allocator);
     }
 
-    if (dep.base.sizeof() == 0) {
+    if (dep.base.sizeof()) |size| {
         // Don't output zero-sized types
-        return;
+        if (size == 0) return;
     }
 
     var output_filename = std.array_list.Managed(u8).init(allocator);

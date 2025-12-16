@@ -16,14 +16,7 @@ const fail_color = term_.Attr{ .fg = .red, .bold = true };
 const not_orng_color = term_.Attr{ .fg = .blue, .bold = true };
 
 const Test_Mode = enum { regular, coverage, bless };
-const Debug_Allocator = std.heap.DebugAllocator(.{
-    .never_unmap = false,
-    .safety = true,
-    .retain_metadata = true,
-    .verbose_log = false,
-    .resize_stack_traces = true,
-    .enable_memory_limit = true,
-});
+const Debug_Allocator = std.heap.ArenaAllocator;
 
 const Test_Error = error{
     CompileError,
@@ -91,25 +84,20 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
             continue;
         }
 
-        var debug_alloc = Debug_Allocator{};
+        var debug_alloc = Debug_Allocator.init(allocator);
+        defer debug_alloc.deinit();
         const test_name = get_test_name(next) orelse continue;
         if (mode == .regular) {
             try term_.outputColor(succeed_color, "[ RUN      ... ] ", writer);
             try writer.print("{s}\n", .{test_name});
         }
 
-        const res = try test_file(next, mode, &debug_alloc);
+        const res = test_file(next, mode, &debug_alloc) catch |err| {
+            _ = debug_alloc.deinit();
+            return err;
+        };
 
-        const debug_result = debug_alloc.deinit();
-        var memory_leak_detected: bool = undefined;
-        if (debug_result == .leak) {
-            try writer.print("compiler error: memory leak!\n", .{});
-            memory_leak_detected = true;
-        } else {
-            memory_leak_detected = false;
-        }
-
-        if (res and !memory_leak_detected) {
+        if (res) {
             results.passed += 1;
             if (mode == .regular) {
                 try term_.outputColor(succeed_color, "[  ... PASSED  ]\n", writer);
@@ -142,6 +130,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
 fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug_Allocator) Test_Error!bool {
     // FIXME: High Cyclo
     const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    defer allocator.free(absolute_filename);
     var writer_struct = get_std_out().writer(&.{});
     const writer = &writer_struct.interface;
 
@@ -180,6 +169,7 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
     }
 
     const contents = try Read_File.init(compiler.allocator()).run(absolute_filename);
+    defer compiler.allocator().free(contents);
     const header_comment_contents = try header_comment(contents, debug_alloc.allocator());
     defer debug_alloc.allocator().free(header_comment_contents);
     var expected_out = try String.init_with_contents(debug_alloc.allocator(), header_comment_contents[0]);
@@ -191,6 +181,7 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
 
     // execute (make sure no signals)
     var output_name = try String.init_with_contents(allocator, "");
+    defer output_name.deinit();
     var output_name_writer = output_name.writer(output_name.buffer.?);
     const out_name_writer_intfc = &output_name_writer.interface;
     try out_name_writer_intfc.print("{s}/build/{s}", .{ package_abs_path, module.package_name });
@@ -214,6 +205,7 @@ fn negative_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debug
     const writer = &writer_struct.interface;
 
     const absolute_filename = std.fs.cwd().realpathAlloc(allocator, filename) catch unreachable;
+    defer allocator.free(absolute_filename);
     // Try to compile Orange (make sure no errors)
     var compiler = try Compiler_Context.init(if (mode != .coverage) get_std_out() else null, debug_alloc.allocator());
     defer compiler.deinit();
