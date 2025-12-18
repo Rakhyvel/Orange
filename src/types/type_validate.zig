@@ -45,13 +45,13 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
             const type_symbol = try Decorate.symbol(@"type", self.ctx);
             if (type_symbol.init_typedef()) |typ| {
                 try self.validate_type(typ);
-            } else if (@"type".lhs().symbol().?.decl.?.* == .type_param_decl) {
+            } else if ((@"type".lhs().* == .identifier or @"type".lhs().* == .generic_apply) and @"type".lhs().symbol().?.decl.?.* == .type_param_decl) {
                 if (@"type".associated_type_from_constraint()) |assoc_type| try self.validate_type(assoc_type);
             }
         },
 
         .array_of => {
-            var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(@"type".array_of.len, prelude_.int_type, &subst) catch return error.CompileError;
             try walk_.walk_ast(@"type".array_of.len, Const_Eval.new(self.ctx));

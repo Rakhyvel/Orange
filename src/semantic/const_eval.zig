@@ -54,7 +54,7 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
 
         .@"comptime" => {
             _ = try self.eval_internal(ast.expr());
-            var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             const expected_type = self.ctx.typecheck.typecheck_AST(ast, self.expected_type, &subst) catch return error.CompileError;
             ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, ast.scope().?)).*;
@@ -64,7 +64,7 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
         .default => {
             const _type = ast.default._type;
             ast.* = (try defaults_.generate_default(ast.default._type, ast.token().span, &self.ctx.errors, self.ctx.allocator())).*;
-            var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(ast, _type, &subst) catch return error.CompileError;
         },
@@ -88,7 +88,7 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
                 return error.CompileError;
             }
             ast.* = ast_.AST.create_int(ast.token(), size.?, self.ctx.allocator()).*;
-            var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
+            var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(ast, null, &subst) catch return error.CompileError;
         },

@@ -1239,6 +1239,10 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const into_iter = try self.assignment_expr();
 
     const into_iter_type = Type_AST.create_type_of(pattern.token(), into_iter, self.allocator);
+    // const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
+    // const iterator_field = Type_AST.create_field(Token.init_simple("Iterator"), self.allocator);
+    // const iterator_type = Type_AST.create_type_access(pattern.token(), core_ident, iterator_field, self.allocator);
+    // const as_iterator_type = Type_AST.create_as_trait(pattern.token(), into_iter_type, iterator_type, self.allocator);
     var item_token = into_iter.token();
     item_token.data = "Item";
     const item_type = Type_AST.create_type_access(pattern.token(), into_iter_type, Type_AST.create_field(item_token, self.allocator), self.allocator);

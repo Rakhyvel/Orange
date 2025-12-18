@@ -5,7 +5,7 @@ const Symbol = @import("../symbol/symbol.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 
 pub const Substitutions = std.StringArrayHashMap(*Type_AST);
-pub const Sym_Substitutions = std.array_hash_map.AutoArrayHashMap(*Symbol, *Type_AST);
+// pub const Sym_Substitutions = std.array_hash_map.AutoArrayHashMap(*Symbol, *Type_AST);
 const Pair = struct { lhs: *Type_AST, rhs: *Type_AST };
 const Visited_Map = std.array_hash_map.AutoArrayHashMap(Pair, void);
 
@@ -13,14 +13,14 @@ const Check_Mode = enum { unify, assignable };
 const Options = struct { allow_rigid: bool = true, mode: Check_Mode = .unify };
 
 // Attempt to match the rhs with the lhs
-pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Sym_Substitutions, options: Options) !void {
+pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, options: Options) !void {
     var visited_map = Visited_Map.init(std.heap.page_allocator);
     defer visited_map.deinit();
 
     try unify_inner(lhs, rhs, subst, &visited_map, options);
 }
 
-fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Sym_Substitutions, visited_map: *Visited_Map, options: Options) !void {
+fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_map: *Visited_Map, options: Options) !void {
     if (visited_map.contains(Pair{ .lhs = lhs, .rhs = rhs })) {
         return;
     }
@@ -33,14 +33,14 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Sym_Substitutions, visite
     if (lhs.* == .annotation) return try unify_inner(lhs.child(), rhs, subst, visited_map, options);
     if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
 
-    if (lhs.* == .identifier and subst.get(lhs.symbol().?) != null) {
+    if (lhs.* == .identifier and subst.get(lhs.symbol().?.name) != null) {
         if (lhs.symbol().?.decl.?.* != .type_param_decl or !lhs.symbol().?.decl.?.type_param_decl.rigid) {
-            const sub = subst.get(lhs.symbol().?).?;
+            const sub = subst.get(lhs.symbol().?.name).?;
             return try unify_inner(sub, rhs, subst, visited_map, options);
         }
     }
-    if (rhs.* == .identifier and subst.get(rhs.symbol().?) != null) {
-        const sub = subst.get(rhs.symbol().?).?;
+    if (rhs.* == .identifier and subst.get(rhs.symbol().?.name) != null) {
+        const sub = subst.get(rhs.symbol().?.name).?;
         if (rhs.symbol().?.decl.?.* != .type_param_decl or !rhs.symbol().?.decl.?.type_param_decl.rigid) {
             return try unify_inner(lhs, sub, subst, visited_map, options);
         }
@@ -79,14 +79,14 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Sym_Substitutions, visite
         if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
-        try subst.put(lhs.symbol().?, rhs);
+        try subst.put(lhs.symbol().?.name, rhs);
         return;
     }
     if (rhs_is_type_param) {
         if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
-        try subst.put(rhs.symbol().?, lhs);
+        try subst.put(rhs.symbol().?.name, lhs);
         return;
     }
 
@@ -186,8 +186,8 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Sym_Substitutions, visite
     }
 }
 
-pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Sym_Substitutions {
-    var subst = Sym_Substitutions.init(alloc);
+pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substitutions {
+    var subst = Substitutions.init(alloc);
     if (_type.* == .generic_apply) {
         const constructor = _type.lhs();
 
@@ -199,7 +199,7 @@ pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Sym_Su
         errdefer subst.deinit();
 
         for (params, args) |param, arg| {
-            subst.put(param.symbol().?, arg) catch unreachable;
+            subst.put(param.symbol().?.name, arg) catch unreachable;
         }
     }
 
@@ -218,16 +218,16 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
     return bs.items.len == as.items.len;
 }
 
-pub fn type_param_list_from_subst_map(subst: *Sym_Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
-        const with_value = subst.get(type_param.symbol().?) orelse continue;
+        const with_value = subst.get(type_param.symbol().?.name) orelse continue;
         retval.append(with_value) catch unreachable;
     }
     return retval;
 }
 
-pub fn substitution_contains_type_params(subst: *const Sym_Substitutions) bool {
+pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
         std.debug.assert(ty.* != .identifier or ty.symbol() != null);
@@ -239,7 +239,7 @@ pub fn substitution_contains_type_params(subst: *const Sym_Substitutions) bool {
     return false;
 }
 
-pub fn substitution_contains_generics(subst: *const Sym_Substitutions) bool {
+pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
         const bad = ty.is_generic();
@@ -250,7 +250,7 @@ pub fn substitution_contains_generics(subst: *const Sym_Substitutions) bool {
     return false;
 }
 
-pub fn print_substitutions(subst: *const Sym_Substitutions) void {
+pub fn print_substitutions(subst: *const Substitutions) void {
     std.debug.print("{} substitutions: {{\n", .{subst.keys().len});
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;

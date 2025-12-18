@@ -25,7 +25,7 @@ pub fn postfix_type(self: Self, _type: *Type_AST) walk_.Error!void {
         }
         switch (_type.*) {
             .type_of => {
-                var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
+                var subst = unification_.Substitutions.init(self.ctx.allocator());
                 defer subst.deinit();
                 const typeof_expr = self.ctx.typecheck.typecheck_AST(_type.type_of._expr, null, &subst) catch |e| switch (e) {
                     error.UnexpectedTypeType => {

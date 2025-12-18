@@ -29,7 +29,7 @@ pub fn assert_pattern_matches(
     self: *Self,
     pattern: *ast_.AST,
     expr_type: *Type_AST,
-    subst: *unification_.Sym_Substitutions,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!void {
     switch (pattern.*) {
         .unit_value,

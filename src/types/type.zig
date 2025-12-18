@@ -598,6 +598,10 @@ pub const Type_AST = union(enum) {
         union_fields_.set_field(self, "_symbol", val);
     }
 
+    pub fn has_symbol(self: Type_AST) bool {
+        return union_fields_.has_struct_field(self, "_symbol");
+    }
+
     pub fn scope(self: Type_AST) ?*Scope {
         return union_fields_.get_struct_field(self, "_scope");
     }
@@ -1217,7 +1221,7 @@ pub const Type_AST = union(enum) {
                                 .trait_name = trait.name,
                             } };
                         }
-                        var subst = unification_.Sym_Substitutions.init(ctx.allocator());
+                        var subst = unification_.Substitutions.init(ctx.allocator());
                         defer subst.deinit();
                         unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst, .{}) catch {
                             return .{ .not_eq = .{
@@ -1311,11 +1315,11 @@ pub const Type_AST = union(enum) {
         }
     }
 
-    pub fn clone(self: *Type_AST, substs: *unification_.Sym_Substitutions, allocator: std.mem.Allocator) *Type_AST {
+    pub fn clone(self: *Type_AST, substs: *unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
-            .identifier => if (self.symbol() != null and substs.get(self.symbol().?) != null) {
-                return substs.get(self.symbol().?).?;
+            .identifier => if (substs.get(self.token().data)) |replacement| {
+                return replacement;
             } else {
                 return self;
             },
@@ -1384,7 +1388,7 @@ pub const Type_AST = union(enum) {
         }
     }
 
-    pub fn clone_types(children_terms: std.array_list.Managed(*Type_AST), substs: *unification_.Sym_Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+    pub fn clone_types(children_terms: std.array_list.Managed(*Type_AST), substs: *unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
         var retval = std.array_list.Managed(*Type_AST).init(allocator);
         for (children_terms.items) |_child| {
             retval.append(_child.clone(substs, allocator)) catch unreachable;

@@ -18,6 +18,16 @@ pub fn get_struct_field(u: anytype, comptime field: []const u8) Unwrapped(@TypeO
     };
 }
 
+/// Generically retrieve the value of a field in a Zig union type
+pub fn has_struct_field(u: anytype, comptime field: []const u8) bool {
+    _ = switch (u) {
+        inline else => |v| if (@hasField(@TypeOf(v), field)) @field(v, field) else error.NoField,
+    } catch {
+        return false;
+    };
+    return true;
+}
+
 /// Generically retrieve a reference to a field in a Zig union type
 pub fn get_field_ref(u: anytype, comptime field: []const u8) *Unwrapped(@TypeOf(u.*), field) {
     return switch (u.*) {

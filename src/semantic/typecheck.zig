@@ -64,7 +64,7 @@ pub fn typecheck_AST(
     self: *Self,
     ast: *ast_.AST,
     expected: ?*Type_AST,
-    subst: *unification_.Sym_Substitutions,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     // TODO: Bit long
     if (ast.common().validation_state == .validating) {
@@ -86,6 +86,9 @@ pub fn typecheck_AST(
     if (expected_type != null and expected_type.?.* == .poison) {
         expected_type = null;
     }
+    if (expected_type) |_| {
+        try walk_.walk_type(expected_type, Decorate.new(self.ctx));
+    }
 
     const actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
         ast.common().validation_state = .invalid;
@@ -93,7 +96,6 @@ pub fn typecheck_AST(
     };
 
     if (expected_type) |_| {
-        try walk_.walk_type(expected_type, Decorate.new(self.ctx));
         const expanded_expected = expected_type.?.expand_identifier();
         if (expanded_expected.* != .unit_type or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
             typing_.type_check(ast.token().span, actual_type, expected_type.?, subst, &self.ctx.errors) catch |e| {
@@ -114,7 +116,7 @@ pub fn typecheck_AST(
 }
 
 var depth: usize = 0;
-fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, subst: *unification_.Sym_Substitutions) Validate_Error_Enum!*Type_AST {
+fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, subst: *unification_.Substitutions) Validate_Error_Enum!*Type_AST {
     // TODO: Ugh this function is too long
     depth += 1;
     // std.debug.print("[{}] {f}: {?f}\n", .{ depth, ast, expected });
@@ -999,7 +1001,7 @@ pub fn binary_operator_open(
     self: *Self,
     ast: *ast_.AST,
     expected: ?*Type_AST,
-    subst: *unification_.Sym_Substitutions,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     const lhs_type = self.typecheck_AST(ast.lhs(), expected, subst) catch return error.CompileError;
     if (ast.lhs().* == .identifier and ast.lhs().symbol().?.is_type()) {
@@ -1015,7 +1017,7 @@ pub fn validate_args_type(
     args: *std.array_list.Managed(*ast_.AST),
     expected: *const std.array_list.Managed(*Type_AST),
     variadic: bool,
-    subst: *unification_.Sym_Substitutions,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!std.array_list.Managed(*Type_AST) {
     const expected_length = expected.items.len;
 
@@ -1077,7 +1079,7 @@ fn implicit_dereference(
     self: *Self,
     ast: *ast_.AST,
     old_lhs_type: *Type_AST,
-    subst: *unification_.Sym_Substitutions,
+    subst: *unification_.Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     var lhs_type = old_lhs_type;
     if (lhs_type.* == .addr_of and !lhs_type.addr_of.multiptr) {

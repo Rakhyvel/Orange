@@ -336,7 +336,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
             try walk_.walk_ast(decl, self);
             return decl.?.symbol().?;
         } else {
-            const decl = try Scope.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, rhs.data);
+            const decl = try scope.?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
             return decl.?.symbol().?;
         }
     }

@@ -250,10 +250,10 @@ pub fn monomorphize(
         return retval;
     } else {
         // Create a substitution map that subs the param names for the given arg types
-        var subst = unification_.Sym_Substitutions.init(ctx.allocator());
+        var subst = unification_.Substitutions.init(ctx.allocator());
         defer subst.deinit();
         for (self.decl.?.generic_params().items, key.items) |param, arg| {
-            try subst.put(param.symbol().?, arg);
+            try subst.put(param.symbol().?.name, arg);
         }
 
         // Clone the decl with the substitution
