@@ -156,67 +156,6 @@ fn positional_args(self: *Self) error{NoDefault}!std.array_list.Managed(*ast_.AS
 fn named_args(self: *Self) (Validate_Error_Enum || error{NoDefault})!std.array_list.Managed(*ast_.AST) {
     // FIXME: High cyclo
     std.debug.assert(self.args.items.len > 0);
-    // Maps assign.lhs name to assign.rhs
-    // var arg_name_to_val_map = std.StringArrayHashMap(*ast_.AST).init(self.allocator);
-    // defer arg_name_to_val_map.deinit();
-
-    // // Associate argument names with their values
-    // for (self.args.items) |arg| {
-    //     self.put_assign(arg, &arg_name_to_val_map) catch |err| switch (err) {
-    //         error.CompileError => return error.NoDefault,
-    //         else => return err,
-    //     };
-    // }
-
-    // // Construct positional args in the order specified by `expected`
-    // // var filled_args = std.array_list.Managed(*ast_.AST).init(self.allocator);
-    // // errdefer filled_args.deinit();
-
-    // // check that all params are specified, or are default
-    // // check that all args correspond to a param
-
-    // for (self.expected.items) |param| {
-    //     if (param.* != .annotation) {
-    //         self.errors.add_error(errs_.Error{ .basic = .{
-    //             .span = self.args.items[0].token().span,
-    //             .msg = "expected type does not accept named fields",
-    //         } });
-    //         return error.NoDefault;
-    //     }
-    //     const param_name = param.annotation.pattern.token().data;
-    //     const arg = arg_name_to_val_map.get(param_name);
-    //     if (arg == null) {
-    //         if (param.annotation.init != null) {
-    //             filled_args.append(param.annotation.init.?) catch unreachable;
-    //         }
-    //         // else {
-    //         //     // Value is not provided, and there is no default init, ERROR!
-    //         //     self.errors.add_error(errs_.Error{ .no_such_named = .{
-    //         //         .span = self.span,
-    //         //         .thing_name = self.thing.thing_name(),
-    //         //         .takes_name = self.thing.takes_name(),
-    //         //         .field_name = param.annotation.pattern.token().data,
-    //         //     } });
-    //         //     return error.NoDefault;
-    //         // }
-    //     } else {
-    //         filled_args.append(arg.?) catch unreachable;
-    //         _ = arg_name_to_val_map.swapRemove(param_name);
-    //     }
-    // }
-
-    // if (arg_name_to_val_map.keys().len > 0) {
-    //     std.debug.panic("hello", .{});
-    //     self.errors.add_error(errs_.Error{ .mismatch_arity = .{
-    //         .span = self.span,
-    //         .takes = self.expected.items.len,
-    //         .given = arg_name_to_val_map.keys().len,
-    //         .thing_name = self.thing.thing_name(),
-    //         .takes_name = self.thing.takes_name(),
-    //         .given_name = self.thing.given_name(),
-    //     } });
-    //     return error.NoDefault;
-    // }
 
     var param_name_map = std.StringArrayHashMap(*Type_AST).init(self.allocator);
     defer param_name_map.deinit();
@@ -248,7 +187,7 @@ fn named_args(self: *Self) (Validate_Error_Enum || error{NoDefault})!std.array_l
         const arg_name = arg.lhs().enum_value.get_name();
         const param = param_name_map.get(arg_name) orelse {
             self.errors.add_error(errs_.Error{ .no_such_named = .{
-                .span = self.span,
+                .span = arg.token().span,
                 .thing_name = self.thing.thing_name(),
                 .takes_name = self.thing.takes_name(),
                 .field_name = arg_name,
@@ -289,40 +228,6 @@ fn named_args(self: *Self) (Validate_Error_Enum || error{NoDefault})!std.array_l
     }
 
     return filled_args;
-}
-
-fn put_assign(self: *Self, arg: *ast_.AST, arg_map: *std.StringArrayHashMap(*ast_.AST)) Validate_Error_Enum!void {
-    if (arg.* != .assign) {
-        // methods don't have their self as a named arg, just put it as self
-        std.debug.assert(self.thing == .method);
-        try self.put_ast_map(arg, "self", arg.token().span, arg_map);
-        return;
-    }
-    if (arg.lhs().* != .enum_value) {
-        self.errors.add_error(errs_.Error{ .expected_basic_token = .{ .expected = "an named argument", .got = arg.lhs().token() } });
-        return error.CompileError;
-    }
-    try self.put_ast_map(arg.rhs(), arg.lhs().enum_value.get_name(), arg.token().span, arg_map);
-}
-
-/// Puts an ast into a String->AST map, if a given name isn't already in the map.
-fn put_ast_map(
-    self: *Self,
-    ast: *ast_.AST,
-    name: []const u8,
-    arg_span: Span,
-    map: *std.StringArrayHashMap(*ast_.AST),
-) Validate_Error_Enum!void {
-    if (map.get(name)) |_| {
-        self.errors.add_error(errs_.Error{ .duplicate = .{
-            .span = arg_span,
-            .thing = "item",
-            .identifier = name,
-            .first = null,
-        } });
-    } else {
-        map.put(name, ast) catch unreachable;
-    }
 }
 
 /// Checks to see if an argument is meant for a method with a value receiver, and if so, implicitly takes the

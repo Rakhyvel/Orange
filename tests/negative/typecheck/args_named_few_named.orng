@@ -1,4 +1,4 @@
-// args_named_few_named.orng:6:7: error: function takes 2 parameters, 1 argument given
+// args_named_few_named.orng:6:7: error: unspecified required parameter `x`
 //     f(.y = 5)
 //      ^
 // 
