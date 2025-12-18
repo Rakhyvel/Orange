@@ -179,7 +179,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
         const traits_match = impl.impl.trait.?.symbol() == trait;
         if (!traits_match) continue;
 
-        var subst = unification_.Substitutions.init(std.heap.page_allocator);
+        var subst = unification_.Sym_Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
         unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
             continue;
@@ -242,44 +242,44 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
                 .generic_apply => constraint.lhs().symbol().?.decl.?,
                 else => constraint.symbol().?.decl.?,
             };
-            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
+            if (try lookup_member_in_trait(trait_decl, name)) |res| return res;
             for (trait_decl.trait.super_traits.items) |super_trait| {
-                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+                if (try lookup_member_in_trait(super_trait.symbol().?.decl.?, name)) |res| return res;
             }
         }
     }
 
     if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
-    if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| return res;
+    if (try self.lookup_impl_member_super_impls(name)) |res| return res;
     if (try self.lookup_impl_member_imports(for_type, name, compiler)) |res| return res;
     if (self.parent) |p| return p.lookup_impl_member(for_type, name, compiler);
     return null;
 }
 
 /// Searches a trait declaration for a declaration. Clones and substitutes any references to `Self` with `for_type`.
-pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+pub fn lookup_member_in_trait(trait_decl: *ast_.AST, name: []const u8) !?*ast_.AST {
     // TODO: (for next release) De-duplicate this
     for (trait_decl.trait.method_decls.items) |method_decl| {
         if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
-
-        var subst = unification_.Substitutions.init(compiler.allocator());
-        defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
-        const cloned = method_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
-        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        return cloned;
+        return method_decl;
+        // var subst = unification_.Substitutions.init(compiler.allocator());
+        // defer subst.deinit();
+        // subst.put("Self", for_type) catch unreachable;
+        // const cloned = method_decl.clone(&subst, compiler.allocator());
+        // const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        // try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        // return cloned;
     }
     for (trait_decl.trait.const_decls.items) |const_decl| {
         if (!std.mem.eql(u8, const_decl.binding.decls.items[0].decl.name.token().data, name)) continue;
-
-        var subst = unification_.Substitutions.init(compiler.allocator());
-        defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
-        const cloned = const_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
-        try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
-        return cloned;
+        return const_decl;
+        // var subst = unification_.Substitutions.init(compiler.allocator());
+        // defer subst.deinit();
+        // subst.put("Self", for_type) catch unreachable;
+        // const cloned = const_decl.clone(&subst, compiler.allocator());
+        // const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        // try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        // return cloned;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {
         if (!std.mem.eql(u8, type_decl.token().data, name)) continue;
@@ -297,7 +297,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
     const is_type_param = constraints.len > 0;
 
     for (self.impls.items) |impl| {
-        var subst = unification_.Substitutions.init(compiler.allocator());
+        var subst = unification_.Sym_Substitutions.init(compiler.allocator());
         defer subst.deinit();
 
         try compiler.validate_type.validate_type(impl.impl._type);
@@ -322,12 +322,12 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
     return null;
 }
 
-fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+fn lookup_impl_member_super_impls(self: *Self, name: []const u8) !?*ast_.AST {
     for (self.impls.items) |impl| {
         if (impl.impl.trait) |trait| {
             if (trait.symbol() == null) continue;
             for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
-                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+                if (try lookup_member_in_trait(super_trait.symbol().?.decl.?, name)) |res| return res;
             }
         }
     }
@@ -350,7 +350,7 @@ fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8
     return null;
 }
 
-fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {
+fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.Sym_Substitutions, compiler: *Compiler_Context) !*ast_.AST {
     // Not even generic
     if (impl.impl._generic_params.items.len == 0) return impl;
 

@@ -50,8 +50,11 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
-    var subst = unification_.Substitutions.init(self.ctx.allocator());
+    try self.ctx.validate_type.validate_type(impl.impl._type);
+
+    var subst = unification_.generate_substitutions(impl.impl._type, self.ctx.allocator());
     defer subst.deinit();
+
     _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null, &subst) catch |e| switch (e) {
         error.UnexpectedTypeType => {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
@@ -62,7 +65,6 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         },
         else => return error.CompileError,
     };
-    try self.ctx.validate_type.validate_type(impl.impl._type);
 
     const trait_symbol: *Symbol = impl.impl.trait.?.symbol().?;
     if (trait_symbol.kind != .trait) {
@@ -282,7 +284,14 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
-        _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
+        _ = self.ctx.typecheck.typecheck_AST(def.method_decl.init.?, def.method_decl.ret_type, &subst) catch |e| switch (e) {
+            error.CompileError => return error.CompileError,
+            error.OutOfMemory => return error.OutOfMemory,
+            error.UnexpectedTypeType => {
+                self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = def.method_decl.ret_type, .span = def.method_decl.init.?.token().span } });
+                return error.CompileError;
+            },
+        };
     }
 }
 

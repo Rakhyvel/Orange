@@ -9,6 +9,19 @@ struct Map[K: core::Hash + core::Eq, V] {
     alloc: &mut dyn core::Allocator
 }
 
+struct Map_Iterator[K, V] {
+    hashes: []Word64
+    keys: []K
+    values: []V
+    counter: Int = 0
+}
+
+struct Hash_Iterator[T] {
+    hashes: []Word64
+    items: []T
+    counter: Int = 0
+}
+
 enum Error {
     out_of_memory
 }
@@ -87,6 +100,20 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
             .some(_) => true
             .none    => false
         }
+    }
+
+    fn keys(&self) -> Hash_Iterator[K] {
+        Hash_Iterator[K](
+            .hashes = self.hashes,
+            .items = self.keys,
+        )
+    }
+
+    fn values(&self) -> Hash_Iterator[V] {
+        Hash_Iterator[V](
+            .hashes = self.hashes,
+            .items = self.values,
+        )
     }
 
     fn clear(&mut self) {
@@ -174,13 +201,6 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     }
 }
 
-struct Map_Iterator[K, V] {
-    hashes: []Word64
-    keys: []K
-    values: []V
-    counter: Int = 0
-}
-
 impl[K, V] core::Iterator for Map_Iterator[K, V] {
     type Item = (&K, &V)
 
@@ -190,6 +210,20 @@ impl[K, V] core::Iterator for Map_Iterator[K, V] {
         }
         while self.hashes[self.counter] == 0; self.counter += 1 {}
         let retval: ?Self::Item = .some((&self.keys[self.counter], &self.values[self.counter]))
+        self.counter += 1
+        retval
+    }
+}
+
+impl[T] core::Iterator for Hash_Iterator[T] {
+    type Item = &T
+
+    fn next(&mut self) -> ?Self::Item {
+        if self.counter >= self.hashes.length {
+            return .none
+        }
+        while self.hashes[self.counter] == 0; self.counter += 1 {}
+        let retval: ?Self::Item = .some(&self.items[self.counter])
         self.counter += 1
         retval
     }
@@ -333,7 +367,7 @@ test "set" with core::Allocating {
     .ok
 }
 
-test "into_iter" with (core::Allocating, core::IO) {
+test "into_iter" with core::Allocating {
     let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
@@ -354,6 +388,26 @@ test "into_iter" with (core::Allocating, core::IO) {
     item = iter.>next()
     try testing::expect(item == .none)
 
+    .ok
+}
+
+test "keys" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+    
+    let mut iter = map.>keys()
+
+    let mut item = iter.>next()
+    try testing::expect(mem::eql(item.some^, "a"))
+
+    item = iter.>next()
+    try testing::expect(mem::eql(item.some^, "b"))
+
+    item = iter.>next()
+    try testing::expect(mem::eql(item.some^, "c"))
+
+    item = iter.>next()
+    try testing::expect(item == .none)
 
     .ok
 }

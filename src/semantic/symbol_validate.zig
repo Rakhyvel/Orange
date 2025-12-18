@@ -59,7 +59,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
-        var subst = unification_.Substitutions.init(self.ctx.allocator());
+        var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
             error.CompileError => return error.CompileError,
@@ -160,7 +160,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     if (symbol.storage == .@"extern") {
         if (symbol.storage.@"extern".c_name != null) {
-            var subst = unification_.Substitutions.init(self.ctx.allocator());
+            var subst = unification_.Sym_Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(symbol.storage.@"extern".c_name.?, prelude_.string_type, &subst) catch return error.CompileError;
         } else {

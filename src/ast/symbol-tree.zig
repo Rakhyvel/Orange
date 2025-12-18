@@ -14,6 +14,7 @@ const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 scope: *Scope,
 in_loop: bool,
@@ -53,7 +54,20 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         else => {},
 
         // Capture scope
-        .@"comptime", .access, .call, .invoke, .addr_of, .identifier, .generic_apply, .print, .format_args, .write, .type_access => ast.set_scope(self.scope),
+        .@"comptime",
+        .access,
+        .call,
+        .invoke,
+        .addr_of,
+        .identifier,
+        .generic_apply,
+        .print,
+        .format_args,
+        .write,
+        .type_access,
+        => {
+            ast.set_scope(self.scope);
+        },
 
         // Check that AST is inside a loop
         .@"break", .@"continue" => try self.in_loop_check(ast, self.errors),
@@ -253,14 +267,14 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try walk_.walk_ast(self_type_decl, new_self);
 
-            for (ast.impl.method_defs.items, 0..) |method_def, i| {
-                var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
-                defer subst.deinit();
+            // for (ast.impl.method_defs.items, 0..) |method_def, i| {
+            //     var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
+            //     defer subst.deinit();
 
-                try subst.put("Self", ast.impl._type);
+            //     try subst.put("Self", ast.impl._type);
 
-                ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
-            }
+            //     ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
+            // }
 
             if (ast.impl.trait == null) {
                 // impl'd for an anon trait, create an anon trait for it
@@ -268,7 +282,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 new_self_for_anon_trait.scope = Scope.init(self.scope, self.scope.uid_gen, self.allocator);
 
                 // TODO: Don't do this for generic impls (but those'll be a new node anyway)
-                var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
+                var subst = unification_.Sym_Substitutions.init(self.allocator);
                 defer subst.deinit();
 
                 var token = ast.token();

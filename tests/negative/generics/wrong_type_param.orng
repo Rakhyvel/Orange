@@ -1,0 +1,20 @@
+// wrong_type_param.orng:16:17: error: expected a value of type `Wrapper[X]`, got a value of type `Wrapper[Y]`
+//         Wrapper[Y](self.y)
+//                ^
+// 
+struct Thingy[X, Y] {
+    x: X
+    y: Y
+}
+
+struct Wrapper[T] {
+    t: T
+}
+
+impl[X, Y] for Thingy[X, Y] {
+    fn wrap_x(&self) -> Wrapper[X] {
+        Wrapper[Y](self.y)
+    }
+}
+
+fn main() {}

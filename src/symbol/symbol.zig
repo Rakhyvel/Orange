@@ -237,15 +237,23 @@ pub fn monomorphize(
     if (key.items.len == 0) {
         // std.debug.print("nothing to do\n", .{});
         return self;
-    } else if (self.monomorphs.get(key)) |retval| {
+    }
+
+    for (key.items) |k| {
+        if (k.* == .identifier and k.symbol().?.decl.?.* == .type_param_decl) {
+            return self;
+        }
+    }
+
+    if (self.monomorphs.get(key)) |retval| {
         // std.debug.print("eat slop ({*})\n", .{retval});
         return retval;
     } else {
         // Create a substitution map that subs the param names for the given arg types
-        var subst = unification_.Substitutions.init(ctx.allocator());
+        var subst = unification_.Sym_Substitutions.init(ctx.allocator());
         defer subst.deinit();
         for (self.decl.?.generic_params().items, key.items) |param, arg| {
-            try subst.put(param.symbol().?.name, arg);
+            try subst.put(param.symbol().?, arg);
         }
 
         // Clone the decl with the substitution
@@ -256,16 +264,7 @@ pub fn monomorphize(
         const Decorate = @import("../ast/decorate.zig");
         const walker_ = @import("../ast/walker.zig");
 
-        var all_concrete: bool = true;
-        for (key.items) |k| {
-            if (k.* == .identifier and k.symbol().?.decl.?.* == .type_param_decl) {
-                all_concrete = false;
-            }
-        }
-
-        if (all_concrete) {
-            decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
-        }
+        decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
 
         const scope = self.decl.?.scope().?.parent.?;
 

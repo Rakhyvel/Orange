@@ -1,17 +1,17 @@
-// multiptr_mismatch.orng:11:22: error: expected a value of type `items: [*]T`, got a value of type `[*]Int`
-//         Self(items as [*]Int)
-//                     ^
+// multiptr_mismatch.orng:11:28: error: expected a value of type `[*]T`, got a value of type `[*]Int`
+//         My_Type[U](items as [*]Int)
+//                           ^
 // 
 struct My_Type[T] {
     items: [*]T
 }
 
-impl[T] for My_Type[T] {
-    fn init(items: [*]T) -> Self {
-        Self(items as [*]Int)
+impl[U] for My_Type[U] {
+    fn init(items: [*]U) -> My_Type[U] {
+        My_Type[U](items as [*]Int)
     }
 
-    fn first(&self) -> T {
+    fn first(&self) -> U {
         self.items[0]
     }
 }

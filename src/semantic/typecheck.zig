@@ -9,6 +9,7 @@ const core_ = @import("../hierarchy/core.zig");
 const defaults_ = @import("defaults.zig");
 const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
+const fmt_ = @import("../util/fmt.zig");
 const poison_ = @import("../ast/poison.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
@@ -63,7 +64,7 @@ pub fn typecheck_AST(
     self: *Self,
     ast: *ast_.AST,
     expected: ?*Type_AST,
-    subst: *unification_.Substitutions,
+    subst: *unification_.Sym_Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     // TODO: Bit long
     if (ast.common().validation_state == .validating) {
@@ -113,7 +114,7 @@ pub fn typecheck_AST(
 }
 
 var depth: usize = 0;
-fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, subst: *unification_.Substitutions) Validate_Error_Enum!*Type_AST {
+fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, subst: *unification_.Sym_Substitutions) Validate_Error_Enum!*Type_AST {
     // TODO: Ugh this function is too long
     depth += 1;
     // std.debug.print("[{}] {f}: {?f}\n", .{ depth, ast, expected });
@@ -953,7 +954,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return ast.decl_type();
         },
         .method_decl => {
-            std.debug.assert(expected == null); // Why wouldn't it be?
             if (ast.symbol() != null) {
                 // Not a trait-method
                 try self.ctx.validate_symbol.validate_symbol(ast.symbol().?);
@@ -999,7 +999,7 @@ pub fn binary_operator_open(
     self: *Self,
     ast: *ast_.AST,
     expected: ?*Type_AST,
-    subst: *unification_.Substitutions,
+    subst: *unification_.Sym_Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     const lhs_type = self.typecheck_AST(ast.lhs(), expected, subst) catch return error.CompileError;
     if (ast.lhs().* == .identifier and ast.lhs().symbol().?.is_type()) {
@@ -1015,7 +1015,7 @@ pub fn validate_args_type(
     args: *std.array_list.Managed(*ast_.AST),
     expected: *const std.array_list.Managed(*Type_AST),
     variadic: bool,
-    subst: *unification_.Substitutions,
+    subst: *unification_.Sym_Substitutions,
 ) Validate_Error_Enum!std.array_list.Managed(*Type_AST) {
     const expected_length = expected.items.len;
 
@@ -1077,7 +1077,7 @@ fn implicit_dereference(
     self: *Self,
     ast: *ast_.AST,
     old_lhs_type: *Type_AST,
-    subst: *unification_.Substitutions,
+    subst: *unification_.Sym_Substitutions,
 ) Validate_Error_Enum!*Type_AST {
     var lhs_type = old_lhs_type;
     if (lhs_type.* == .addr_of and !lhs_type.addr_of.multiptr) {

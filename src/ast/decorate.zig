@@ -8,6 +8,7 @@ const errs_ = @import("../util/errors.zig");
 const generic_apply_ = @import("generic_apply.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const Symbol_Tree = @import("symbol-tree.zig");
 const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
@@ -335,7 +336,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
             try walk_.walk_ast(decl, self);
             return decl.?.symbol().?;
         } else {
-            const decl = try scope.?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
+            const decl = try Scope.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, rhs.data);
             return decl.?.symbol().?;
         }
     }

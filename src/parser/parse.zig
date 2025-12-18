@@ -1498,7 +1498,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
             const constraints = try self.contraint_list();
-            const param_ident = ast_.AST.create_type_param_decl(param_token, true, constraints, self.allocator);
+            const param_ident = ast_.AST.create_type_param_decl(param_token, false, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
                 break;
@@ -1561,6 +1561,9 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.impl);
 
     const gen_params = try self.generic_params_list();
+    for (gen_params.items) |gen_param| {
+        gen_param.type_param_decl.rigid = true;
+    }
 
     const trait_ident: ?*ast_.AST = if (!self.peek_kind(.@"for")) (try self.bool_expr()) else null;
     _ = try self.expect(.@"for");

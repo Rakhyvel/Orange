@@ -262,6 +262,17 @@ pub const Error = union(enum) {
         span: Span,
         forgotten: std.array_list.Managed(*Type_AST),
     },
+    no_such_named: struct {
+        span: Span,
+        thing_name: []const u8,
+        takes_name: []const u8,
+        field_name: []const u8,
+    },
+    unspecified_required: struct {
+        span: Span,
+        takes_name: []const u8,
+        field_name: []const u8,
+    },
     mismatch_arity: struct {
         span: Span,
         takes: usize,
@@ -364,6 +375,8 @@ pub const Error = union(enum) {
             .bad_index => return self.bad_index.span,
             .not_selectable => return self.not_selectable.span,
             .non_exhaustive_sum => return self.non_exhaustive_sum.span,
+            .no_such_named => return self.no_such_named.span,
+            .unspecified_required => return self.unspecified_required.span,
             .mismatch_arity => return self.mismatch_arity.span,
             .no_default => return self.no_default.span,
             .wrong_from => return self.wrong_from.span,
@@ -619,6 +632,15 @@ pub const Error = union(enum) {
                 writer.print("` is not selectable\n", .{}) catch unreachable;
             },
             .non_exhaustive_sum => writer.print("match over enum type is not exhaustive\n", .{}) catch unreachable,
+            .no_such_named => writer.print("{s} does not accept {s} `{s}`\n", .{
+                err.no_such_named.thing_name,
+                err.no_such_named.takes_name,
+                err.no_such_named.field_name,
+            }) catch unreachable,
+            .unspecified_required => writer.print("unspecified required {s} `{s}`\n", .{
+                err.unspecified_required.takes_name,
+                err.unspecified_required.field_name,
+            }) catch unreachable,
             .mismatch_arity => {
                 writer.print("{s} takes {} {s}{s}, {} {s}{s} given\n", .{
                     err.mismatch_arity.thing_name,
