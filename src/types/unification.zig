@@ -218,7 +218,7 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
     return bs.items.len == as.items.len;
 }
 
-pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+pub fn type_param_list_from_subst_map(subst: *const Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
         const with_value = subst.get(type_param.symbol().?.name) orelse continue;

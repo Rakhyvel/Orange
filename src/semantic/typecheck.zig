@@ -13,6 +13,7 @@ const fmt_ = @import("../util/fmt.zig");
 const poison_ = @import("../ast/poison.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
+const Scope = @import("../symbol/scope.zig");
 const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
@@ -890,10 +891,23 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return error.CompileError;
             }
             // Can assume these will be defined by check above
-            ast.@"for".into_iter_into_iter_method_decl = (try ast.scope().?.lookup_impl_member(into_iter_type, "into_iter", self.ctx)).?;
+            const instantiated_impl = try ast.scope().?.instantiate_generic_impl(impl.ast.?, &impl.subst.?, self.ctx);
+            ast.@"for".into_iter_into_iter_method_decl = Scope.search_impl(instantiated_impl, "into_iter").?;
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
-            ast.@"for".into_iter_next_method_decl = (try ast.scope().?.lookup_impl_member(iterator_type, "next", self.ctx)).?;
+
+            const iterator_impl = try ast.scope().?.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
+            if (iterator_impl.ast == null) {
+                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                    .span = ast.token().span,
+                    .trait_name = core_.iterator_trait.name,
+                    ._type = prelude_.string_type,
+                } });
+                return error.CompileError;
+            }
+            const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.ast.?, &iterator_impl.subst.?, self.ctx);
+            ast.@"for".into_iter_next_method_decl = Scope.search_impl(iterator_instantiated_impl, "next").?;
             const item_type = ast.@"for".into_iter_next_method_decl.?.method_decl.ret_type.get_some_type();
+
             try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type, subst);
             _ = self.typecheck_AST(ast.body_block(), null, subst) catch return error.CompileError;
             if (ast.else_block() != null) {

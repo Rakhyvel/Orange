@@ -141,16 +141,24 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
     }
 }
 
-const Impl_Trait_Lookup_Result = struct { count: u8, ast: ?*ast_.AST };
+const Impl_Trait_Lookup_Result = struct {
+    count: u8,
+    ast: ?*ast_.AST,
+    subst: ?unification_.Substitutions,
+};
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
+    return impl_trait_lookup_inner(self, self, for_type, trait, ctx);
+}
+
+fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
     if (false) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
         Tree_Writer.print_type_tree(for_type);
         self.pprint();
     }
-    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null };
+    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null, .subst = null };
 
     // Type param with the constraint, return positive count with null ast if traits match
     if ((for_type.* == .identifier or for_type.* == .access) and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
@@ -158,14 +166,14 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = try Decorate.symbol(constraint, ctx);
             if (trait_symbol == trait) {
-                return .{ .count = 1, .ast = null };
+                return .{ .count = 1, .ast = null, .subst = null };
             }
         }
     }
 
     // As-trait ascription, return positive count with null ast if traits match
     if (for_type.* == .as_trait and for_type.rhs().symbol().? == trait) {
-        return self.impl_trait_lookup(for_type.lhs(), trait, ctx);
+        return self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
     }
 
     const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
@@ -176,27 +184,28 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
 
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
-        const traits_match = impl.impl.trait.?.symbol() == trait;
+        const traits_match = (try Decorate.symbol(impl.impl.trait.?, ctx)) == trait;
         if (!traits_match) continue;
 
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
-        defer subst.deinit();
+        errdefer subst.deinit();
         unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
             continue;
         };
 
         if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, self, ctx) catch continue;
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, original_scope, ctx) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         if (is_type_param) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, ctx) catch continue;
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, original_scope, ctx) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         retval.count += 1;
         retval.ast = retval.ast orelse impl;
+        retval.subst = retval.subst orelse subst;
     }
 
     // Go through imports
@@ -206,10 +215,11 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
             var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
-            const parent_res = try module_scope.impl_trait_lookup(for_type, trait, ctx);
+            const parent_res = try module_scope.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
             if (parent_res.count > 0) {
                 retval.count += parent_res.count;
                 retval.ast = retval.ast orelse parent_res.ast;
+                retval.subst = retval.subst orelse parent_res.subst;
                 return parent_res;
             }
         }
@@ -217,9 +227,10 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
 
     if (self.parent != null) {
         // Did not match in this scope. Try parent scope
-        const parent_res = try self.parent.?.impl_trait_lookup(for_type, trait, ctx);
+        const parent_res = try self.parent.?.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
         retval.count += parent_res.count;
         retval.ast = retval.ast orelse parent_res.ast;
+        retval.subst = retval.subst orelse parent_res.subst;
         return retval;
     } else {
         // Not found, parent scope is null
@@ -351,7 +362,7 @@ fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8
     return null;
 }
 
-fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {
+pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {
     // Not even generic
     if (impl.impl._generic_params.items.len == 0) return impl;
 

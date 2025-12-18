@@ -16,9 +16,22 @@ struct Map_Iterator[K, V] {
     counter: Int = 0
 }
 
+struct Map_Mut_Iterator[K, V] {
+    hashes: []Word64
+    keys: []K
+    values: [mut]V
+    counter: Int = 0
+}
+
 struct Hash_Iterator[T] {
     hashes: []Word64
     items: []T
+    counter: Int = 0
+}
+
+struct Mut_Hash_Iterator[T] {
+    hashes: []Word64
+    items: [mut]T
     counter: Int = 0
 }
 
@@ -113,6 +126,21 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
         Hash_Iterator[V](
             .hashes = self.hashes,
             .items = self.values,
+        )
+    }
+
+    fn values_mut(&self) -> Mut_Hash_Iterator[V] {
+        Mut_Hash_Iterator[V](
+            .hashes = self.hashes,
+            .items = self.values,
+        )
+    }
+
+    fn iter_mut(&mut self) -> Map_Mut_Iterator[K, V] {
+        Map_Mut_Iterator[K, V](
+            .hashes = self.hashes,
+            .keys = self.keys,
+            .values = self.values,
         )
     }
 
@@ -215,6 +243,20 @@ impl[K, V] core::Iterator for Map_Iterator[K, V] {
     }
 }
 
+impl[K, V] core::Iterator for Map_Mut_Iterator[K, V] {
+    type Item = (&K, &mut V)
+
+    fn next(&mut self) -> ?Self::Item {
+        if self.counter >= self.hashes.length {
+            return .none
+        }
+        while self.hashes[self.counter] == 0; self.counter += 1 {}
+        let retval: ?Self::Item = .some((&self.keys[self.counter], &mut self.values[self.counter]))
+        self.counter += 1
+        retval
+    }
+}
+
 impl[T] core::Iterator for Hash_Iterator[T] {
     type Item = &T
 
@@ -229,12 +271,26 @@ impl[T] core::Iterator for Hash_Iterator[T] {
     }
 }
 
+impl[T] core::Iterator for Mut_Hash_Iterator[T] {
+    type Item = &mut T
+
+    fn next(&mut self) -> ?Self::Item {
+        if self.counter >= self.hashes.length {
+            return .none
+        }
+        while self.hashes[self.counter] == 0; self.counter += 1 {}
+        let retval: ?Self::Item = .some(&mut self.items[self.counter])
+        self.counter += 1
+        retval
+    }
+}
+
 impl[K: core::Hash + core::Eq, V] core::Into_Iterator for Map[K, V] {
     type Item = (&K, &V)
     type Iter = Map_Iterator[K, V]
 
     fn into_iter(self) -> Self::Iter {
-        Map_Iterator[K, V](
+        Self::Iter(
             .hashes = self.hashes,
             .keys = self.keys,
             .values = self.values
@@ -408,6 +464,59 @@ test "keys" with core::Allocating {
 
     item = iter.>next()
     try testing::expect(item == .none)
+
+    .ok
+}
+
+test "values" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+    
+    let mut iter = map.>values()
+
+    let mut item = iter.>next()
+    try testing::expect(item.some^ == 1)
+
+    item = iter.>next()
+    try testing::expect(item.some^ == 2)
+
+    item = iter.>next()
+    try testing::expect(item.some^ == 3)
+
+    item = iter.>next()
+    try testing::expect(item == .none)
+
+    .ok
+}
+
+test "values_mut" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+
+    for v in map.>values_mut() {
+        v^ *= 2
+    }
+
+    try testing::expect(map.>get("a").some^ == 2)
+    try testing::expect(map.>get("b").some^ == 4)
+    try testing::expect(map.>get("c").some^ == 6)
+
+    .ok
+}
+
+test "iter_mut" with core::Allocating {
+    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    defer map.>deinit()
+
+    for (k, v) in map.>iter_mut() {
+        if mem::eql(k^, "b") {
+            v^ *= 2
+        }
+    }
+
+    try testing::expect(map.>get("a").some^ == 1)
+    try testing::expect(map.>get("b").some^ == 4)
+    try testing::expect(map.>get("c").some^ == 3)
 
     .ok
 }
