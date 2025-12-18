@@ -80,6 +80,9 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             return error.TypesMismatch;
         }
         try subst.put(lhs.symbol().?.name, rhs);
+        if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
+            return error.TypesMismatch;
+        }
         return;
     }
     if (rhs_is_type_param) {
@@ -87,6 +90,9 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             return error.TypesMismatch;
         }
         try subst.put(rhs.symbol().?.name, lhs);
+        if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
+            return error.TypesMismatch;
+        }
         return;
     }
 

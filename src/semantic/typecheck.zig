@@ -907,7 +907,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.ast.?, &iterator_impl.subst.?, self.ctx);
             ast.@"for".into_iter_next_method_decl = Scope.search_impl(iterator_instantiated_impl, "next").?;
             const item_type = ast.@"for".into_iter_next_method_decl.?.method_decl.ret_type.get_some_type();
-
             try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type, subst);
             _ = self.typecheck_AST(ast.body_block(), null, subst) catch return error.CompileError;
             if (ast.else_block() != null) {
