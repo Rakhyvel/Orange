@@ -1,9 +1,11 @@
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const Symbol = @import("../symbol/symbol.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 
 pub const Substitutions = std.StringArrayHashMap(*Type_AST);
+// pub const Sym_Substitutions = std.array_hash_map.AutoArrayHashMap(*Symbol, *Type_AST);
 const Pair = struct { lhs: *Type_AST, rhs: *Type_AST };
 const Visited_Map = std.array_hash_map.AutoArrayHashMap(Pair, void);
 
@@ -24,15 +26,25 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     }
     try visited_map.put(Pair{ .lhs = lhs, .rhs = rhs }, void{});
 
-    // std.debug.print("{f} ~ {f}\n", .{ lhs, rhs });
-    // std.debug.print("{t} ~ {t}\n\n", .{ lhs.*, rhs.* });
-
     if (lhs.is_ident_type("Void")) {
         return; // Bottom type - vacuously true
     }
 
     if (lhs.* == .annotation) return try unify_inner(lhs.child(), rhs, subst, visited_map, options);
     if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
+
+    if (lhs.* == .identifier and subst.get(lhs.symbol().?.name) != null) {
+        if (lhs.symbol().?.decl.?.* != .type_param_decl or !lhs.symbol().?.decl.?.type_param_decl.rigid) {
+            const sub = subst.get(lhs.symbol().?.name).?;
+            return try unify_inner(sub, rhs, subst, visited_map, options);
+        }
+    }
+    if (rhs.* == .identifier and subst.get(rhs.symbol().?.name) != null) {
+        const sub = subst.get(rhs.symbol().?.name).?;
+        if (rhs.symbol().?.decl.?.* != .type_param_decl or !rhs.symbol().?.decl.?.type_param_decl.rigid) {
+            return try unify_inner(lhs, sub, subst, visited_map, options);
+        }
+    }
 
     if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
         return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
@@ -64,6 +76,9 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl;
 
     if (lhs_is_type_param) {
+        if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
+            return error.TypesMismatch;
+        }
         try subst.put(lhs.symbol().?.name, rhs);
         if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
@@ -71,6 +86,9 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         return;
     }
     if (rhs_is_type_param) {
+        if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
+            return error.TypesMismatch;
+        }
         try subst.put(rhs.symbol().?.name, lhs);
         if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
@@ -174,8 +192,28 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     }
 }
 
+pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substitutions {
+    var subst = Substitutions.init(alloc);
+    if (_type.* == .generic_apply) {
+        const constructor = _type.lhs();
+
+        const params = constructor.symbol().?.decl.?.generic_params().items;
+        const args = _type.children().items;
+
+        std.debug.assert(params.len == args.len);
+
+        errdefer subst.deinit();
+
+        for (params, args) |param, arg| {
+            subst.put(param.symbol().?.name, arg) catch unreachable;
+        }
+    }
+
+    return subst;
+}
+
 fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
-    if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.* == .type_param_decl) {
+    if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.* == .type_param_decl and !arg.symbol().?.decl.?.type_param_decl.rigid) {
         return true;
     }
     const expanded_arg = arg.expand_identifier();
@@ -186,10 +224,10 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
     return bs.items.len == as.items.len;
 }
 
-pub fn type_param_list_from_subst_map(subst: *Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+pub fn type_param_list_from_subst_map(subst: *const Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
-        const with_value = subst.get(type_param.token().data) orelse continue;
+        const with_value = subst.get(type_param.symbol().?.name) orelse continue;
         retval.append(with_value) catch unreachable;
     }
     return retval;
@@ -223,7 +261,7 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
         const bad = ty.is_generic();
-        std.debug.print("    {s}: {?f} ({})\n", .{ key, subst.get(key), bad });
+        std.debug.print("    {s}: {?f} ({})\n", .{ key.name, subst.get(key), bad });
     }
     std.debug.print("}}\n", .{});
 }

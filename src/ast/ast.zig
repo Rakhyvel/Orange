@@ -1506,7 +1506,7 @@ pub const AST = union(enum) {
     /// Clones an AST given a substitution map. If any identifiers match a substitution, they are substituted.
     ///
     /// Deliberately does _not_ copy over symbols and scopes. These need to be re-decorated.
-    pub fn clone(self: *AST, substs: *unification_.Substitutions, allocator: std.mem.Allocator) *AST {
+    pub fn clone(self: *AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *AST {
         switch (self.*) {
             .poison => unreachable,
             .unit_value => return create_unit_value(self.token(), allocator),
@@ -2022,7 +2022,7 @@ pub const AST = union(enum) {
         }
     }
 
-    pub fn clone_children(children_terms: std.array_list.Managed(*AST), substs: *unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*AST) {
+    pub fn clone_children(children_terms: std.array_list.Managed(*AST), substs: *const unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*AST) {
         var retval = std.array_list.Managed(*AST).init(allocator);
         for (children_terms.items) |child| {
             retval.append(child.clone(substs, allocator)) catch unreachable;

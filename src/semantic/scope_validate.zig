@@ -50,8 +50,11 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
-    var subst = unification_.Substitutions.init(self.ctx.allocator());
+    try self.ctx.validate_type.validate_type(impl.impl._type);
+
+    var subst = unification_.generate_substitutions(impl.impl._type, self.ctx.allocator());
     defer subst.deinit();
+
     _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null, &subst) catch |e| switch (e) {
         error.UnexpectedTypeType => {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
@@ -62,7 +65,6 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         },
         else => return error.CompileError,
     };
-    try self.ctx.validate_type.validate_type(impl.impl._type);
 
     const trait_symbol: *Symbol = impl.impl.trait.?.symbol().?;
     if (trait_symbol.kind != .trait) {
@@ -220,7 +222,8 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
 
         // Check that contraints match
         try walk_.walk_type(typedef.decl_typedef().?, Decorate.new(self.ctx));
-        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.scope().?, self.ctx);
+        const scope_to_use = if (impl.impl._type.has_symbol()) impl.impl._type.symbol().?.scope else impl.scope().?;
+        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, scope_to_use, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {
@@ -282,7 +285,14 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     for (impl.impl.method_defs.items) |def| {
-        _ = self.ctx.typecheck.typecheck_AST(def, null, &subst) catch return error.CompileError;
+        _ = self.ctx.typecheck.typecheck_AST(def.method_decl.init.?, def.method_decl.ret_type, &subst) catch |e| switch (e) {
+            error.CompileError => return error.CompileError,
+            error.OutOfMemory => return error.OutOfMemory,
+            error.UnexpectedTypeType => {
+                self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = def.method_decl.ret_type, .span = def.method_decl.init.?.token().span } });
+                return error.CompileError;
+            },
+        };
     }
 }
 

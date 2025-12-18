@@ -1,0 +1,23 @@
+// wrong_type_impl.orng:19:15: error: expected a value of type `Ctor1[U]`, got a value of type `Ctor2[U]`
+//         Ctor2[U](.a = self.x)
+//              ^
+// 
+struct Wrapper[T] {
+    x: T
+}
+
+struct Ctor1[A] {
+    a: A
+}
+
+struct Ctor2[A] {
+    a: A
+}
+
+impl[U] for Wrapper[U] {
+    fn get(self) -> Ctor1[U] {
+        Ctor2[U](.a = self.x)
+    }
+}
+
+fn main() {}

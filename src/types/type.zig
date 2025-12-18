@@ -598,6 +598,10 @@ pub const Type_AST = union(enum) {
         union_fields_.set_field(self, "_symbol", val);
     }
 
+    pub fn has_symbol(self: Type_AST) bool {
+        return union_fields_.has_struct_field(self, "_symbol");
+    }
+
     pub fn scope(self: Type_AST) ?*Scope {
         return union_fields_.get_struct_field(self, "_scope");
     }
@@ -840,14 +844,16 @@ pub const Type_AST = union(enum) {
             },
             .as_trait => try out.print("({f} as {f})", .{ self.lhs(), self.rhs() }),
             .generic_apply => {
-                try out.print("{f}[{f}", .{ self.generic_apply._lhs, self.generic_apply.args.items[0] });
+                try self.generic_apply._lhs.print_type(out);
+                try out.print("[", .{});
+                try self.generic_apply.args.items[0].print_type(out);
                 for (self.generic_apply.args.items[1..]) |arg| {
-                    try out.print(", {f}", .{arg});
+                    try out.print(", ", .{});
+                    try arg.print_type(out);
                 }
                 try out.print("]", .{});
             },
             .annotation => {
-                try out.print("{s}: ", .{self.annotation.pattern.token().data});
                 try self.child().print_type(out);
             },
             .type_of => {
@@ -856,7 +862,7 @@ pub const Type_AST = union(enum) {
             .domain_of => {
                 try out.print("@domainof({f}.{s})", .{ self.domain_of._child, self.domain_of.ctor_name });
             },
-            .index => try out.print("{f}[{f}]", .{ self.child(), self.index.idx }),
+            .index => try out.print("{f}.[{f}]", .{ self.child(), self.index.idx }),
             else => try out.print("{s}", .{@tagName(self.*)}),
         }
     }
@@ -1312,7 +1318,7 @@ pub const Type_AST = union(enum) {
         }
     }
 
-    pub fn clone(self: *Type_AST, substs: *unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
+    pub fn clone(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
             .identifier => if (substs.get(self.token().data)) |replacement| {
@@ -1385,7 +1391,7 @@ pub const Type_AST = union(enum) {
         }
     }
 
-    pub fn clone_types(children_terms: std.array_list.Managed(*Type_AST), substs: *unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
+    pub fn clone_types(children_terms: std.array_list.Managed(*Type_AST), substs: *const unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
         var retval = std.array_list.Managed(*Type_AST).init(allocator);
         for (children_terms.items) |_child| {
             retval.append(_child.clone(substs, allocator)) catch unreachable;

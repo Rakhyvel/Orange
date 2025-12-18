@@ -8,6 +8,7 @@ const errs_ = @import("../util/errors.zig");
 const generic_apply_ = @import("generic_apply.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const Symbol_Tree = @import("symbol-tree.zig");
 const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;

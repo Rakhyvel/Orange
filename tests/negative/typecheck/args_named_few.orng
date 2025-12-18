@@ -1,4 +1,4 @@
-// args_named_few.orng:11:20: error: struct takes 2 fields, 1 value given
+// args_named_few.orng:11:20: error: unspecified required field `b`
 //     let x = My_Type(.a = 43)
 //                   ^
 // 

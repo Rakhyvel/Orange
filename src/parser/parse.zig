@@ -1239,6 +1239,10 @@ fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const into_iter = try self.assignment_expr();
 
     const into_iter_type = Type_AST.create_type_of(pattern.token(), into_iter, self.allocator);
+    // const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
+    // const iterator_field = Type_AST.create_field(Token.init_simple("Iterator"), self.allocator);
+    // const iterator_type = Type_AST.create_type_access(pattern.token(), core_ident, iterator_field, self.allocator);
+    // const as_iterator_type = Type_AST.create_as_trait(pattern.token(), into_iter_type, iterator_type, self.allocator);
     var item_token = into_iter.token();
     item_token.data = "Item";
     const item_type = Type_AST.create_type_access(pattern.token(), into_iter_type, Type_AST.create_field(item_token, self.allocator), self.allocator);
@@ -1498,7 +1502,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
             const constraints = try self.contraint_list();
-            const param_ident = ast_.AST.create_type_param_decl(param_token, true, constraints, self.allocator);
+            const param_ident = ast_.AST.create_type_param_decl(param_token, false, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
                 break;
@@ -1561,6 +1565,9 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.impl);
 
     const gen_params = try self.generic_params_list();
+    for (gen_params.items) |gen_param| {
+        gen_param.type_param_decl.rigid = true;
+    }
 
     const trait_ident: ?*ast_.AST = if (!self.peek_kind(.@"for")) (try self.bool_expr()) else null;
     _ = try self.expect(.@"for");

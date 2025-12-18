@@ -44,6 +44,10 @@ impl[T: core::Sized] for List[T] {
         }
     }
 
+    fn iter_mut(&mut self) -> core::Mut_Slice_Iter[T] {
+        core::Mut_Slice_Iter[T](.items = self.items, .pos = 0)
+    }
+
     fn clear(&mut self) {
         self.items.length = 0
     }
@@ -125,7 +129,7 @@ impl[T] core::Into_Iterator for List[T] {
     type Iter = core::Slice_Iter[T]
 
     fn into_iter(self) -> Self::Iter {
-        core::Slice_Iter[T](.items = self.items, .pos = 0)
+        Self::Iter(.items = self.items, .pos = 0)
     }
 }
 
@@ -331,6 +335,24 @@ test "into_iter" with core::Allocating {
     try testing::expect(iter.>next().some == 1)
     try testing::expect(iter.>next().some == 2)
     try testing::expect(iter.>next().some == 3)
+    try testing::expect(match iter.>next() { .none => true; .some(_) => false })
+
+    .ok
+}
+
+test "iter_mut" with core::Allocating {
+    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    defer list.>deinit()
+
+    for x in list.>iter_mut() {
+        x^ *= 2
+    }
+
+    let mut iter = list.>into_iter()
+    
+    try testing::expect(iter.>next().some == 2)
+    try testing::expect(iter.>next().some == 4)
+    try testing::expect(iter.>next().some == 6)
     try testing::expect(match iter.>next() { .none => true; .some(_) => false })
 
     .ok
