@@ -1,5 +1,6 @@
 import debug
 import ffi
+import testing
 
 fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
     match core::Allocating.alloc.>alloc(T::size) {
@@ -128,4 +129,42 @@ fn reverse(items: [mut]Byte) {
         items[i] = items[items.length - i - 1]
         items[items.length - i - 1] = tmp
     }
+}
+
+struct Delimiter_Iterator {
+    data: []Byte
+    delimiter: Byte
+    cursor: Int = -1
+}
+
+impl core::Iterator for Delimiter_Iterator {
+    type Item = []Byte
+
+    fn next(&mut self) -> ?Self::Item {
+        if self.cursor >= self.data.length {
+            return .none
+        }
+
+        self.cursor += 1
+
+        let prev = self.cursor
+
+        while self.cursor < self.data.length and self.data[self.cursor] != self.delimiter {
+            self.cursor += 1
+        }
+
+        .some(self.data[prev..self.cursor])
+    }
+}
+
+test "delimiter iterator" {
+    let bytes = "a,b,c"
+    let mut delim_iter = Delimiter_Iterator(.data = bytes, .delimiter = ',')
+
+    try testing::expect(eql("a", delim_iter.>next().some))
+    try testing::expect(eql("b", delim_iter.>next().some))
+    try testing::expect(eql("c", delim_iter.>next().some))
+    try testing::expect(delim_iter.>next() == .none)
+
+    .ok
 }

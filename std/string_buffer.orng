@@ -12,6 +12,11 @@ struct String_Buffer {
     allocator: &mut dyn core::Allocator
 }
 
+struct Char_Iter {
+    buffer: []Byte
+    cursor: Int
+}
+
 enum Error {
     out_of_memory
     invalid_range
@@ -136,24 +141,56 @@ impl for String_Buffer {
         self.size == 0
     }
 
-    fn allocate(&mut self, bytes: Int) -> Error!() {
+    fn bytes(&self) -> core::Slice_Iter[Byte] {
+        let slice = match self.buffer {
+            .some(buffer) => buffer[..self.size]
+            .none => mem::slice_from_parts[Byte](0 as [*mut]Byte, 0)
+        }
+        core::Slice_Iter[Byte](slice, 0)
+    }
+
+    fn split(&self, delimiter: Byte) -> mem::Delimiter_Iterator {
+        let slice = match self.buffer {
+            .some(buffer) => buffer[..self.size]
+            .none => mem::slice_from_parts[Byte](0 as [*mut]Byte, 0)
+        }
+        mem::Delimiter_Iterator(slice, delimiter)
+    }
+
+    fn lines(&self) -> mem::Delimiter_Iterator {
+        let slice = match self.buffer {
+            .some(buffer) => buffer[..self.size]
+            .none => mem::slice_from_parts[Byte](0 as [*mut]Byte, 0)
+        }
+        mem::Delimiter_Iterator(slice, '\n')
+    }
+
+    fn chars(&self) -> Char_Iter {
+        let slice = match self.buffer {
+            .some(buffer) => buffer[..self.size]
+            .none => mem::slice_from_parts[Byte](0 as [*mut]Byte, 0)
+        }
+        Char_Iter(slice, 0)
+    }
+
+    fn allocate(&mut self, num_bytes: Int) -> Error!() {
         match self.buffer {
             .some(buffer) => {
-                if bytes < self.size {
-                    self.size = bytes
+                if num_bytes < self.size {
+                    self.size = num_bytes
                 }
-                let realloc: [*mut]Byte = self.allocator.>realloc(buffer.data, bytes) orelse {
+                let realloc: [*mut]Byte = self.allocator.>realloc(buffer.data, num_bytes) orelse {
                     return .err(.out_of_memory)
                 }
-                let slice = mem::mut_slice_from_parts[Byte](realloc, bytes)
+                let slice = mem::mut_slice_from_parts[Byte](realloc, num_bytes)
                 self.buffer = .some(slice)
             }
 
             .none => {
-                let alloc = self.allocator.>alloc(bytes) orelse {
+                let alloc = self.allocator.>alloc(num_bytes) orelse {
                     return .err(.out_of_memory)
                 }
-                let slice = mem::mut_slice_from_parts[Byte](alloc, bytes)
+                let slice = mem::mut_slice_from_parts[Byte](alloc, num_bytes)
                 self.buffer = .some(slice)
             }
         }
@@ -311,6 +348,22 @@ impl for String_Buffer {
 impl core::Writer for String_Buffer {
     virtual fn write(&mut self, bytes: String) -> ()!() {
         .ok(self.>concat(bytes) catch {return .err})
+    }
+}
+
+impl core::Iterator for Char_Iter {
+    type Item = String
+
+    fn next(&mut self) -> ?Self::Item {
+        if self.cursor >= self.buffer.length {
+            return .none
+        }
+
+        let prev = self.cursor
+        let size = utf8_byte_sequence_length(self.buffer[self.cursor])
+        self.cursor += size
+
+        .some(self.buffer[prev..self.cursor])
     }
 }
 
@@ -525,6 +578,64 @@ test "write" with core::Allocating {
     try str.>write(", World!")
 
     try testing::expect(str.>cmp("Hello, World!"))
+
+    .ok
+}
+
+test "bytes" with core::Allocating {
+    let mut str = String_Buffer::init_with_contents("Hi!") catch {return .err}
+    defer str.>deinit()
+
+    let mut byte_iter = str.>bytes()
+
+    try testing::expect(byte_iter.>next().some == 'H')
+    try testing::expect(byte_iter.>next().some == 'i')
+    try testing::expect(byte_iter.>next().some == '!')
+    try testing::expect(byte_iter.>next() == .none)
+
+    .ok
+}
+
+test "split" with core::Allocating {
+    let mut str = String_Buffer::init_with_contents("a,b,c") catch {return .err}
+    defer str.>deinit()
+
+    let mut split_iter = str.>split(',')
+
+    try testing::expect(mem::eql("a", split_iter.>next().some))
+    try testing::expect(mem::eql("b", split_iter.>next().some))
+    try testing::expect(mem::eql("c", split_iter.>next().some))
+    try testing::expect(split_iter.>next() == .none)
+
+    .ok
+}
+
+test "lines" with core::Allocating {
+    let mut str = String_Buffer::init_with_contents("a\nb\nc\n") catch {return .err}
+    defer str.>deinit()
+
+    let mut lines_iter = str.>lines()
+
+    try testing::expect(mem::eql("a", lines_iter.>next().some))
+    try testing::expect(mem::eql("b", lines_iter.>next().some))
+    try testing::expect(mem::eql("c", lines_iter.>next().some))
+    try testing::expect(mem::eql("", lines_iter.>next().some))
+    try testing::expect(lines_iter.>next() == .none)
+
+    .ok
+}
+
+test "chars" with core::Allocating {
+    let mut str = String_Buffer::init_with_contents("Hi 👋") catch {return .err}
+    defer str.>deinit()
+
+    let mut lines_iter = str.>chars()
+
+    try testing::expect(mem::eql("H", lines_iter.>next().some))
+    try testing::expect(mem::eql("i", lines_iter.>next().some))
+    try testing::expect(mem::eql(" ", lines_iter.>next().some))
+    try testing::expect(mem::eql("👋", lines_iter.>next().some))
+    try testing::expect(lines_iter.>next() == .none)
 
     .ok
 }
