@@ -1,5 +1,5 @@
 // console input/output implementation
-// Copyright (c) 2023-2025, Joseph Shimel and contributors.
+// Copyright (c) 2023-2026, Joseph Shimel and contributors.
 
 #ifndef ORANGE_CORE_IO_INC
 #define ORANGE_CORE_IO_INC

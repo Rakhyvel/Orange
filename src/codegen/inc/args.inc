@@ -1,5 +1,5 @@
 // converts C command-line args to nice Orange slices
-// Copyright (c) 2023-2025, Joseph Shimel and contributors.
+// Copyright (c) 2023-2026, Joseph Shimel and contributors.
 
 #ifndef ORANGE_CORE_ARGS_INC
 #define ORANGE_CORE_ARGS_INC
