@@ -901,6 +901,7 @@ pub const AST = union(enum) {
     pub fn create_trait(
         _token: Token,
         name: *AST,
+        _generic_params: std.array_list.Managed(*AST),
         super_traits: std.array_list.Managed(*Type_AST),
         method_decls: std.array_list.Managed(*AST),
         const_decls: std.array_list.Managed(*AST),
@@ -910,7 +911,7 @@ pub const AST = union(enum) {
         return AST.box(AST{ .trait = .{
             .common = AST_Common{ ._token = _token },
             .name = name,
-            ._generic_params = std.array_list.Managed(*AST).init(allocator),
+            ._generic_params = _generic_params,
             .super_traits = super_traits,
             .super_trait_impls = std.array_list.Managed(*AST).init(allocator),
             .method_decls = method_decls,
@@ -1690,6 +1691,7 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .trait => {
+                const cloned_generic_params = clone_children(self.trait._generic_params, substs, allocator);
                 const cloned_super_traits = Type_AST.clone_types(self.trait.super_traits, substs, allocator);
                 const cloned_method_decls = clone_children(self.trait.method_decls, substs, allocator);
                 const cloned_const_decls = clone_children(self.trait.const_decls, substs, allocator);
@@ -1697,6 +1699,7 @@ pub const AST = union(enum) {
                 return create_trait(
                     self.token(),
                     self.trait.name.clone(substs, allocator),
+                    cloned_generic_params,
                     cloned_super_traits,
                     cloned_method_decls,
                     cloned_const_decls,
@@ -2232,7 +2235,7 @@ pub const AST = union(enum) {
 
     pub fn num_generic_params(self: *AST) usize {
         return switch (self.*) {
-            .struct_decl, .enum_decl, .type_alias, .impl, .fn_decl => self.generic_params().items.len,
+            .struct_decl, .enum_decl, .type_alias, .impl, .fn_decl, .trait => self.generic_params().items.len,
             else => 0,
         };
     }

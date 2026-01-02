@@ -1524,6 +1524,9 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.trait);
     const trait_name: Token = try self.expect(.identifier);
     const name = ast_.AST.create_pattern_symbol(trait_name, .trait, .local, trait_name.data, self.allocator);
+
+    const gen_params = try self.generic_params_list();
+
     var super_traits = std.array_list.Managed(*Type_AST).init(self.allocator);
     self.newlines();
     if (self.accept(.single_colon)) |_| {
@@ -1554,7 +1557,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 
     _ = try self.expect(.right_brace);
-    return ast_.AST.create_trait(trait_name, name, super_traits, method_decls, const_decls, type_decls, self.allocator);
+    return ast_.AST.create_trait(trait_name, name, gen_params, super_traits, method_decls, const_decls, type_decls, self.allocator);
 }
 
 fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {

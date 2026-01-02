@@ -386,6 +386,7 @@ fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *unification_.S
                 token.data,
                 compiler.allocator(),
             ),
+            std.array_list.Managed(*ast_.AST).init(compiler.allocator()),
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,
