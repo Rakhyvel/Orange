@@ -13,7 +13,11 @@ impl Gen_Trait[Int] for Impler {
     }
 }
 
+fn extract_value[U: Gen_Trait[Int]](u: U) -> Int {
+    u.>get_value()
+}
+
 fn main() -> Int {
     let x = Impler(430)
-    x.>get_value()
+    extract_value[Impler](x)
 }
