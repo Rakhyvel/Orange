@@ -1,0 +1,23 @@
+// 430
+trait Gen_Trait[T] {
+    fn get_value(&self) -> T
+}
+
+struct Impler {
+    value: Int
+}
+
+impl Gen_Trait[Int] for Impler {
+    fn get_value(&self) -> Int {
+        self.value        
+    }
+}
+
+fn extract_value[U: Gen_Trait[Int]](u: U) -> Int {
+    u.>get_value()
+}
+
+fn main() -> Int {
+    let x = Impler(430)
+    extract_value[Impler](x)
+}

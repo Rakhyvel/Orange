@@ -246,13 +246,12 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         self.pprint();
     }
 
+    // for type is a type parameter
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         const type_param_decl = for_type.symbol().?.decl.?;
+        // Check all constraints on the type parameter
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-            const trait_decl = switch (constraint.*) {
-                .generic_apply => constraint.lhs().symbol().?.decl.?,
-                else => constraint.symbol().?.decl.?,
-            };
+            const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
             for (trait_decl.trait.super_traits.items) |super_trait| {
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
@@ -398,6 +397,7 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
                 token.data,
                 compiler.allocator(),
             ),
+            std.array_list.Managed(*ast_.AST).init(compiler.allocator()),
             std.array_list.Managed(*Type_AST).init(compiler.allocator()),
             new_impl.impl.method_defs,
             new_impl.impl.const_defs,

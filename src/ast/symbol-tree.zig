@@ -301,6 +301,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                         token.data,
                         self.allocator,
                     ),
+                    std.array_list.Managed(*ast_.AST).init(self.allocator),
                     std.array_list.Managed(*Type_AST).init(self.allocator),
                     cloned_methods,
                     ast_.AST.clone_children(ast.impl.const_defs, &subst, self.allocator),
@@ -349,7 +350,9 @@ fn symbol_tree_type_prefix(self: Self, _type: *Type_AST) walk_.Error!?Self {
 }
 
 fn register_symbol(self: Self, ast: *ast_.AST, symbol: *Symbol) walk_.Error!void {
-    try self.scope.put_symbol(symbol, self.errors);
+    self.scope.put_symbol(symbol, self.errors) catch |e| {
+        return e;
+    };
     ast.set_symbol(symbol);
 }
 
@@ -714,7 +717,7 @@ fn create_trait_symbol(
     // Create the symbol
     const retval = Symbol.init(
         scope,
-        ast.token().data,
+        ast.trait.name.token().data,
         ast,
         .trait,
         .local,

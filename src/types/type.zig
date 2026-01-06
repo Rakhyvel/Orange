@@ -1189,7 +1189,8 @@ pub const Type_AST = union(enum) {
     pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
-                const trait = constraint.base_symbol().?;
+                const Decorate = @import("../ast/decorate.zig");
+                const trait = try Decorate.symbol(constraint, ctx);
                 const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
                     return .{ .not_impl = trait };
@@ -1197,6 +1198,7 @@ pub const Type_AST = union(enum) {
 
                 if (constraint.* == .generic_apply) {
                     for (constraint.children().items) |eq_constraint| {
+                        if (eq_constraint.* != .eq_constraint) continue;
                         const impl = res.ast orelse {
                             if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
                                 const param_constraints = self.symbol().?.decl.?.type_param_decl.constraints;
@@ -1429,7 +1431,7 @@ pub const Type_AST = union(enum) {
     pub fn refers_to_self(_type: *Type_AST) bool {
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier => std.mem.eql(u8, _type.token().data, "Self") or _type.symbol().?.decl.?.* == .type_param_decl,
+            .identifier => std.mem.eql(u8, _type.token().data, "Self"),
             .addr_of, .array_of => _type.child().refers_to_self(),
             .annotation => _type.child().refers_to_self(),
             .function => {

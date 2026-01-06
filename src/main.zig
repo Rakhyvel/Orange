@@ -11,8 +11,8 @@ const Span = @import("util/span.zig");
 const Symbol = @import("symbol/symbol.zig");
 const Tree_Writer = @import("ast/tree_writer.zig");
 
-const version_year: usize = 25;
-const version_month: usize = 12;
+const version_year: usize = 26;
+const version_month: usize = 1;
 const version_minor: ?usize = null;
 
 pub const Command_Error: type = error{ LexerError, ParseError, CompileError, FileError, FileNotFound, OutOfMemory, WriteFailed };
