@@ -337,8 +337,6 @@ fn symbol_tree_type_prefix(self: Self, _type: *Type_AST) walk_.Error!?Self {
 
 fn register_symbol(self: Self, ast: *ast_.AST, symbol: *Symbol) walk_.Error!void {
     self.scope.put_symbol(symbol, self.errors) catch |e| {
-        self.scope.pprint();
-        std.debug.panic("here", .{});
         return e;
     };
     ast.set_symbol(symbol);

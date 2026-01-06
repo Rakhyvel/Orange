@@ -1425,7 +1425,7 @@ pub const Type_AST = union(enum) {
     pub fn refers_to_self(_type: *Type_AST) bool {
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier => std.mem.eql(u8, _type.token().data, "Self") or _type.symbol().?.decl.?.* == .type_param_decl,
+            .identifier => std.mem.eql(u8, _type.token().data, "Self"),
             .addr_of, .array_of => _type.child().refers_to_self(),
             .annotation => _type.child().refers_to_self(),
             .function => {

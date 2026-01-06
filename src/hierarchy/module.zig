@@ -292,7 +292,7 @@ pub const Module = struct {
         for (self.traits.keys()) |trait| {
             for (trait.trait.method_decls.items) |decl| {
                 const @"type" = decl.method_decl.c_type.?.expand_identifier();
-                if (@"type".refers_to_self()) continue;
+                if (@"type".is_generic()) continue;
                 _ = self.type_set.add_type(decl.method_decl.c_type.?.expand_identifier());
                 _ = self.type_set.add_type(decl.method_decl.ret_type.expand_identifier());
             }
