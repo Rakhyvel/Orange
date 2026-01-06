@@ -142,6 +142,9 @@ fn output_traits(self: *Self) CodeGen_Error!void {
         if (trait.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) {
             continue;
         }
+        if (trait.num_generic_params() > 0) {
+            continue;
+        }
         try self.writer.print("struct vtable_{s}__{s}__{}_{s} {{\n", .{
             self.module.package_name,
             self.module.name(),

@@ -18,6 +18,6 @@ fn extract_value(u: &dyn Gen_Trait[Int]) -> Int {
 }
 
 fn main() -> Int {
-    let x = Impler(430)
-    extract_value[Impler](&x)
+    let x = Impler(431)
+    extract_value(&x)
 }

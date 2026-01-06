@@ -71,7 +71,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
         },
 
         .dyn_type => {
-            if ((@"type".child().* != .identifier and @"type".child().* != .access) or @"type".child().symbol().?.kind != .trait) {
+            if ((@"type".child().* != .identifier and @"type".child().* != .access and @"type".child().* != .generic_apply) or @"type".child().symbol().?.kind != .trait) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = @"type".child().token().span, .msg = "not a trait" } });
                 return error.CompileError;
             }
