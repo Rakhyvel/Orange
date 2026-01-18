@@ -500,6 +500,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
+                var i: usize = 0;
+                while (i < candidate_method_decls.keys().len) {
+                    if (candidate_method_decls.keys()[i].method_decl.init == null) {
+                        _ = candidate_method_decls.swapRemove(candidate_method_decls.keys()[i]);
+                    } else {
+                        i += 1;
+                    }
+                }
             }
             try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
@@ -514,8 +522,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             //     return error.CompileError;
             // }
             // // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
-            // const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
-            ast.invoke.method_decl = method_decl.?;
+            const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
             // const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
             // const expanded_true_lhs_type = true_lhs_type.expand_identifier();
 
@@ -547,17 +554,13 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             //     ast.set_lhs(ast.children().items[0]);
             // }
 
-            // try self.validate_context(method_decl_type, ast);
-
-            // var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
-            // ast.set_children(try args_validator.default_args());
-            // try args_validator.validate_args_arity();
-            // _ = try self.validate_args_type(ast.children(), &domain, false, subst);
-
             const domain = method_decl.?.decl_type().function.args;
-            for (0..ast.children().items.len) |i| {
-                _ = self.typecheck_AST(ast.children().items[i], domain.items[i], subst) catch return error.CompileError;
-            }
+            try self.validate_context(method_decl_type, ast);
+
+            var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
+            ast.set_children(try args_validator.default_args());
+            try args_validator.validate_args_arity();
+            _ = try self.validate_args_type(ast.children(), &domain, false, subst);
 
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
@@ -1083,7 +1086,7 @@ fn select_method(
         },
         else => {
             for (candidate_method_decls.keys()) |candidate_method_decl| {
-                std.debug.print("potential: {f}\n", .{candidate_method_decl.decl_type()});
+                std.debug.print("- {s}: {f} {}\n", .{ candidate_method_decl.method_decl.name.token().data, candidate_method_decl.decl_type(), candidate_method_decl.method_decl.init != null });
             }
             std.debug.panic("Ambiguity!", .{});
         },
