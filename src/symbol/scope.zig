@@ -239,7 +239,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
 }
 
 /// Looks up the impl's decl/method_decl ast for a given type, with a given name
-pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
     if (false) {
         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
         Tree_Writer.print_type_tree(for_type);
@@ -252,18 +252,22 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, co
         // Check all constraints on the type parameter
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
-            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| return res;
+            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
+            if (short_circuit and matches.keys().len > 0) return;
             for (trait_decl.trait.super_traits.items) |super_trait| {
-                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| try matches.put(res, void{});
+                if (short_circuit and matches.keys().len > 0) return;
             }
         }
     }
 
-    if (try self.lookup_impl_member_impls(for_type, name, compiler)) |res| return res;
-    if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| return res;
-    if (try self.lookup_impl_member_imports(for_type, name, compiler)) |res| return res;
-    if (self.parent) |p| return p.lookup_impl_member(for_type, name, compiler);
-    return null;
+    try self.lookup_impl_member_impls(for_type, name, matches, short_circuit, compiler);
+    if (short_circuit and matches.keys().len > 0) return;
+    if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| try matches.put(res, void{});
+    if (short_circuit and matches.keys().len > 0) return;
+    try self.lookup_impl_member_imports(for_type, name, matches, compiler);
+    if (short_circuit and matches.keys().len > 0) return;
+    if (self.parent) |p| try p.lookup_impl_member(for_type, name, matches, short_circuit, compiler);
 }
 
 pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
@@ -300,7 +304,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 }
 
 var count: usize = 0;
-fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
+fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
     const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
         for_type.symbol().?.decl.?.type_param_decl.constraints.items
     else
@@ -328,9 +332,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         }
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
-        if (search_impl(instantiated_impl, name)) |res| return res;
+        if (search_impl(instantiated_impl, name)) |res| try matches.put(res, void{});
+        if (short_circuit and matches.keys().len > 0) return;
     }
-    return null;
 }
 
 fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
@@ -345,20 +349,16 @@ fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []cons
     return null;
 }
 
-fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) error{ OutOfMemory, CompileError }!?*ast_.AST {
+fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), compiler: *Compiler_Context) error{ OutOfMemory, CompileError }!void {
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
         if (symbol.kind == .import) {
             var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
-            const module_scope_lookup = try module_scope.lookup_impl_member(for_type, name, compiler);
-            if (module_scope_lookup != null) {
-                return module_scope_lookup;
-            }
+            try module_scope.lookup_impl_member(for_type, name, matches, true, compiler);
         }
     }
-    return null;
 }
 
 pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {

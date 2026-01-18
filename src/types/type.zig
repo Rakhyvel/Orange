@@ -544,6 +544,11 @@ pub const Type_AST = union(enum) {
                 gen_apply.set_symbol(ast.symbol());
                 break :blk gen_apply;
             },
+            .addr_of => blk: {
+                const typed_expr = from_ast(ast.expr(), allocator);
+                const id = Type_AST.create_addr_of_type(ast.token(), typed_expr, ast.addr_of.mut, ast.addr_of.multiptr, allocator);
+                break :blk id;
+            },
             .unit_value => Type_AST.create_unit_type(ast.token(), allocator),
             else => std.debug.panic("unable to construct type from {t}", .{ast.*}),
         };
@@ -734,7 +739,7 @@ pub const Type_AST = union(enum) {
         }
 
         switch (self.*) {
-            .poison => try out.print("???", .{}),
+            .poison => try out.print("<poison>", .{}),
             .anyptr_type => try out.print("anyptr", .{}),
             .unit_type => try out.print("()", .{}),
             .identifier => try out.print("{s}", .{self.token().data}),

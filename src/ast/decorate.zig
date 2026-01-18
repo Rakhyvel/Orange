@@ -409,8 +409,10 @@ fn resolve_access_module(self: Self, module_symbol: *Symbol, rhs: Token) walk_.E
 
 /// Resolves a symbol access on a constant symbol, likely a trait lookup
 fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Scope) walk_.Error!*Symbol {
-    const rhs_decl = scope.lookup_impl_member(lhs, rhs_token.data, self.ctx) catch return error.CompileError;
-    if (rhs_decl == null) {
+    var matches = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
+    defer matches.deinit();
+    scope.lookup_impl_member(lhs, rhs_token.data, &matches, true, self.ctx) catch return error.CompileError;
+    if (matches.keys().len == 0) {
         self.ctx.errors.add_error(errs_.Error{
             .type_not_impl_method = .{
                 .span = rhs_token.span,
@@ -419,8 +421,19 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Sc
             },
         });
         return error.CompileError;
+    } else if (matches.keys().len > 1) {
+        for (matches.keys()) |match| {
+            Tree_Writer.print_tree(match);
+        }
+        self.ctx.errors.add_error(errs_.Error{
+            .basic = .{
+                .span = rhs_token.span,
+                .msg = "AMBIGUOUS [TODO: make better]",
+            },
+        });
+        return error.CompileError;
     } else {
-        return extract_symbol_from_decl(rhs_decl.?);
+        return extract_symbol_from_decl(matches.keys()[0]);
     }
 }
 

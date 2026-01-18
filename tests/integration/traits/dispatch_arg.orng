@@ -1,0 +1,34 @@
+// 431
+trait Mutate[T] {
+    fn mutate(&mut self, t: T)
+}
+
+struct Impler {
+    x: Int
+    y: Float
+}
+
+impl Mutate[Int] for Impler {
+    fn mutate(&mut self, t: Int) {
+        self.x += t
+    }
+}
+
+impl Mutate[Float] for Impler {
+    fn mutate(&mut self, t: Float) {
+        self.y += t
+    }
+}
+
+fn main() -> Int {
+    let mut impler = Impler(200, 0.0)
+
+    impler.>mutate(231)
+    impler.>mutate(10.0)
+
+    if impler.y > 0.0 {
+        impler.x
+    } else {
+        unreachable
+    }
+}

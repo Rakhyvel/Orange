@@ -817,6 +817,7 @@ const not_bold = term_.Attr{ .bold = false };
 
 pub const Errors = struct {
     errors_list: std.array_list.Managed(Error),
+    record_errors: bool = true,
 
     pub fn init(allocator: std.mem.Allocator) Errors {
         return .{
@@ -829,8 +830,10 @@ pub const Errors = struct {
     }
 
     pub fn add_error(self: *Errors, err: Error) void {
-        self.errors_list.append(err) catch unreachable;
-        // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        if (self.record_errors) {
+            self.errors_list.append(err) catch unreachable;
+            // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        }
     }
 
     /// Prints out all errors in the Errors list

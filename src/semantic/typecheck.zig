@@ -40,9 +40,22 @@ pub fn init(ctx: *Compiler_Context) Self {
     };
 }
 
+pub fn deinit(self: *Self) void {
+    self.map.deinit();
+}
+
+fn clone(self: *const Self) !Self {
+    var new_self = Self.init(self.ctx);
+    new_self.map = try self.map.clone();
+    return new_self;
+}
+
 pub fn typeof(self: *const Self, ast: *ast_.AST) *Type_AST {
     if ((ast.common().validation_state != .valid and ast.common().validation_state != .invalid)) {
         std.debug.panic("type for ast {f} has not been constructed", .{ast});
+    }
+    if (!self.map.contains(ast)) {
+        std.debug.dumpCurrentStackTrace(null);
     }
     return self.map.get(ast) orelse poison_.poisoned_type;
 }
@@ -75,8 +88,10 @@ pub fn typecheck_AST(
             .symbol_name = null,
         } });
         return error.CompileError;
-    } else if (ast.common().validation_state != .unvalidated) {
-        return self.typeof(ast);
+    } else if (ast.common().validation_state != .unvalidated and self.map.contains(ast)) {
+        const res = self.typeof(ast);
+        if (res.* == .poison) std.debug.panic("{f}", .{ast});
+        return res;
     }
 
     var expected_type = expected;
@@ -105,12 +120,12 @@ pub fn typecheck_AST(
             };
     }
 
-    self.map.put(ast, actual_type) catch unreachable;
-
     if (actual_type.* != .poison) {
-        ast.common().validation_state = .invalid;
-    } else {
+        self.map.put(ast, actual_type) catch unreachable;
         ast.common().validation_state = .valid;
+    } else {
+        ast.common().validation_state = .invalid;
+        return error.CompileError;
     }
 
     return actual_type;
@@ -461,6 +476,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const true_lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             // method_decl is the method_decl AST of the method being invoked
             var method_decl: ?*ast_.AST = undefined;
+            var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
+            defer candidate_method_decls.deinit();
             if (true_lhs_type.expand_identifier().* == .dyn_type) {
                 // The receiver is a dynamic type
                 const trait_symbol = true_lhs_type.expand_identifier().child().symbol().?;
@@ -477,62 +494,70 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     });
                     return error.CompileError;
                 }
+                try candidate_method_decls.put(method_decl.?, void{});
             } else {
                 // The receiver is a regular type. STRIP AWAY ADDRs!
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
-                method_decl = try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, self.ctx);
+                try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
             }
-            if (method_decl == null) {
-                self.ctx.errors.add_error(errs_.Error{
-                    .type_not_impl_method = .{
-                        .span = ast.token().span,
-                        .method_name = ast.rhs().token().data,
-                        ._type = true_lhs_type, // TODO: Strip away addr_of's
-                    },
-                });
-                return error.CompileError;
-            }
-            // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
-            const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
+            try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
+            method_decl = ast.invoke.method_decl;
+            // if (method_decl == null) {
+            //     self.ctx.errors.add_error(errs_.Error{
+            //         .type_not_impl_method = .{
+            //             .span = ast.token().span,
+            //             .method_name = ast.rhs().token().data,
+            //             ._type = true_lhs_type, // TODO: Strip away addr_of's
+            //         },
+            //     });
+            //     return error.CompileError;
+            // }
+            // // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
+            // const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
             ast.invoke.method_decl = method_decl.?;
-            const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
-            const expanded_true_lhs_type = true_lhs_type.expand_identifier();
+            // const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
+            // const expanded_true_lhs_type = true_lhs_type.expand_identifier();
 
-            if (method_decl.?.method_decl.receiver != null and !ast.invoke.prepended) {
-                const receiver_kind: ?ast_.Receiver_Kind = method_decl.?.method_decl.receiver.?.receiver.kind;
-                // Trait method takes a receiver...
-                // Prepend invoke lhs to args if there is a receiver
-                if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
-                    // lhs type is dynamic or an address...
-                    if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
-                        // Receiver is immutable when it should be mutable
-                        self.ctx.errors.add_error(errs_.Error{ .invoke_receiver_mismatch = .{
-                            .lhs_type = true_lhs_type,
-                            .method_name = method_decl.?.method_decl.name.token().data,
-                            .method_receiver = receiver_kind.?,
-                            .receiver_span = ast.lhs().token().span,
-                        } });
-                        return error.CompileError;
-                    }
-                    ast.children().insert(0, ast.lhs()) catch unreachable; // prepend lhs to children as a receiver
-                    ast.invoke.prepended = true;
-                } else {
-                    // lhs type is not dynamic and not an address
-                    const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
-                    ast.children().insert(0, addr_of) catch unreachable; // prepend lhs to children as a receiver
-                    ast.invoke.prepended = true;
-                }
-            } else if (ast.invoke.prepended) {
-                ast.set_lhs(ast.children().items[0]);
+            // if (method_decl.?.method_decl.receiver != null and !ast.invoke.prepended) {
+            //     const receiver_kind: ?ast_.Receiver_Kind = method_decl.?.method_decl.receiver.?.receiver.kind;
+            //     // Trait method takes a receiver...
+            //     // Prepend invoke lhs to args if there is a receiver
+            //     if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
+            //         // lhs type is dynamic or an address...
+            //         if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
+            //             // Receiver is immutable when it should be mutable
+            //             self.ctx.errors.add_error(errs_.Error{ .invoke_receiver_mismatch = .{
+            //                 .lhs_type = true_lhs_type,
+            //                 .method_name = method_decl.?.method_decl.name.token().data,
+            //                 .method_receiver = receiver_kind.?,
+            //                 .receiver_span = ast.lhs().token().span,
+            //             } });
+            //             return error.CompileError;
+            //         }
+            //         ast.children().insert(0, ast.lhs()) catch unreachable; // prepend lhs to children as a receiver
+            //         ast.invoke.prepended = true;
+            //     } else {
+            //         // lhs type is not dynamic and not an address
+            //         const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
+            //         ast.children().insert(0, addr_of) catch unreachable; // prepend lhs to children as a receiver
+            //         ast.invoke.prepended = true;
+            //     }
+            // } else if (ast.invoke.prepended) {
+            //     ast.set_lhs(ast.children().items[0]);
+            // }
+
+            // try self.validate_context(method_decl_type, ast);
+
+            // var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
+            // ast.set_children(try args_validator.default_args());
+            // try args_validator.validate_args_arity();
+            // _ = try self.validate_args_type(ast.children(), &domain, false, subst);
+
+            const domain = method_decl.?.decl_type().function.args;
+            for (0..ast.children().items.len) |i| {
+                _ = self.typecheck_AST(ast.children().items[i], domain.items[i], subst) catch return error.CompileError;
             }
-
-            try self.validate_context(method_decl_type, ast);
-
-            var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
-            ast.set_children(try args_validator.default_args());
-            try args_validator.validate_args_arity();
-            _ = try self.validate_args_type(ast.children(), &domain, false, subst);
 
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
@@ -1024,8 +1049,127 @@ pub fn binary_operator_open(
     return lhs_type;
 }
 
+fn select_method(
+    self: *Self,
+    ast: *ast_.AST,
+    candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
+    true_lhs_type: *Type_AST,
+    subst: *unification_.Substitutions,
+) !void {
+    const Viable_Method = struct { method: *ast_.AST, plan: Receiver_Plan };
+    var viable = std.array_list.Managed(Viable_Method).init(self.ctx.allocator());
+    defer viable.deinit();
+
+    for (candidate_method_decls.keys()) |method_decl| {
+        if (self.method_fits(ast, method_decl, true_lhs_type, subst) catch null) |plan| {
+            try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
+        }
+    }
+
+    switch (viable.items.len) {
+        0 => {
+            for (candidate_method_decls.keys()) |candidate_method_decl| {
+                Tree_Writer.print_tree(candidate_method_decl);
+            }
+            std.debug.panic("Nothing fits!", .{});
+        },
+        1 => {
+            const choice = viable.items[0];
+            ast.invoke.method_decl = choice.method;
+            if (choice.plan.prepend) {
+                try ast.children().insert(0, choice.plan.receiver_expr.?);
+                ast.invoke.prepended = true;
+            }
+        },
+        else => {
+            for (candidate_method_decls.keys()) |candidate_method_decl| {
+                std.debug.print("potential: {f}\n", .{candidate_method_decl.decl_type()});
+            }
+            std.debug.panic("Ambiguity!", .{});
+        },
+    }
+}
+
+const Receiver_Plan = struct {
+    prepend: bool,
+    receiver_expr: ?*ast_.AST,
+};
+fn method_fits(
+    self: *Self,
+    ast: *ast_.AST,
+    method_decl: *ast_.AST,
+    true_lhs_type: *Type_AST,
+    subst: *unification_.Substitutions,
+) !?Receiver_Plan {
+    // Do not record errors for backtracking
+    self.ctx.errors.record_errors = false;
+    defer self.ctx.errors.record_errors = true;
+
+    var new_self = try self.clone();
+    defer new_self.deinit();
+
+    const method_decl_type = self.typecheck_AST(method_decl, null, subst) catch return error.CompileError;
+    const domain: std.array_list.Managed(*Type_AST) = method_decl.decl_type().function.args;
+
+    var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
+    defer temp_args.deinit();
+
+    const maybe_receiver: ?*ast_.AST = try new_self.extract_receiver(ast, method_decl, true_lhs_type);
+    if (maybe_receiver) |receiver| {
+        try temp_args.append(receiver);
+    }
+    try temp_args.appendSlice(ast.children().items);
+
+    new_self.validate_context(method_decl_type, ast) catch return null;
+
+    var args_validator = args_.init(
+        .method,
+        &temp_args,
+        ast.token().span,
+        &domain,
+        &new_self.ctx.errors,
+        new_self.ctx.allocator(),
+    );
+
+    temp_args = args_validator.default_args() catch return null;
+    args_validator.validate_args_arity() catch return null;
+    _ = new_self.validate_args_type(&temp_args, &domain, false, subst) catch return null;
+
+    return Receiver_Plan{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver };
+}
+
+fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lhs_type: *Type_AST) !?*ast_.AST {
+    const expanded_true_lhs_type = true_lhs_type.expand_identifier();
+
+    if (method_decl.method_decl.receiver != null and !ast.invoke.prepended) {
+        const receiver_kind: ?ast_.Receiver_Kind = method_decl.method_decl.receiver.?.receiver.kind;
+        // Trait method takes a receiver... // Prepend invoke lhs to args if there is a receiver
+        if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
+            // lhs type is dynamic or an address...
+            if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
+                // Receiver is immutable when it should be mutable
+                self.ctx.errors.add_error(errs_.Error{ .invoke_receiver_mismatch = .{
+                    .lhs_type = true_lhs_type,
+                    .method_name = method_decl.method_decl.name.token().data,
+                    .method_receiver = receiver_kind.?,
+                    .receiver_span = ast.lhs().token().span,
+                } });
+                return error.CompileError;
+            }
+            return ast.lhs();
+        } else {
+            // lhs type is not dynamic and not an address
+            const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
+            return addr_of;
+        }
+    } else if (ast.invoke.prepended) {
+        return ast.children().items[0];
+    }
+    return null;
+}
+
 /// Validates just that each argument's type matches its corresponding parameter's type. Assumes arity is valid.
-pub fn validate_args_type(
+fn validate_args_type(
     self: *Self,
     args: *std.array_list.Managed(*ast_.AST),
     expected: *const std.array_list.Managed(*Type_AST),
@@ -1039,6 +1183,7 @@ pub fn validate_args_type(
     for (0..expected_length) |i| {
         const param_type = expected.items[i];
         const term_type = self.typecheck_AST(args.items[i], param_type, subst) catch return error.CompileError;
+        unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch return error.CompileError;
         terms.append(term_type) catch unreachable;
     }
     if (variadic) {
