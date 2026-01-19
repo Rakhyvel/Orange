@@ -21,6 +21,9 @@ pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, options: Opt
 }
 
 fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_map: *Visited_Map, options: Options) !void {
+    // Tree_Writer.print(lhs);
+    // Tree_Writer.print(rhs);
+    // std.debug.print("\n", .{});
     if (visited_map.contains(Pair{ .lhs = lhs, .rhs = rhs })) {
         return;
     }
@@ -141,6 +144,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         },
 
         .addr_of => {
+            if (rhs.* == .anyptr_type) return;
             if (rhs.* != .addr_of) return error.TypesMismatch;
             if (rhs.addr_of.mut and !lhs.addr_of.mut) return error.TypesMismatch;
             if (lhs.addr_of.multiptr != rhs.addr_of.multiptr) return error.TypesMismatch;

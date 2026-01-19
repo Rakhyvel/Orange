@@ -1555,4 +1555,8 @@ pub const Type_AST = union(enum) {
             else => false,
         };
     }
+
+    pub fn is_type_param(self: *const Type_AST) bool {
+        return self.* == .identifier and self.symbol() != null and self.symbol().?.decl.?.* == .type_param_decl;
+    }
 };

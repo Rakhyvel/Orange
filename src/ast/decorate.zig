@@ -422,9 +422,6 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Sc
         });
         return error.CompileError;
     } else if (matches.keys().len > 1) {
-        for (matches.keys()) |match| {
-            Tree_Writer.print_tree(match);
-        }
         self.ctx.errors.add_error(errs_.Error{
             .basic = .{
                 .span = rhs_token.span,

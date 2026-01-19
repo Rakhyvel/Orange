@@ -54,9 +54,6 @@ pub fn typeof(self: *const Self, ast: *ast_.AST) *Type_AST {
     if ((ast.common().validation_state != .valid and ast.common().validation_state != .invalid)) {
         std.debug.panic("type for ast {f} has not been constructed", .{ast});
     }
-    if (!self.map.contains(ast)) {
-        std.debug.dumpCurrentStackTrace(null);
-    }
     return self.map.get(ast) orelse poison_.poisoned_type;
 }
 
@@ -500,12 +497,15 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
-                var i: usize = 0;
-                while (i < candidate_method_decls.keys().len) {
-                    if (candidate_method_decls.keys()[i].method_decl.init == null) {
-                        _ = candidate_method_decls.swapRemove(candidate_method_decls.keys()[i]);
-                    } else {
-                        i += 1;
+                if (!lhs_type.is_type_param()) {
+                    var i: usize = 0;
+                    while (i < candidate_method_decls.keys().len) {
+                        const candidate_method_decl = candidate_method_decls.keys()[i];
+                        if (candidate_method_decl.method_decl.init == null) {
+                            _ = candidate_method_decls.swapRemove(candidate_method_decl);
+                        } else {
+                            i += 1;
+                        }
                     }
                 }
             }
@@ -1072,7 +1072,7 @@ fn select_method(
     switch (viable.items.len) {
         0 => {
             for (candidate_method_decls.keys()) |candidate_method_decl| {
-                Tree_Writer.print_tree(candidate_method_decl);
+                std.debug.print("- {s}: {f} {}\n", .{ candidate_method_decl.method_decl.name.token().data, candidate_method_decl.decl_type(), candidate_method_decl.method_decl.init != null });
             }
             std.debug.panic("Nothing fits!", .{});
         },
@@ -1111,7 +1111,6 @@ fn method_fits(
     var new_self = try self.clone();
     defer new_self.deinit();
 
-    const method_decl_type = self.typecheck_AST(method_decl, null, subst) catch return error.CompileError;
     const domain: std.array_list.Managed(*Type_AST) = method_decl.decl_type().function.args;
 
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
@@ -1122,8 +1121,6 @@ fn method_fits(
         try temp_args.append(receiver);
     }
     try temp_args.appendSlice(ast.children().items);
-
-    new_self.validate_context(method_decl_type, ast) catch return null;
 
     var args_validator = args_.init(
         .method,
@@ -1146,7 +1143,8 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
 
     if (method_decl.method_decl.receiver != null and !ast.invoke.prepended) {
         const receiver_kind: ?ast_.Receiver_Kind = method_decl.method_decl.receiver.?.receiver.kind;
-        // Trait method takes a receiver... // Prepend invoke lhs to args if there is a receiver
+        // Trait method takes a receiver...
+        // Prepend invoke lhs to args if there is a receiver
         if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
             // lhs type is dynamic or an address...
             if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
@@ -1165,8 +1163,6 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
             const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
             return addr_of;
         }
-    } else if (ast.invoke.prepended) {
-        return ast.children().items[0];
     }
     return null;
 }
@@ -1186,7 +1182,9 @@ fn validate_args_type(
     for (0..expected_length) |i| {
         const param_type = expected.items[i];
         const term_type = self.typecheck_AST(args.items[i], param_type, subst) catch return error.CompileError;
-        unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch return error.CompileError;
+        if (param_type.* != .unit_type) {
+            unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch return error.CompileError;
+        }
         terms.append(term_type) catch unreachable;
     }
     if (variadic) {

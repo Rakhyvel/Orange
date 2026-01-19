@@ -161,7 +161,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null, .subst = null };
 
     // Type param with the constraint, return positive count with null ast if traits match
-    if ((for_type.* == .identifier or for_type.* == .access) and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
+    if (for_type.is_type_param()) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = try Decorate.symbol(constraint, ctx);
@@ -242,32 +242,35 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
 pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
     if (false) {
         std.debug.print("searching {} impls for {f}::{s}\n", .{ self.impls.items.len, for_type.*, name });
-        Tree_Writer.print_type_tree(for_type);
+        Tree_Writer.print(for_type);
         self.pprint();
     }
 
+    var mut_short_circuit = short_circuit;
+
     // for type is a type parameter
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
+        mut_short_circuit = true;
         const type_param_decl = for_type.symbol().?.decl.?;
         // Check all constraints on the type parameter
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
-            if (short_circuit and matches.keys().len > 0) return;
+            if (mut_short_circuit and matches.keys().len > 0) return;
             for (trait_decl.trait.super_traits.items) |super_trait| {
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| try matches.put(res, void{});
-                if (short_circuit and matches.keys().len > 0) return;
+                if (mut_short_circuit and matches.keys().len > 0) return;
             }
         }
     }
 
-    try self.lookup_impl_member_impls(for_type, name, matches, short_circuit, compiler);
-    if (short_circuit and matches.keys().len > 0) return;
+    try self.lookup_impl_member_impls(for_type, name, matches, mut_short_circuit, compiler);
+    if (mut_short_circuit and matches.keys().len > 0) return;
     if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| try matches.put(res, void{});
-    if (short_circuit and matches.keys().len > 0) return;
+    if (mut_short_circuit and matches.keys().len > 0) return;
     try self.lookup_impl_member_imports(for_type, name, matches, compiler);
-    if (short_circuit and matches.keys().len > 0) return;
-    if (self.parent) |p| try p.lookup_impl_member(for_type, name, matches, short_circuit, compiler);
+    if (mut_short_circuit and matches.keys().len > 0) return;
+    if (self.parent) |p| try p.lookup_impl_member(for_type, name, matches, mut_short_circuit, compiler);
 }
 
 pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
