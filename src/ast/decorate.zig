@@ -418,6 +418,7 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Sc
                 .span = rhs_token.span,
                 .method_name = rhs_token.data,
                 ._type = lhs,
+                .candidates = null,
             },
         });
         return error.CompileError;

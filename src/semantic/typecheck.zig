@@ -491,6 +491,17 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     });
                     return error.CompileError;
                 }
+                if (method_decl == null) {
+                    self.ctx.errors.add_error(errs_.Error{
+                        .type_not_impl_method = .{
+                            .span = ast.token().span,
+                            .method_name = ast.rhs().token().data,
+                            ._type = true_lhs_type, // TODO: Strip away addr_of's
+                            .candidates = null,
+                        },
+                    });
+                    return error.CompileError;
+                }
                 try candidate_method_decls.put(method_decl.?, void{});
             } else {
                 // The receiver is a regular type. STRIP AWAY ADDRs!
@@ -511,16 +522,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            // if (method_decl == null) {
-            //     self.ctx.errors.add_error(errs_.Error{
-            //         .type_not_impl_method = .{
-            //             .span = ast.token().span,
-            //             .method_name = ast.rhs().token().data,
-            //             ._type = true_lhs_type, // TODO: Strip away addr_of's
-            //         },
-            //     });
-            //     return error.CompileError;
-            // }
             // // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
             const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
             // const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
@@ -1063,20 +1064,30 @@ fn select_method(
     var viable = std.array_list.Managed(Viable_Method).init(self.ctx.allocator());
     defer viable.deinit();
 
+    var rejection_reasons = std.array_list.Managed(errs_.Candidate).init(self.ctx.allocator());
+
     for (candidate_method_decls.keys()) |method_decl| {
-        if (self.method_fits(ast, method_decl, true_lhs_type, subst) catch null) |plan| {
-            try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
+        switch (try self.method_fits(ast, method_decl, true_lhs_type, subst)) {
+            .fits => |plan| try viable.append(Viable_Method{ .method = method_decl, .plan = plan }),
+            else => |e| try rejection_reasons.append(errs_.Candidate{ .span = method_decl.token().span, .reason = e.to_msg() }),
         }
     }
 
     switch (viable.items.len) {
         0 => {
-            for (candidate_method_decls.keys()) |candidate_method_decl| {
-                std.debug.print("- {s}: {f} {}\n", .{ candidate_method_decl.method_decl.name.token().data, candidate_method_decl.decl_type(), candidate_method_decl.method_decl.init != null });
-            }
-            std.debug.panic("Nothing fits!", .{});
+            const saved_rejection_reasons = try rejection_reasons.clone();
+            self.ctx.errors.add_error(errs_.Error{
+                .type_not_impl_method = .{
+                    .span = ast.token().span,
+                    .method_name = ast.rhs().token().data,
+                    ._type = true_lhs_type, // TODO: Strip away addr_of's
+                    .candidates = saved_rejection_reasons.items,
+                },
+            });
+            return error.CompileError;
         },
         1 => {
+            rejection_reasons.deinit();
             const choice = viable.items[0];
             ast.invoke.method_decl = choice.method;
             if (choice.plan.prepend) {
@@ -1085,10 +1096,19 @@ fn select_method(
             }
         },
         else => {
-            for (candidate_method_decls.keys()) |candidate_method_decl| {
-                std.debug.print("- {s}: {f} {}\n", .{ candidate_method_decl.method_decl.name.token().data, candidate_method_decl.decl_type(), candidate_method_decl.method_decl.init != null });
+            var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
+            for (viable.items) |candidate| {
+                try saved_viable.append(candidate.method);
             }
-            std.debug.panic("Ambiguity!", .{});
+            self.ctx.errors.add_error(errs_.Error{
+                .ambiguous_methods = .{
+                    .span = ast.token().span,
+                    .method_name = ast.rhs().token().data,
+                    ._type = true_lhs_type, // TODO: Strip away addr_of's
+                    .viable = saved_viable.items,
+                },
+            });
+            return error.CompileError;
         },
     }
 }
@@ -1097,17 +1117,28 @@ const Receiver_Plan = struct {
     prepend: bool,
     receiver_expr: ?*ast_.AST,
 };
+const Method_Result = union(enum) {
+    fits: Receiver_Plan,
+    receiver,
+    arity_mismatch,
+    param_arg_mismatch,
+
+    fn to_msg(self: @This()) []const u8 {
+        return switch (self) {
+            .fits => unreachable,
+            .receiver => "receiver mismatch",
+            .arity_mismatch => "arity mismatch",
+            .param_arg_mismatch => "parameter type mismatch",
+        };
+    }
+};
 fn method_fits(
     self: *Self,
     ast: *ast_.AST,
     method_decl: *ast_.AST,
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
-) !?Receiver_Plan {
-    // Do not record errors for backtracking
-    self.ctx.errors.record_errors = false;
-    defer self.ctx.errors.record_errors = true;
-
+) !Method_Result {
     var new_self = try self.clone();
     defer new_self.deinit();
 
@@ -1116,7 +1147,7 @@ fn method_fits(
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
     defer temp_args.deinit();
 
-    const maybe_receiver: ?*ast_.AST = try new_self.extract_receiver(ast, method_decl, true_lhs_type);
+    const maybe_receiver: ?*ast_.AST = new_self.extract_receiver(ast, method_decl, true_lhs_type) catch return .receiver;
     if (maybe_receiver) |receiver| {
         try temp_args.append(receiver);
     }
@@ -1131,11 +1162,15 @@ fn method_fits(
         new_self.ctx.allocator(),
     );
 
-    temp_args = args_validator.default_args() catch return null;
-    args_validator.validate_args_arity() catch return null;
-    _ = new_self.validate_args_type(&temp_args, &domain, false, subst) catch return null;
+    temp_args = try args_validator.default_args();
 
-    return Receiver_Plan{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver };
+    // Disable error recording
+    self.ctx.errors.record_errors = false;
+    defer self.ctx.errors.record_errors = true;
+    args_validator.validate_args_arity() catch return .arity_mismatch;
+    _ = new_self.validate_args_type(&temp_args, &domain, false, subst) catch return .param_arg_mismatch;
+
+    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
 }
 
 fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lhs_type: *Type_AST) !?*ast_.AST {

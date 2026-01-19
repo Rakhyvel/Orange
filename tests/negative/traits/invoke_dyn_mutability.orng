@@ -1,6 +1,12 @@
-// invoke_dyn_mutability.orng:21:6: error: receiver `&mut self` of method `lmao` incompatible with type `&dyn Lol`
+// invoke_dyn_mutability.orng:27:6: error: receiver `&mut self` of method `lmao` incompatible with type `&dyn Lol`
 //     x.>lmao()
 //     ^
+// invoke_dyn_mutability.orng:27:8: error: the type `&dyn Lol` does not contain the member `lmao`
+//     x.>lmao()
+//       ^
+// invoke_dyn_mutability.orng:12:15: note: candidate not viable: receiver mismatch
+//     virtual fn lmao(&mut self) -> ()
+//              ^
 // 
 trait Lol {
     virtual fn lmao(&mut self) -> ()
