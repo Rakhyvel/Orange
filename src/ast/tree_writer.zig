@@ -14,11 +14,22 @@ pub fn new(indent: usize) Self {
     return Self{ .indent = indent };
 }
 
-pub fn print_tree(ast: *ast_.AST) void {
+pub fn print(ast: anytype) void {
+    const Ast_Type = @TypeOf(ast);
+    if (Ast_Type == *ast_.AST) {
+        print_tree(ast);
+    } else if (Ast_Type == *Type_AST) {
+        print_type_tree(ast);
+    } else {
+        std.debug.panic("cannot call symbol() with type {}", .{Ast_Type});
+    }
+}
+
+fn print_tree(ast: *ast_.AST) void {
     walker_.walk_ast(ast, new(0)) catch unreachable;
 }
 
-pub fn print_type_tree(_type: *Type_AST) void {
+fn print_type_tree(_type: *Type_AST) void {
     walker_.walk_type(_type, new(0)) catch unreachable;
 }
 

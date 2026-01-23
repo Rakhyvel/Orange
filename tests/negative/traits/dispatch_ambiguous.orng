@@ -1,0 +1,31 @@
+// dispatch_ambiguous.orng:29:8: error: multiple applicable members `lmao` for the type `Int`
+//     x.>lmao(4)
+//       ^
+// dispatch_ambiguous.orng:16:7: note: candidate:
+//     fn lmao(&mut self, x: Int) -> () {
+//      ^
+// dispatch_ambiguous.orng:22:7: note: candidate:
+//     fn lmao(&mut self, x: Int) -> () {
+//      ^
+// 
+trait Lol {
+    fn lmao(&mut self, x: Int) -> ()
+}
+
+impl Lol for Int {
+    fn lmao(&mut self, x: Int) -> () {
+        self^ = x
+    }
+}
+
+impl for Int {
+    fn lmao(&mut self, x: Int) -> () {
+        self^ = x
+    }
+}
+
+fn main() -> Int {
+    let mut x = 5
+    x.>lmao(4)
+    x
+}

@@ -1,0 +1,22 @@
+// dispatch_param_arg_mismatch.orng:20:8: error: the type `Int` does not contain the member `lmao`
+//     x.>lmao(4.5)
+//       ^
+// dispatch_param_arg_mismatch.orng:13:7: note: candidate not viable: parameter type mismatch
+//     fn lmao(&mut self, x: Int) -> () {
+//      ^
+// 
+trait Lol {
+    fn lmao(&mut self, x: Int) -> ()
+}
+
+impl Lol for Int {
+    fn lmao(&mut self, x: Int) -> () {
+        self^ = x
+    }
+}
+
+fn main() -> Int {
+    let mut x = 5
+    x.>lmao(4.5)
+    x
+}

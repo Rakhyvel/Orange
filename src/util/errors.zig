@@ -13,6 +13,11 @@ pub const Error_Config = struct {
     print_color: bool = true,
 };
 
+pub const Candidate = struct {
+    span: Span,
+    reason: []const u8,
+};
+
 pub const Error = union(enum) {
     // General errors
     basic: struct { // TODO: Add a fmt'd constructor for one of these in the Error struct
@@ -102,6 +107,13 @@ pub const Error = union(enum) {
         span: Span,
         method_name: []const u8,
         _type: *Type_AST,
+        candidates: ?[]Candidate,
+    },
+    ambiguous_methods: struct {
+        span: Span,
+        method_name: []const u8,
+        _type: *Type_AST,
+        viable: []*ast_.AST,
     },
     type_not_impl_trait: struct {
         span: Span,
@@ -342,6 +354,7 @@ pub const Error = union(enum) {
 
             .reimpl => return self.reimpl.redefined_span,
             .type_not_impl_method => return self.type_not_impl_method.span,
+            .ambiguous_methods => return self.ambiguous_methods.span,
             .type_not_impl_trait => return self.type_not_impl_trait.span,
             .method_not_in_trait => return self.method_not_in_trait.method_span,
             .type_not_in_trait => return self.type_not_in_trait.type_span,
@@ -466,6 +479,11 @@ pub const Error = union(enum) {
                 writer.print("the type `", .{}) catch unreachable;
                 err.type_not_impl_method._type.print_type(writer) catch unreachable;
                 writer.print("` does not contain the member `{s}`\n", .{err.type_not_impl_method.method_name}) catch unreachable;
+            },
+            .ambiguous_methods => {
+                writer.print("multiple applicable members `{s}` for the type `", .{err.ambiguous_methods.method_name}) catch unreachable;
+                err.ambiguous_methods._type.print_type(writer) catch unreachable;
+                writer.print("`\n", .{}) catch unreachable;
             },
             .type_not_impl_trait => {
                 writer.print("the type `", .{}) catch unreachable;
@@ -773,6 +791,28 @@ pub const Error = union(enum) {
                 print_color(not_bold, writer, conf);
                 print_epilude(self.type_not_in_impl.type_span, writer, conf);
             },
+            .type_not_impl_method => {
+                if (self.type_not_impl_method.candidates) |candidates| {
+                    for (candidates) |candidate| {
+                        print_color(bold, writer, conf);
+                        print_note_label(candidate.span, writer, conf);
+                        print_color(bold, writer, conf);
+                        writer.print("candidate not viable: {s}\n", .{candidate.reason}) catch unreachable;
+                        print_color(not_bold, writer, conf);
+                        print_epilude(candidate.span, writer, conf);
+                    }
+                }
+            },
+            .ambiguous_methods => {
+                for (self.ambiguous_methods.viable) |candidate| {
+                    print_color(bold, writer, conf);
+                    print_note_label(candidate.token().span, writer, conf);
+                    print_color(bold, writer, conf);
+                    writer.print("candidate:\n", .{}) catch unreachable;
+                    print_color(not_bold, writer, conf);
+                    print_epilude(candidate.token().span, writer, conf);
+                }
+            },
             .eq_constraint_failed => {
                 print_color(bold, writer, conf);
                 print_note_label(self.eq_constraint_failed.constraint_span, writer, conf);
@@ -817,6 +857,7 @@ const not_bold = term_.Attr{ .bold = false };
 
 pub const Errors = struct {
     errors_list: std.array_list.Managed(Error),
+    record_errors: bool = true,
 
     pub fn init(allocator: std.mem.Allocator) Errors {
         return .{
@@ -829,8 +870,10 @@ pub const Errors = struct {
     }
 
     pub fn add_error(self: *Errors, err: Error) void {
-        self.errors_list.append(err) catch unreachable;
-        // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        if (self.record_errors) {
+            self.errors_list.append(err) catch unreachable;
+            // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+        }
     }
 
     /// Prints out all errors in the Errors list

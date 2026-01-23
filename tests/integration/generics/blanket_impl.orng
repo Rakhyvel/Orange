@@ -21,8 +21,8 @@ impl[T: Wrapper] Into_Wrapper for T {
     }
 }
 
-fn unwrap[T: Into_Wrapper](t: T) -> T::Elem {
-    t.>into_wrapper().>get_value()
+fn unwrap[U: Into_Wrapper](u: U) -> U::Elem {
+    u.>into_wrapper().>get_value()
 }
 
 struct Int_Wrapper {

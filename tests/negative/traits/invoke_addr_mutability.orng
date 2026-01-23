@@ -1,6 +1,12 @@
-// invoke_addr_mutability.orng:18:6: error: receiver `&mut self` of method `lmao` incompatible with type `&Int`
+// invoke_addr_mutability.orng:24:6: error: receiver `&mut self` of method `lmao` incompatible with type `&Int`
 //     y.>lmao()
 //     ^
+// invoke_addr_mutability.orng:24:8: error: the type `&Int` does not contain the member `lmao`
+//     y.>lmao()
+//       ^
+// invoke_addr_mutability.orng:16:7: note: candidate not viable: receiver mismatch
+//     fn lmao(&mut self) -> () {
+//      ^
 // 
 trait Lol {
     fn lmao(&mut self) -> ()

@@ -618,7 +618,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
                 if (Emitter.is_storable(term.get_expanded_type())) {
                     // Do not output `void` arguments
                     try self.output_rvalue(term, Instruction.Precedence.postfix);
-                    if (instr.data.invoke.dyn_value != null and instr.data.invoke.dyn_value == term and i == 0) {
+                    if (instr.data.invoke.dyn_value != null and instr.data.invoke.dyn_value.?.extract_symbver().symbol == term.extract_symbver().symbol and i == 0) {
                         try self.writer.print(".data_ptr", .{});
                     }
                     if (i + 1 < num_invoke_args and Emitter.is_storable(instr.data.invoke.arg_lval_list.items[i + 1].get_expanded_type())) {
