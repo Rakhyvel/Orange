@@ -704,7 +704,31 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
-        exp = ast_.AST.create_equal(token, exp, try self.range_expr(), self.allocator);
+        // (@typeof(exp) as core::Eq)::eq(exp, range_expr())
+        // call (
+        //   type_acces(
+        //     trait_as(
+        //       typeof(exp),
+        //       core::PartialEq
+        //     ),
+        //     field("eq")
+        //   ),
+        //   [exp, range_expr()]
+        // )
+
+        const exp_type = Type_AST.create_type_of(token, exp, self.allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
+        const eq_trait_field = Type_AST.create_field(Token.init_simple("Eq"), self.allocator);
+        const eq_trait = Type_AST.create_type_access(token, core_ident, eq_trait_field, self.allocator);
+        const trait_as = Type_AST.create_as_trait(token, exp_type, eq_trait, self.allocator);
+        const eq_method_field = ast_.AST.create_field(Token.init_simple("eq"), self.allocator);
+        const eq_method = ast_.AST.create_type_access(token, trait_as, eq_method_field, self.allocator);
+        const rhs = try self.range_expr();
+
+        var args = std.array_list.Managed(*ast_.AST).init(self.allocator);
+        try args.append(exp);
+        try args.append(rhs);
+        exp = ast_.AST.create_call(token, eq_method, args, self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
         exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {

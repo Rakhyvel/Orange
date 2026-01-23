@@ -364,6 +364,18 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .call => {
             const lhs_span = ast.lhs().token().span;
+            if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
+                const for_type = ast.lhs().type_access._lhs_type.lhs();
+                try self.ctx.validate_type.validate_type(for_type);
+                const trait = ast.lhs().type_access._lhs_type.rhs();
+                const scope = trait.scope().?;
+                const res = try scope.impl_trait_lookup(for_type, trait.symbol().?, self.ctx);
+                std.debug.assert(res.count > 0);
+                const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data);
+                var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
+                method_identifier.set_symbol(method.?.symbol());
+                ast.set_lhs(method_identifier);
+            }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
             if (expanded_lhs_type.* != .function) {
@@ -522,38 +534,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            // // std.debug.assert(method_decl.?.method_decl.impl.?.num_generic_params() == 0); // must be an instatiated impl
             const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
-            // const domain: std.array_list.Managed(*Type_AST) = method_decl.?.decl_type().function.args;
-            // const expanded_true_lhs_type = true_lhs_type.expand_identifier();
-
-            // if (method_decl.?.method_decl.receiver != null and !ast.invoke.prepended) {
-            //     const receiver_kind: ?ast_.Receiver_Kind = method_decl.?.method_decl.receiver.?.receiver.kind;
-            //     // Trait method takes a receiver...
-            //     // Prepend invoke lhs to args if there is a receiver
-            //     if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
-            //         // lhs type is dynamic or an address...
-            //         if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
-            //             // Receiver is immutable when it should be mutable
-            //             self.ctx.errors.add_error(errs_.Error{ .invoke_receiver_mismatch = .{
-            //                 .lhs_type = true_lhs_type,
-            //                 .method_name = method_decl.?.method_decl.name.token().data,
-            //                 .method_receiver = receiver_kind.?,
-            //                 .receiver_span = ast.lhs().token().span,
-            //             } });
-            //             return error.CompileError;
-            //         }
-            //         ast.children().insert(0, ast.lhs()) catch unreachable; // prepend lhs to children as a receiver
-            //         ast.invoke.prepended = true;
-            //     } else {
-            //         // lhs type is not dynamic and not an address
-            //         const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
-            //         ast.children().insert(0, addr_of) catch unreachable; // prepend lhs to children as a receiver
-            //         ast.invoke.prepended = true;
-            //     }
-            // } else if (ast.invoke.prepended) {
-            //     ast.set_lhs(ast.children().items[0]);
-            // }
 
             const domain = method_decl.?.decl_type().function.args;
             try self.validate_context(method_decl_type, ast);
