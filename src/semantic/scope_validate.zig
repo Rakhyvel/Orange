@@ -42,7 +42,7 @@ pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
 
 // TODO: Split up into smaller functions
 fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
-    if (impl.impl._type.* == .addr_of) {
+    if (impl.impl._type.* == .addr_of and !impl.impl._type.addr_of.multiptr) {
         self.ctx.errors.add_error(errs_.Error{ .basic = .{
             .span = impl.impl._type.token().span,
             .msg = "cannot implement method for address types",

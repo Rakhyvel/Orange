@@ -8,6 +8,7 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const core_ = @import("../hierarchy/core.zig");
 const defaults_ = @import("defaults.zig");
 const Decorate = @import("../ast/decorate.zig");
+const Type_Decorate = @import("../ast/type_decorate.zig");
 const errs_ = @import("../util/errors.zig");
 const fmt_ = @import("../util/fmt.zig");
 const poison_ = @import("../ast/poison.zig");
@@ -101,6 +102,7 @@ pub fn typecheck_AST(
     }
     if (expected_type) |_| {
         try walk_.walk_type(expected_type, Decorate.new(self.ctx));
+        try walk_.walk_type(expected_type, Type_Decorate.new(self.ctx));
     }
 
     const actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
@@ -367,14 +369,15 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const for_type = ast.lhs().type_access._lhs_type.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
-                const trait = ast.lhs().type_access._lhs_type.rhs();
-                const scope = trait.scope().?;
-                const res = try scope.impl_trait_lookup(for_type, trait.symbol().?, self.ctx);
-                std.debug.assert(res.count > 0);
-                const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data);
-                var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                method_identifier.set_symbol(method.?.symbol());
-                ast.set_lhs(method_identifier);
+                for (ast.lhs().type_access._lhs_type.as_trait.constraints.items) |constraint| { // TODO: Select based on expected type if >1? Or just throw an ambiguous error
+                    const scope = constraint.scope().?;
+                    const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, self.ctx);
+                    std.debug.assert(res.count > 0); // TODO: Throw error
+                    const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data) orelse continue;
+                    var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
+                    method_identifier.set_symbol(method.symbol());
+                    ast.set_lhs(method_identifier);
+                }
             }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
@@ -395,10 +398,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const variadic = expanded_lhs_type.function.variadic;
             var args_validator = args_.init(.function, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             args_validator.set_variadic(variadic);
-            ast.set_children(try args_validator.default_args());
+            ast.set_children(try args_validator.fill_default_args());
             args_validator.implicit_ref();
-            try args_validator.validate_args_arity();
-            _ = try self.validate_args_type(ast.children(), &domain, variadic, subst);
+            try args_validator.validate_arity();
+            try args_validator.validate_type(subst, self.ctx);
             return codomain;
         },
         .index => {
@@ -508,7 +511,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         .type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = ast.rhs().token().data,
-                            ._type = true_lhs_type, // TODO: Strip away addr_of's
+                            ._type = true_lhs_type.strip_addrs(),
                             .candidates = null,
                         },
                     });
@@ -516,11 +519,15 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 try candidate_method_decls.put(method_decl.?, void{});
             } else {
-                // The receiver is a regular type. STRIP AWAY ADDRs!
+                // The receiver is a regular type. STRIP AWAY 1 ADDR only!
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
-                try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
-                if (!lhs_type.is_type_param()) {
+                if (lhs_type.* == .as_trait) {
+                    try ast.scope().?.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
+                } else {
+                    try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
+                }
+                if (!lhs_type.is_type_param() and lhs_type.* != .as_trait) {
                     var i: usize = 0;
                     while (i < candidate_method_decls.keys().len) {
                         const candidate_method_decl = candidate_method_decls.keys()[i];
@@ -540,9 +547,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try self.validate_context(method_decl_type, ast);
 
             var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
-            ast.set_children(try args_validator.default_args());
-            try args_validator.validate_args_arity();
-            _ = try self.validate_args_type(ast.children(), &domain, false, subst);
+            ast.set_children(try args_validator.fill_default_args());
+            try args_validator.validate_arity();
+            try args_validator.validate_type(subst, self.ctx);
 
             return ast.invoke.method_decl.?.method_decl.ret_type;
         },
@@ -598,9 +605,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (expanded_expected.* == .context_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.context, ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
-                ast.set_children(try args_validator.default_args());
-                try args_validator.validate_args_arity();
-                _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false, subst);
+                ast.set_children(try args_validator.fill_default_args());
+                try args_validator.validate_arity();
+                try args_validator.validate_type(subst, self.ctx);
                 return ast.context_value.parent;
             } else if (ast.context_value.parent.expand_identifier().* != .context_type) {
                 // Parent wasn't even a context type!
@@ -620,9 +627,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.@"struct", ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
-                ast.set_children(try args_validator.default_args());
-                try args_validator.validate_args_arity();
-                _ = try self.validate_args_type(ast.children(), expanded_expected.children(), false, subst);
+                ast.set_children(try args_validator.fill_default_args());
+                try args_validator.validate_arity();
+                try args_validator.validate_type(subst, self.ctx);
                 return ast.struct_value.parent;
             } else if (ast.struct_value.parent.expand_identifier().* != .struct_type) {
                 // Parent wasn't even a struct type!
@@ -650,8 +657,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             } else if (expanded_expected != null and expanded_expected.?.* == .tuple_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.tuple, ast.children(), ast.token().span, expanded_expected.?.children(), &self.ctx.errors, self.ctx.allocator());
-                try args_validator.validate_args_arity();
-                _ = try self.validate_args_type(ast.children(), expanded_expected.?.children(), false, subst);
+                try args_validator.validate_arity();
+                try args_validator.validate_type(subst, self.ctx);
                 return expected.?;
             } else {
                 // It's ok to assign this to a unit type, something like `_ = (1, 2, 3)`
@@ -1049,8 +1056,10 @@ fn select_method(
 
     for (candidate_method_decls.keys()) |method_decl| {
         switch (try self.method_fits(ast, method_decl, true_lhs_type, subst)) {
-            .fits => |plan| try viable.append(Viable_Method{ .method = method_decl, .plan = plan }),
-            else => |e| try rejection_reasons.append(errs_.Candidate{ .span = method_decl.token().span, .reason = e.to_msg() }),
+            .fits => |plan| {
+                try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
+            },
+            else => |e| try rejection_reasons.append(errs_.Candidate{ .span = method_decl.token().span, .reason = e.not_viable }),
         }
     }
 
@@ -1061,7 +1070,7 @@ fn select_method(
                 .type_not_impl_method = .{
                     .span = ast.token().span,
                     .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type, // TODO: Strip away addr_of's
+                    ._type = true_lhs_type.strip_addrs(),
                     .candidates = saved_rejection_reasons.items,
                 },
             });
@@ -1085,7 +1094,7 @@ fn select_method(
                 .ambiguous_methods = .{
                     .span = ast.token().span,
                     .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type, // TODO: Strip away addr_of's
+                    ._type = true_lhs_type.strip_addrs(),
                     .viable = saved_viable.items,
                 },
             });
@@ -1100,18 +1109,7 @@ const Receiver_Plan = struct {
 };
 const Method_Result = union(enum) {
     fits: Receiver_Plan,
-    receiver,
-    arity_mismatch,
-    param_arg_mismatch,
-
-    fn to_msg(self: @This()) []const u8 {
-        return switch (self) {
-            .fits => unreachable,
-            .receiver => "receiver mismatch",
-            .arity_mismatch => "arity mismatch",
-            .param_arg_mismatch => "parameter type mismatch",
-        };
-    }
+    not_viable: errs_.Candidate_Reason,
 };
 fn method_fits(
     self: *Self,
@@ -1128,7 +1126,7 @@ fn method_fits(
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
     defer temp_args.deinit();
 
-    const maybe_receiver: ?*ast_.AST = new_self.extract_receiver(ast, method_decl, true_lhs_type) catch return .receiver;
+    const maybe_receiver: ?*ast_.AST = new_self.extract_receiver(ast, method_decl, true_lhs_type) catch return .{ .not_viable = .receiver_mismatch };
     if (maybe_receiver) |receiver| {
         try temp_args.append(receiver);
     }
@@ -1143,13 +1141,18 @@ fn method_fits(
         new_self.ctx.allocator(),
     );
 
-    temp_args = try args_validator.default_args();
+    temp_args = try args_validator.fill_default_args();
 
     // Disable error recording
     self.ctx.errors.record_errors = false;
     defer self.ctx.errors.record_errors = true;
-    args_validator.validate_args_arity() catch return .arity_mismatch;
-    _ = new_self.validate_args_type(&temp_args, &domain, false, subst) catch return .param_arg_mismatch;
+    args_validator.validate_arity() catch return .{ .not_viable = .{ .arity_mismatch = .{ .expects = domain.items.len, .got = temp_args.items.len } } };
+    args_validator.validate_type(subst, self.ctx) catch {
+        const param_idx = args_validator.error_details.?.param_idx;
+        const expected_type = domain.items[param_idx];
+        const actual_type = args_validator.error_details.?.arg_type;
+        return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = param_idx, .expects = expected_type, .got = actual_type } } };
+    };
 
     return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
 }
@@ -1161,7 +1164,8 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
         const receiver_kind: ?ast_.Receiver_Kind = method_decl.method_decl.receiver.?.receiver.kind;
         // Trait method takes a receiver...
         // Prepend invoke lhs to args if there is a receiver
-        if (expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of) {
+        const lhs_is_addr = expanded_true_lhs_type.* == .dyn_type or expanded_true_lhs_type.* == .addr_of;
+        if (lhs_is_addr) {
             // lhs type is dynamic or an address...
             if (!expanded_true_lhs_type.mut() and receiver_kind == .mut_addr_of) {
                 // Receiver is immutable when it should be mutable
@@ -1173,43 +1177,28 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
                 } });
                 return error.CompileError;
             }
-            return ast.lhs();
-        } else {
-            // lhs type is not dynamic and not an address
-            const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
-            return addr_of;
+        }
+
+        switch (method_decl.method_decl.receiver.?.receiver.kind) {
+            .value => {
+                // receiver is value, create any dereferences necessary
+                var stripped_expanded_true_lhs_type = expanded_true_lhs_type;
+                var retval = ast.lhs();
+                while (stripped_expanded_true_lhs_type.* == .addr_of) {
+                    retval = ast_.AST.create_dereference(ast.lhs().token(), retval, self.ctx.allocator());
+                    stripped_expanded_true_lhs_type = stripped_expanded_true_lhs_type.child();
+                }
+                return retval;
+            },
+            else => if (lhs_is_addr) {
+                return ast.lhs();
+            } else {
+                const addr_of = ast_.AST.create_addr_of(ast.lhs().token(), ast.lhs(), receiver_kind.? == .mut_addr_of, false, self.ctx.allocator());
+                return addr_of;
+            },
         }
     }
     return null;
-}
-
-/// Validates just that each argument's type matches its corresponding parameter's type. Assumes arity is valid.
-fn validate_args_type(
-    self: *Self,
-    args: *std.array_list.Managed(*ast_.AST),
-    expected: *const std.array_list.Managed(*Type_AST),
-    variadic: bool,
-    subst: *unification_.Substitutions,
-) Validate_Error_Enum!std.array_list.Managed(*Type_AST) {
-    const expected_length = expected.items.len;
-
-    var terms = std.array_list.Managed(*Type_AST).init(self.ctx.allocator());
-    errdefer terms.deinit();
-    for (0..expected_length) |i| {
-        const param_type = expected.items[i];
-        const term_type = self.typecheck_AST(args.items[i], param_type, subst) catch return error.CompileError;
-        if (param_type.* != .unit_type) {
-            unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch return error.CompileError;
-        }
-        terms.append(term_type) catch unreachable;
-    }
-    if (variadic) {
-        for (expected_length..args.items.len) |i| {
-            const term_type = self.typecheck_AST(args.items[i], null, subst) catch return error.CompileError;
-            terms.append(term_type) catch unreachable;
-        }
-    }
-    return terms;
 }
 
 fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Validate_Error_Enum!void {

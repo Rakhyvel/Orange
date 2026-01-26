@@ -4,6 +4,7 @@ const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Const_Eval = @import("const_eval.zig");
+const Decorate = @import("../ast/decorate.zig");
 const typecheck_AST = @import("typecheck.zig").typecheck_AST;
 const errs_ = @import("../util/errors.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
@@ -69,9 +70,6 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 return error.CompileError;
             },
         };
-        if (_init.* != .module) {
-            try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
-        }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {
         try self.ctx.validate_type.validate_type(symbol.init_typedef().?);
         if (self.ctx.validate_type.detect_cycle(symbol.init_typedef().?, symbol)) {

@@ -804,11 +804,14 @@ fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
         },
         .symbver => {
             if (lvalue.symbver.symbol.decl.?.* == .receiver) {
-                try self.writer.print("(", .{});
+                try self.writer.print("((", .{});
                 try self.emitter.output_type(lvalue.get_expanded_type());
                 try self.writer.print(")", .{});
             }
             try self.emitter.output_symbol(lvalue.symbver.symbol);
+            if (lvalue.symbver.symbol.decl.?.* == .receiver) {
+                try self.writer.print(")", .{});
+            }
         },
         .raw_address => std.debug.panic("compiler error: cannot output raw address lvalue", .{}),
     }

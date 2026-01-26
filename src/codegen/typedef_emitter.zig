@@ -70,7 +70,7 @@ fn output_include_guard_end(self: *Self) CodeGen_Error!void {
 fn output_typedef(self: *Self) CodeGen_Error!void {
     if (self.dep.base.* == .function) {
         const has_contexts = self.dep.base.function.contexts.items.len > 0;
-        const has_params = self.dep.base.function.args.items.len > 0;
+        var has_params = false;
 
         try self.writer.print("typedef ", .{});
         try self.emitter.output_type(self.dep.base.rhs());
@@ -80,6 +80,7 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
             if (Emitter.is_storable(arg)) {
                 // Do not output `void` parameters
                 try self.emitter.output_type(arg);
+                has_params = true;
                 if (i + 1 < self.dep.base.function.args.items.len and Emitter.is_storable(self.dep.base.function.args.items[i + 1])) {
                     try self.writer.print(", ", .{});
                 }

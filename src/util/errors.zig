@@ -13,9 +13,15 @@ pub const Error_Config = struct {
     print_color: bool = true,
 };
 
+pub const Candidate_Reason = union(enum) {
+    receiver_mismatch,
+    arity_mismatch: struct { expects: usize, got: usize },
+    param_arg_mismatch: struct { param_idx: usize, expects: *const Type_AST, got: ?*const Type_AST },
+};
+
 pub const Candidate = struct {
     span: Span,
-    reason: []const u8,
+    reason: Candidate_Reason,
 };
 
 pub const Error = union(enum) {
@@ -797,7 +803,22 @@ pub const Error = union(enum) {
                         print_color(bold, writer, conf);
                         print_note_label(candidate.span, writer, conf);
                         print_color(bold, writer, conf);
-                        writer.print("candidate not viable: {s}\n", .{candidate.reason}) catch unreachable;
+                        writer.print("candidate not viable: ", .{}) catch unreachable;
+                        switch (candidate.reason) {
+                            .arity_mismatch => |reason| {
+                                writer.print("candidate expects {} parameters, method has {} arguments", .{ reason.expects, reason.got }) catch unreachable;
+                            },
+                            .param_arg_mismatch => |reason| {
+                                writer.print("candidate expects type `{f}` for parameter {}", .{ reason.expects, reason.param_idx + 1 }) catch unreachable;
+                                if (reason.got) |got| {
+                                    writer.print(", invoke provides `{f}`", .{got}) catch unreachable;
+                                }
+                            },
+                            .receiver_mismatch => {
+                                writer.print("receiver mutability mismatch", .{}) catch unreachable;
+                            },
+                        }
+                        writer.print("\n", .{}) catch unreachable;
                         print_color(not_bold, writer, conf);
                         print_epilude(candidate.span, writer, conf);
                     }

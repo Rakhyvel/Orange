@@ -169,14 +169,20 @@ trait Eq {
     fn eq(self, other: Self) -> Bool
 }
 
-impl Eq for Int {
-    fn eq(self, other: Self) -> Bool {
-        match self {
-            {other} => true
-            _       => false
-        }
-    }
-}
+impl Eq for Int { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word64 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Float { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Float32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) } }
+impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) and self[2].>eq(other[2]) } }
 
 impl Eq for String {
     fn eq(self, other: Self) -> Bool {

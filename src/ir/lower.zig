@@ -85,11 +85,11 @@ pub fn lower_AST_into_cfg(self: *Self) Lower_Errors!void {
 fn lower_AST(self: *Self, ast: *ast_.AST, labels: Labels) Lower_Errors!?*lval_.L_Value {
     const retval = self.lower_AST_inner(ast, labels);
     if (false) {
-        std.debug.print("{}\n", .{ast});
+        std.debug.print("{f}\n", .{ast});
         // Print symbol Instruction after lowering, before breaking up into basic blocks
         std.debug.print("CFG {s}:\n", .{self.cfg.symbol.name});
         for (self.instructions.items) |instr| {
-            std.debug.print("{}", .{instr});
+            std.debug.print("{f}", .{instr});
         }
         std.debug.print("\n", .{});
     }
@@ -516,10 +516,7 @@ fn lower_AST_inner(
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
             const iterator = self.create_temp_lvalue(iterator_type);
             var into_iter_lval_list = std.array_list.Managed(*lval_.L_Value).init(self.ctx.allocator());
-            const into_iter_type = self.ctx.typecheck.typeof(ast.@"for".into_iter);
-            const addr_of_into_iter = self.create_temp_lvalue(Type_AST.create_addr_of_type(ast.token(), into_iter_type, false, false, self.ctx.allocator()));
-            self.instructions.append(Instruction.init_int_float_kind(.addr_of, .addr_of, addr_of_into_iter, into_iter, null, ast.token().span, self.ctx.allocator())) catch unreachable;
-            into_iter_lval_list.append(addr_of_into_iter) catch unreachable;
+            into_iter_lval_list.append(into_iter) catch unreachable;
             var into_iter_instr = Instruction.init_invoke(iterator, ast.@"for".into_iter_into_iter_method_decl.?, into_iter_lval_list, null, ast.token().span, self.ctx.allocator());
             into_iter_instr.data.invoke.method_decl_lval = try self.lval_from_symbol_cfg(ast.@"for".into_iter_into_iter_method_decl.?.symbol().?, ast.token().span);
             self.instructions.append(into_iter_instr) catch unreachable;

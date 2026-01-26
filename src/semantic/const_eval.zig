@@ -3,6 +3,7 @@
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
+const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
 const Interpreter_Context = @import("../interpretation/interpreter.zig");
 const defaults_ = @import("defaults.zig");

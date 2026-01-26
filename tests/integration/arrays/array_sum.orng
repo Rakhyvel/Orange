@@ -11,9 +11,8 @@ fn main() -> Int {
 }
 
 fn f(x: [3]My_Type) -> Int {
-    if x[1] == .b {
-        215
-    } else {
-        3
+    match x[1] {
+        .b => 215
+        _  => 3
     }
 }

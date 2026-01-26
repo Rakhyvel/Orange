@@ -10,5 +10,5 @@ fn main() -> Int {
 }
 
 fn addr_equal(x: &Int, y: &Int) -> Bool {
-    x == y
+    (x as [*]Int) == (y as [*]Int)
 }

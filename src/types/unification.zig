@@ -32,17 +32,22 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (lhs.is_ident_type("Void")) {
         return; // Bottom type - vacuously true
     }
+    if (lhs.* == .anyptr_type) return;
+    if (rhs.* == .anyptr_type) return;
 
     if (lhs.* == .annotation) return try unify_inner(lhs.child(), rhs, subst, visited_map, options);
     if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
 
-    if (lhs.* == .identifier and subst.get(lhs.symbol().?.name) != null) {
+    if (lhs.* == .as_trait) return try unify_inner(lhs.lhs(), rhs, subst, visited_map, options);
+    if (rhs.* == .as_trait) return try unify_inner(lhs, rhs.lhs(), subst, visited_map, options);
+
+    if (lhs.* == .identifier and lhs.symbol() != null and subst.get(lhs.symbol().?.name) != null) {
         if (lhs.symbol().?.decl.?.* != .type_param_decl or !lhs.symbol().?.decl.?.type_param_decl.rigid) {
             const sub = subst.get(lhs.symbol().?.name).?;
             return try unify_inner(sub, rhs, subst, visited_map, options);
         }
     }
-    if (rhs.* == .identifier and subst.get(rhs.symbol().?.name) != null) {
+    if (rhs.* == .identifier and rhs.symbol() != null and subst.get(rhs.symbol().?.name) != null) {
         const sub = subst.get(rhs.symbol().?.name).?;
         if (rhs.symbol().?.decl.?.* != .type_param_decl or !rhs.symbol().?.decl.?.type_param_decl.rigid) {
             return try unify_inner(lhs, sub, subst, visited_map, options);
@@ -51,7 +56,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
 
     if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
         return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
-    } else if (rhs.* == .identifier and rhs.symbol().?.init_typedef() != null) {
+    } else if (rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.init_typedef() != null) {
         return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
@@ -110,6 +115,18 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
 
         .struct_type => {
             if (rhs.* != .struct_type) {
+                return error.TypesMismatch;
+            }
+            if (lhs.children().items.len != rhs.children().items.len) {
+                return error.TypesMismatch;
+            }
+
+            for (lhs.children().items, rhs.children().items) |l_arg, r_arg| {
+                try unify_inner(l_arg, r_arg, subst, visited_map, options);
+            }
+        },
+        .tuple_type => {
+            if (rhs.* != .tuple_type) {
                 return error.TypesMismatch;
             }
             if (lhs.children().items.len != rhs.children().items.len) {
@@ -265,7 +282,7 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     for (subst.keys()) |key| {
         const ty = subst.get(key).?;
         const bad = ty.is_generic();
-        std.debug.print("    {s}: {?f} ({})\n", .{ key.name, subst.get(key), bad });
+        std.debug.print("    {s}: {?f} ({})\n", .{ key, subst.get(key), bad });
     }
     std.debug.print("}}\n", .{});
 }

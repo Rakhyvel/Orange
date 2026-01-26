@@ -423,8 +423,8 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
 
     // jump to symbol addr
     self.instruction_pointer = Instruction_Pointer{
-        .module_uid = function_symbol.scope.module.?.uid,
-        .inst_idx = function_symbol.cfg.?.offset_table.get(function_symbol.scope.module.?.uid).?,
+        .module_uid = (try self.curr_module()).uid,
+        .inst_idx = function_symbol.cfg.?.offset_table.get((try self.curr_module()).uid).?,
     };
 }
 
