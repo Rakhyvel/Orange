@@ -6,7 +6,6 @@ extern ("int") type C_Int
 
 fn main() -> Int {
     let mut xs: [5]C_Int
-    xs[3] = 2
-    xs[2] = 0xFFFFFFFFFFFFFFF
-    xs[3] + 340
+    _ = xs
+    45
 }

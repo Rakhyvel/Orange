@@ -369,15 +369,38 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const for_type = ast.lhs().type_access._lhs_type.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
-                for (ast.lhs().type_access._lhs_type.as_trait.constraints.items) |constraint| { // TODO: Select based on expected type if >1? Or just throw an ambiguous error
-                    const scope = constraint.scope().?;
-                    const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, self.ctx);
-                    std.debug.assert(res.count > 0); // TODO: Throw error
-                    const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data) orelse continue;
-                    var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                    method_identifier.set_symbol(method.symbol());
-                    ast.set_lhs(method_identifier);
+                var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
+                defer candidate_method_decls.deinit();
+
+                const method_name = ast.lhs().rhs().token().data;
+
+                try Scope.as_trait_member_lookup(for_type, ast.lhs().type_access._lhs_type.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
+
+                if (candidate_method_decls.keys().len == 0) {
+                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait`?
+                        .type_not_impl_method = .{
+                            .span = ast.token().span,
+                            .method_name = method_name,
+                            ._type = for_type,
+                            .candidates = null,
+                        },
+                    });
+                    return error.CompileError;
                 }
+                const method = candidate_method_decls.keys()[0];
+                var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
+                method_identifier.set_symbol(method.symbol());
+                ast.set_lhs(method_identifier);
+
+                // for (ast.lhs().type_access._lhs_type.as_trait.constraints.items) |constraint| { // TODO: Select based on expected type if >1? Or just throw an ambiguous error
+                //     const scope = constraint.scope().?;
+                //     const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, self.ctx);
+                //     std.debug.assert(res.count > 0); // TODO: Throw error
+                //     const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data) orelse continue;
+                //     var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
+                //     method_identifier.set_symbol(method.symbol());
+                //     ast.set_lhs(method_identifier);
+                // }
             }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
@@ -523,7 +546,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 if (lhs_type.* == .as_trait) {
-                    try ast.scope().?.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
+                    try Scope.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
                 } else {
                     try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
                 }

@@ -5,6 +5,7 @@ const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const defaults_ = @import("defaults.zig");
 const errs_ = @import("../util/errors.zig");
+const poison_ = @import("../ast/poison.zig");
 const Span = @import("../util/span.zig");
 const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
@@ -50,7 +51,7 @@ pub fn assert_pattern_matches(
 
             const expanded_base: *Type_AST = pattern.enum_value.base.?.expand_identifier();
             if (expanded_base.* != .enum_type) {
-                return typing_.throw_wrong_from("enum", "enum value", expanded_base, pattern.token().span, &self.ctx.errors);
+                return typing_.throw_wrong_from("enum", "enum pattern", expanded_base, expr_type.token().span, &self.ctx.errors);
             }
 
             const pos = expanded_base.get_pos(pattern.token().data);
@@ -71,8 +72,11 @@ pub fn assert_pattern_matches(
 
         .tuple_value => {
             const expanded_expr_type = expr_type.expand_identifier();
-            if (expanded_expr_type.* != .tuple_type or expanded_expr_type.children().items.len != pattern.children().items.len) {
-                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch return error.CompileError;
+            if (expanded_expr_type.* != .tuple_type) {
+                return typing_.throw_wrong_from("tuple", "tuple pattern", expanded_expr_type, expr_type.token().span, &self.ctx.errors);
+            }
+            if (expanded_expr_type.children().items.len != pattern.children().items.len) {
+                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch poison_.poisoned_type;
                 return typing_.throw_unexpected_type(pattern.token().span, expr_type, got, &self.ctx.errors);
             }
             for (pattern.children().items, expanded_expr_type.children().items) |term, expanded_term| {
@@ -82,8 +86,11 @@ pub fn assert_pattern_matches(
 
         .array_value => {
             const expanded_expr_type = expr_type.expand_identifier();
-            if (expanded_expr_type.* != .array_of or expanded_expr_type.array_of.len.int.data != pattern.children().items.len) {
-                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch return error.CompileError;
+            if (expanded_expr_type.* != .array_of) {
+                return typing_.throw_wrong_from("array", "array pattern", expanded_expr_type, expr_type.token().span, &self.ctx.errors);
+            }
+            if (expanded_expr_type.array_of.len.int.data != pattern.children().items.len) {
+                const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch poison_.poisoned_type;
                 return typing_.throw_unexpected_type(pattern.token().span, expr_type, got, &self.ctx.errors);
             }
             const elem_type = expanded_expr_type.child();

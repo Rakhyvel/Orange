@@ -260,7 +260,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     }
 }
 
-pub fn as_trait_member_lookup(self: *Self, for_type: *Type_AST, traits: []*Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), ctx: *Compiler_Context) !void {
+pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), ctx: *Compiler_Context) !void {
     try ctx.validate_type.validate_type(for_type);
     for (traits) |constraint| {
         const scope = constraint.scope().?;
@@ -271,7 +271,7 @@ pub fn as_trait_member_lookup(self: *Self, for_type: *Type_AST, traits: []*Type_
             }
         }
         const trait_decl = (try Decorate.symbol(constraint, ctx)).decl.?;
-        try self.as_trait_member_lookup(for_type, trait_decl.trait.super_traits.items, name, matches, ctx);
+        try as_trait_member_lookup(for_type, trait_decl.trait.super_traits.items, name, matches, ctx);
     }
 }
 
@@ -319,9 +319,6 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        if (for_type.* == .type_of) {
-            std.debug.print("hey I'm typeof here!\n", .{});
-        }
         subst.put("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());

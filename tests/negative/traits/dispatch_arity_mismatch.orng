@@ -1,7 +1,7 @@
 // dispatch_arity_mismatch.orng:20:8: error: the type `Int` does not contain the member `lmao`
 //     x.>lmao(4, 5)
 //       ^
-// dispatch_arity_mismatch.orng:13:7: note: candidate not viable: arity mismatch
+// dispatch_arity_mismatch.orng:13:7: note: candidate not viable: candidate expects 2 parameters, method has 3 arguments
 //     fn lmao(&mut self, x: Int) -> () {
 //      ^
 // 

@@ -4,7 +4,7 @@
 // invoke_dyn_mutability.orng:27:8: error: the type `&dyn Lol` does not contain the member `lmao`
 //     x.>lmao()
 //       ^
-// invoke_dyn_mutability.orng:12:15: note: candidate not viable: receiver mismatch
+// invoke_dyn_mutability.orng:12:15: note: candidate not viable: receiver mutability mismatch
 //     virtual fn lmao(&mut self) -> ()
 //              ^
 // 
