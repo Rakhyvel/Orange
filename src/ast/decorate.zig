@@ -70,7 +70,7 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         .identifier => {
             if (ast.symbol() != null) {
-                return self;
+                return null;
             }
 
             const res = ast.scope().?.lookup(ast.token().data, .{ .allow_modules = false });
@@ -147,6 +147,9 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         else => {},
 
         .access => {
+            if (ast.symbol() != null) {
+                return;
+            }
             if (ast.lhs().refers_to_type() or ast.lhs().refers_to_trait()) {
                 const scope = ast.scope();
                 ast.* = ast_.AST.create_type_access(ast.token(), Type_AST.from_ast(ast.lhs(), self.ctx.allocator()), ast.rhs(), self.ctx.allocator()).*;
@@ -157,7 +160,12 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
         },
 
-        .type_access => ast.set_symbol(try self.resolve_type_access_ast(ast)),
+        .type_access => {
+            if (ast.symbol() != null) {
+                return;
+            }
+            ast.set_symbol(try self.resolve_type_access_ast(ast));
+        },
 
         .call => {
             if (ast.lhs().* == .enum_value) {
@@ -287,6 +295,9 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
     switch (ast.*) {
         .access => {
+            if (ast.symbol() != null) {
+                return;
+            }
             ast.set_symbol(try self.resolve_access_type(ast));
         },
 

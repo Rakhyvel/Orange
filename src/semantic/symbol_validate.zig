@@ -70,7 +70,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 return error.CompileError;
             },
         };
-        if (_init.* != .module) {
+        if (_init.* != .module and symbol.kind != .@"comptime") {
             try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
         }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {

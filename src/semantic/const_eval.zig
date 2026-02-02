@@ -58,7 +58,18 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
             var subst = unification_.Substitutions.init(self.ctx.allocator());
             defer subst.deinit();
             const expected_type = self.ctx.typecheck.typecheck_AST(ast, self.expected_type, &subst) catch return error.CompileError;
-            ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, ast.scope().?)).*;
+
+            if (ast.@"comptime"._symbol == null) {
+                ast.@"comptime"._symbol = (try Symbol_Tree.create_temp_comptime_symbol(
+                    ast.expr(),
+                    expected_type,
+                    ast.scope().?,
+                    self.ctx.allocator(),
+                ));
+            }
+            const symbol = ast.@"comptime"._symbol.?;
+            try self.ctx.validate_symbol.validate_symbol(symbol);
+            ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, symbol)).*;
             _ = self.ctx.typecheck.typecheck_AST(ast, expected_type, &subst) catch return error.CompileError;
         },
 
@@ -101,15 +112,8 @@ fn interpret_comptime_expr(
     self: *Self,
     ast: *ast_.AST,
     ret_type: *Type_AST,
-    scope: *Scope,
+    symbol: *Symbol,
 ) !*ast_.AST {
-    const symbol: *Symbol = (try Symbol_Tree.create_temp_comptime_symbol(
-        ast,
-        ret_type,
-        scope,
-        self.ctx.allocator(),
-    ));
-
     // Get the cfg from the symbol, and embed into the module
     const module = symbol.scope.module.?;
     const intered_strings = self.ctx.lookup_interned_string_set(module.uid).?;

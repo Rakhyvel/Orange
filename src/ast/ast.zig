@@ -105,6 +105,7 @@ pub const AST = union(enum) {
         _expr: *AST,
         name: ?*AST = null,
         result: ?*AST = null,
+        _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation. Used to create a comptime symbol
     },
 

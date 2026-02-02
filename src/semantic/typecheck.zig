@@ -138,6 +138,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
     // TODO: Ugh this function is too long
     depth += 1;
     // std.debug.print("[{}] {f}: {?f}\n", .{ depth, ast, expected });
+    // defer std.debug.print("^[{}] {f}: {?f}\n", .{ depth, ast, expected });
     switch (ast.*) {
         // Nop, always "valid"
         .poison => return poison_.poisoned_type,
@@ -846,6 +847,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     try defaults_.generate_default(ast.enum_value.domain.?.child(), ast.token().span, &self.ctx.errors, self.ctx.allocator());
             }
             _ = self.typecheck_AST(ast.enum_value.init.?, ast.enum_value.domain.?.child(), subst) catch return error.CompileError;
+            if (ast.enum_value.base.?.* == .annotation) {
+                return ast.enum_value.base.?.child();
+            }
             return ast.enum_value.base.?;
         },
         .@"if" => {
