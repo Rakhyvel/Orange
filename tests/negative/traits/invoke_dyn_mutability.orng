@@ -1,7 +1,7 @@
-// invoke_dyn_mutability.orng:27:6: error: receiver `&mut self` of method `lmao` incompatible with type `&dyn Lol`
+// invoke_dyn_mutability.orng:28:6: error: receiver `&mut self` of method `lmao` incompatible with type `&dyn Lol`
 //     x.>lmao()
 //     ^
-// invoke_dyn_mutability.orng:27:8: error: the type `&dyn Lol` does not contain the member `lmao`
+// invoke_dyn_mutability.orng:28:8: error: the type `&dyn Lol` does not contain the member `lmao`
 //     x.>lmao()
 //       ^
 // invoke_dyn_mutability.orng:12:15: note: candidate not viable: receiver mutability mismatch
@@ -21,6 +21,7 @@ impl Lol for Int {
 fn main() -> Int {
     let x = 5
     f(&x)
+    x
 }
 
 fn f(x: &dyn Lol) -> () {

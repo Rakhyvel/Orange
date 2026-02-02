@@ -134,7 +134,6 @@ pub fn compile_module(
     if (self.modules.get(absolute_path)) |module| {
         return module;
     }
-    std.debug.print("begin {s}!\n", .{absolute_path});
 
     const module = Module.load_from_filename(absolute_path, entry_name, fuzz_tokens, self) catch |err| {
         switch (err) {
@@ -156,7 +155,6 @@ pub fn compile_module(
             },
         }
     };
-    std.debug.print("end {s}!\n", .{absolute_path});
 
     return self.lookup_module(module.absolute_path).?;
 }

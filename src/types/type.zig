@@ -749,7 +749,7 @@ pub const Type_AST = union(enum) {
     pub fn print_type(self: *const Type_AST, out: *std.Io.Writer) !void {
         if (self.common()._unexpanded_type) |unexpanded| {
             if (unexpanded != self) {
-                // return try unexpanded.print_type(out);
+                return try unexpanded.print_type(out);
             }
         }
 

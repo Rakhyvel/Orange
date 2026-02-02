@@ -63,7 +63,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
-            error.CompileError => unreachable,
+            error.CompileError => return error.CompileError,
             error.OutOfMemory => return error.OutOfMemory,
             error.UnexpectedTypeType => {
                 self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = _init.token().span } });

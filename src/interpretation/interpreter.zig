@@ -22,7 +22,7 @@ const Self = @This();
 const Error = error{CompileError};
 
 /// Interpreter execution timeout in milliseconds
-const timeout_ms = 3_00000000000;
+const timeout_ms = 3_000;
 /// Size of the stack. 32 KiB, or around 1024 stack frames.
 const stack_limit = 0x8000; // 32 KiB
 

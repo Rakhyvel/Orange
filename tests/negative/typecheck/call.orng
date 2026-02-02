@@ -1,6 +1,6 @@
-// call.orng:7:18: error: expected a value of type `Bool`, got a value of type `Int`
-// fn f()->Bool {'d'}
-//                 ^
+// call.orng:5:21: error: expected a value of type `Int`, got a value of type `Bool`
+// fn main() -> Int {f()}
+//                    ^
 // 
 fn main() -> Int {f()}
 
