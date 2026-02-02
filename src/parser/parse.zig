@@ -454,7 +454,7 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             exp = Type_AST.create_as_trait(
                 token,
                 exp,
-                try self.type_expr(),
+                try self.constraint_list(),
                 self.allocator,
             );
         } else if (self.peek_kind(.left_square)) {
@@ -704,7 +704,33 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
-        exp = ast_.AST.create_equal(token, exp, try self.range_expr(), self.allocator);
+        // (@typeof(exp) as core::Eq)::eq(exp, range_expr())
+        // call (
+        //   type_acces(
+        //     trait_as(
+        //       typeof(exp),
+        //       core::PartialEq
+        //     ),
+        //     field("eq")
+        //   ),
+        //   [exp, range_expr()]
+        // )
+
+        const exp_type = Type_AST.create_type_of(token, exp, self.allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
+        const eq_trait_field = Type_AST.create_field(Token.init_simple("Eq"), self.allocator);
+        const eq_trait = Type_AST.create_type_access(token, core_ident, eq_trait_field, self.allocator);
+        var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+        try constraints.append(eq_trait);
+        const trait_as = Type_AST.create_as_trait(token, exp_type, constraints, self.allocator);
+        const eq_method_field = ast_.AST.create_field(Token.init_simple("eq"), self.allocator);
+        const eq_method = ast_.AST.create_type_access(token, trait_as, eq_method_field, self.allocator);
+        const rhs = try self.range_expr();
+
+        var args = std.array_list.Managed(*ast_.AST).init(self.allocator);
+        try args.append(exp);
+        try args.append(rhs);
+        exp = ast_.AST.create_call(token, eq_method, args, self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
         exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {
@@ -1491,7 +1517,7 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     _ = try self.expect(.type);
     const identifier = try self.expect(.identifier);
 
-    const constraints = try self.contraint_list();
+    const constraints = try self.colon_started_constraint_list();
 
     return ast_.AST.create_type_param_decl(identifier, false, constraints, self.allocator);
 }
@@ -1501,7 +1527,7 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     if (self.accept(.left_square) != null) {
         while (!self.peek_kind(.right_square)) {
             const param_token = try self.expect(.identifier);
-            const constraints = try self.contraint_list();
+            const constraints = try self.colon_started_constraint_list();
             const param_ident = ast_.AST.create_type_param_decl(param_token, false, constraints, self.allocator);
             params.append(param_ident) catch unreachable;
             if (self.accept(.comma) == null) {
@@ -1513,13 +1539,19 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     return params;
 }
 
-fn contraint_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
-    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+fn colon_started_constraint_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
     if (self.accept(.single_colon)) |_| {
+        return self.constraint_list();
+    } else {
+        return std.array_list.Managed(*Type_AST).init(self.allocator);
+    }
+}
+
+fn constraint_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+    var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
+    try constraints.append(try self.type_expr());
+    while (self.accept(.plus)) |_| {
         try constraints.append(try self.type_expr());
-        while (self.accept(.plus)) |_| {
-            try constraints.append(try self.type_expr());
-        }
     }
     return constraints;
 }

@@ -13,6 +13,7 @@ const Module_Hash = @import("module_hash.zig");
 const Token = @import("../lexer/token.zig");
 const Type_Set = @import("../types/type_set.zig");
 const UID_Gen = @import("../util/uid_gen.zig");
+const walk_ = @import("../ast/walker.zig");
 
 // Front-end pipeline steps
 const Read_File = @import("../lexer/read_file.zig");
@@ -26,6 +27,7 @@ const Apply_Ast_Walk = @import("../ast/walker.zig").Apply_Ast_Walk;
 const Apply_Flat_Ast_Walk = @import("../ast/walker.zig").Apply_Flat_Ast_Walk;
 
 // AST walks
+const Const_Eval = @import("../semantic/const_eval.zig");
 const Expand = @import("../ast/expand.zig");
 const Import = @import("../ast/import.zig");
 const Cinclude = @import("../ast/cinclude.zig");
@@ -238,12 +240,18 @@ pub const Module = struct {
         }
         try module.collect_impls_cfgs(compiler);
         try module.collect_tests(compiler);
+        try module.const_eval_all_cfgs(compiler);
         module.collect_local_types();
     }
 
     fn add_all_cfgs(self: *Module, entry_name: ?[]const u8, compiler: *Compiler_Context) Module_Errors!void {
         var found_entry = false;
         const need_entry = entry_name != null;
+        for (compiler.module_scope(self.absolute_path).?.symbols.keys()) |key| {
+            const symbol: *Symbol = compiler.module_scope(self.absolute_path).?.symbols.get(key).?;
+            try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
+        }
+
         for (compiler.module_scope(self.absolute_path).?.symbols.keys()) |key| {
             const symbol: *Symbol = compiler.module_scope(self.absolute_path).?.symbols.get(key).?;
             if (symbol.kind != .@"fn") {
@@ -256,6 +264,7 @@ pub const Module = struct {
             // Instruction translation
             const interned_strings = compiler.lookup_interned_string_set(self.uid).?;
             const cfg = try compiler.cfg_store.get_cfg(symbol, interned_strings);
+
             self.collect_cfgs(cfg);
 
             if (need_entry and std.mem.eql(u8, key, entry_name.?)) {
@@ -278,6 +287,7 @@ pub const Module = struct {
     }
 
     /// This allows us to pick up anon and inner CFGs that wouldn't be exposed to the module's scope
+    /// CFGs are placed into the `self.cfgs` list
     fn collect_cfgs(self: *Module, cfg: *CFG) void {
         var cfg_dfs_iter = Cfg_Iterator.init(cfg, self.allocator);
         while (cfg_dfs_iter.next()) |next_cfg| {
@@ -285,6 +295,13 @@ pub const Module = struct {
             if (next_cfg.symbol.decl.?.* == .method_decl and next_cfg.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
             next_cfg.collect_generated_symbvers();
             _ = next_cfg.emplace_cfg(self.uid, &self.cfgs, &self.instructions);
+        }
+    }
+
+    fn const_eval_all_cfgs(self: *Module, compiler: *Compiler_Context) !void {
+        for (self.cfgs.items) |cfg| {
+            const symbol: *Symbol = cfg.symbol;
+            try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
         }
     }
 
@@ -324,6 +341,7 @@ pub const Module = struct {
         for (impl.impl.method_defs.items) |def| {
             const symbol = def.symbol().?;
             const interned_strings = compiler.lookup_interned_string_set(self.uid).?;
+            try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
             const cfg = try compiler.cfg_store.get_cfg(symbol, interned_strings);
             cfg.assert_needed_at_runtime();
             self.collect_cfgs(cfg);

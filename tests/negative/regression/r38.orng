@@ -4,4 +4,5 @@
 // 
 fn main() -> Int { 
     const a: @typeof( fn () -> () { } )
+    35
 } 

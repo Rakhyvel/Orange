@@ -28,8 +28,9 @@ pub fn get_cfg(
     interned_strings: *Interned_String_Set,
 ) Lower_Context.Lower_Errors!*CFG {
     std.debug.assert(symbol.kind == .@"fn" or symbol.kind == .@"test" or symbol.kind == .@"comptime");
-    std.debug.assert(symbol.validation_state == .valid);
-    if (symbol.init_validation_state == .validating) {
+    if (symbol.init_validation_state == .unvalidated) {
+        try self.ctx.validate_symbol.validate_symbol(symbol);
+    } else if (symbol.init_validation_state == .validating) {
         self.ctx.errors.add_error(errs_.Error{ .recursive_definition = .{
             .span = symbol.span(),
             .symbol_name = symbol.name,

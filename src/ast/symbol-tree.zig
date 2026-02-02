@@ -324,6 +324,8 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         .method_decl => {
             if (ast.symbol() != null) return null;
 
+            // Tree_Writer.print(ast);
+
             var new_self = self.new_scope(ast);
 
             const symbol = try create_method_symbol(ast, self.errors, self.allocator);
@@ -639,7 +641,9 @@ fn extract_domain_with_receiver(impl_type: *Type_AST, receiver: *ast_.AST, param
 fn create_receiver_addr(impl_type: *Type_AST, receiver: *ast_.AST, allocator: std.mem.Allocator) *Type_AST {
     if (impl_type.* == .anyptr_type) return impl_type; // If the type is already an anyptr, then dont make it an address too
     return switch (receiver.receiver.kind) {
-        .value, .addr_of => Type_AST.create_addr_of_type(receiver.token(), impl_type, false, false, allocator),
+        .value => impl_type,
+        .value_virtual => Type_AST.create_addr_of_type(receiver.token(), impl_type, false, false, allocator),
+        .addr_of => Type_AST.create_addr_of_type(receiver.token(), impl_type, false, false, allocator),
         .mut_addr_of => Type_AST.create_addr_of_type(receiver.token(), impl_type, true, false, allocator),
     };
 }
@@ -762,17 +766,27 @@ fn create_method_symbol(
 ) Error!*Symbol {
     const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl| impl.impl._type else null;
 
+    if (ast.method_decl.receiver != null) {
+        if (ast.method_decl.receiver.?.receiver.kind == .value and ast.method_decl.is_virtual) {
+            ast.method_decl.receiver.?.receiver.kind = .value_virtual;
+        }
+    }
+
     // Create the function type
     ast.method_decl._decl_type = try create_method_type(ast, allocator);
 
     if (ast.method_decl.receiver != null and receiver_base_type != null) {
         // addr-of receiver, prepend receiver to parameters as normal
         const recv_type = create_receiver_addr(receiver_base_type.?, ast.method_decl.receiver.?, allocator);
-        recv_type.addr_of.anytptr = true;
+        var self_type = recv_type;
+        if (recv_type.* == .addr_of) {
+            recv_type.addr_of.anytptr = true;
+            self_type = self_type.child();
+        }
         // value receiver, prepend a void* self_ptr parameter
         const receiver_symbol = Symbol.init(
             ast.scope().?,
-            if (ast.method_decl.receiver.?.receiver.kind == .value) "self__ptr" else "self",
+            if (ast.method_decl.receiver.?.receiver.kind == .value_virtual) "self__ptr" else "self",
             ast.method_decl.receiver,
             .let,
             .local,
@@ -782,8 +796,7 @@ fn create_method_symbol(
         try ast.scope().?.put_symbol(receiver_symbol, errors);
         try ast.param_symbols().?.append(receiver_symbol);
 
-        if (ast.method_decl.receiver.?.receiver.kind == .value and !ast.method_decl.receiver.?.receiver.value_derefd) {
-            const self_type = recv_type.child();
+        if (ast.method_decl.receiver.?.receiver.kind == .value_virtual and !ast.method_decl.receiver.?.receiver.value_derefd) {
             const self_init = ast_.AST.create_dereference(ast.token(), ast_.AST.create_identifier(Token.init_simple("self__ptr"), allocator), allocator);
             const receiver_span = ast.method_decl.receiver.?.token().span;
             const self_decl = ast_.AST.create_binding(

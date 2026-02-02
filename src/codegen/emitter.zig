@@ -116,7 +116,7 @@ pub fn output_function_prototype(
     const param_symbols = decl.param_symbols();
     const context_param_symbols = decl.context_param_symbols();
 
-    const has_params = param_symbols != null and param_symbols.?.items.len > 0;
+    var has_params = false;
     const has_contexts = context_param_symbols != null and context_param_symbols.?.items.len > 0;
 
     var num_non_unit_params: i64 = 0;
@@ -124,7 +124,7 @@ pub fn output_function_prototype(
     if (param_symbols != null) {
         for (param_symbols.?.items, 0..) |term, i| {
             if (is_storable(term.expanded_type())) {
-                if (decl.* == .method_decl and decl.method_decl.receiver != null and i == 0) {
+                if (decl.* == .method_decl and decl.method_decl.receiver != null and decl.method_decl.is_virtual and i == 0) {
                     // Print out method receiver
                     try self.writer.print("void *", .{});
                     try self.output_symbol(term);
@@ -135,6 +135,7 @@ pub fn output_function_prototype(
                 if (i + 1 < param_symbols.?.items.len and is_storable(param_symbols.?.items[i + 1].expanded_type())) {
                     try self.writer.print(", ", .{});
                 }
+                has_params = true;
                 num_non_unit_params += 1;
             }
         }

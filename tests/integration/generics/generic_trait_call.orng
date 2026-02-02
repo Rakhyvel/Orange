@@ -1,0 +1,22 @@
+// 450
+trait Get_Value {
+    fn get_value(self, other: Self) -> Int
+}
+
+struct Impler[T] {
+    x: Int
+    y: T
+}
+
+impl[U] Get_Value for Impler[U] {
+    fn get_value(self, other: Self) -> Int {
+        self.x + other.x
+    }
+}
+
+fn main() -> Int {
+    let x = Impler[Bool](400, false)
+    let y = Impler[Bool](50, true)
+
+    (Impler[Bool] as Get_Value)::get_value(x, y)
+}

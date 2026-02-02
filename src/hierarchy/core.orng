@@ -91,9 +91,12 @@ impl for Package {
 
     fn add_include_directory(&mut self, include_directory: String) {
         while let mut i = 0; i < 8; i += 1 {
-            if self.include_dirs[i] == .none {
-                self.include_dirs[i] = .some(include_directory)
-                return
+            match self.include_dirs[i] {
+                .none => {
+                    self.include_dirs[i] = .some(include_directory)
+                    return
+                }
+                _ => {}
             }
         }
         unreachable // no more space!
@@ -102,9 +105,12 @@ impl for Package {
     fn add_library(&mut self, library: String) {
         // TODO: assert not static library
         while let mut i = 0; i < 8; i += 1 {
-            if self.libs[i] == .none {
-                self.libs[i] = .some(library)
-                return
+            match self.libs[i] { 
+                .none => {
+                    self.libs[i] = .some(library)
+                    return
+                }
+                _ => {}
             }
         }
         unreachable // no more space!
@@ -113,9 +119,12 @@ impl for Package {
     fn add_library_directory(&mut self, library_directory: String) {
         // TODO: assert not static library
         while let mut i = 0; i < 8; i += 1 {
-            if self.lib_dirs[i] == .none {
-                self.lib_dirs[i] = .some(library_directory)
-                return
+            match self.lib_dirs[i] {
+                .none => {
+                    self.lib_dirs[i] = .some(library_directory)
+                    return
+                }
+                _ => {}
             }
         }
         unreachable // no more space!
@@ -156,9 +165,33 @@ impl Format for String {
     }
 }
 
+impl[T] for ?T {
+    fn is_none(self) -> Bool {
+        match self {
+            .none => true
+            _     => false
+        }
+    }
+}
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }
+
+impl Eq for Int { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Int8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word64 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Word8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Float { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl Eq for Float32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) } }
+impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) and self[2].>eq(other[2]) } }
 
 impl Eq for String {
     fn eq(self, other: Self) -> Bool {
@@ -294,12 +327,13 @@ impl Iterator for Range_Iter {
     type Item = Int
 
     fn next(&mut self) -> ?Int {
-        if self.counter == self.range.end {
-            .none
-        } else {
-            let retval = self.counter
-            self.counter += 1
-            .some(retval)
+        match self.counter {
+            {self.range.end} => .none
+            _ => {
+                let retval = self.counter
+                self.counter += 1
+                .some(retval)
+            }
         }
     }
 }

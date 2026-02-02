@@ -1,9 +1,0 @@
-// 210
-fn main() -> Int {
-    let x: ?Int = .some(210)
-    if x == .none {
-        -1
-    } else {
-        x.some
-    }
-}

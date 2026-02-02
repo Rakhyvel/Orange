@@ -5,6 +5,7 @@ const errs_ = @import("../util/errors.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
+const Decorate = @import("../ast/decorate.zig");
 const unification_ = @import("../types/unification.zig");
 
 ctx: *Compiler_Context,

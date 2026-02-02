@@ -442,7 +442,7 @@ test "into_iter" with core::Allocating {
     try testing::expect(item.some[1]^ == 3)
 
     item = iter.>next()
-    try testing::expect(item == .none)
+    try testing::expect(item.>is_none())
 
     .ok
 }
@@ -463,7 +463,7 @@ test "keys" with core::Allocating {
     try testing::expect(mem::eql(item.some^, "c"))
 
     item = iter.>next()
-    try testing::expect(item == .none)
+    try testing::expect(item.>is_none())
 
     .ok
 }
@@ -484,7 +484,7 @@ test "values" with core::Allocating {
     try testing::expect(item.some^ == 3)
 
     item = iter.>next()
-    try testing::expect(item == .none)
+    try testing::expect(item.>is_none())
 
     .ok
 }

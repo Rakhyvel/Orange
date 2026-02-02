@@ -3,9 +3,11 @@
 
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
+const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Span = @import("../util/span.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const unification_ = @import("../types/unification.zig");
 
 const Validate_Error_Enum = error{CompileError};
 
@@ -47,6 +49,10 @@ expected: *const std.array_list.Managed(*Type_AST),
 errors: *errs_.Errors,
 variadic: bool = false,
 allocator: std.mem.Allocator,
+error_details: ?struct {
+    param_idx: usize,
+    arg_type: ?*const Type_AST = null,
+} = null,
 
 pub fn init(thing: Validate_Args_Thing, args: *std.array_list.Managed(*ast_.AST), span: Span, expected: *const std.array_list.Managed(*Type_AST), errors: *errs_.Errors, allocator: std.mem.Allocator) Self {
     return Self{
@@ -64,7 +70,7 @@ pub fn set_variadic(self: *Self, variadic: bool) void {
 }
 
 // This has to be ok to do twice for the same args, because stamps have to do it internally.
-pub fn default_args(self: *Self) Validate_Error_Enum!std.array_list.Managed(*ast_.AST) {
+pub fn fill_default_args(self: *Self) Validate_Error_Enum!std.array_list.Managed(*ast_.AST) {
     if (try self.args_are_named() and self.expected.items.len > 0) {
         return self.named_args() catch |err| switch (err) {
             error.NoDefault => error.CompileError,
@@ -238,7 +244,8 @@ pub fn implicit_ref(self: *Self) void {
     if (param_type.* == .annotation and
         param_type.annotation.pattern.* == .receiver and
         param_type.child().* == .addr_of and
-        param_type.annotation.pattern.receiver.kind == .value)
+        !param_type.child().addr_of.multiptr and
+        param_type.annotation.pattern.receiver.kind == .value_virtual)
     {
         const old_arg = self.args.items[0];
         self.args.items[0] = ast_.AST.create_addr_of(old_arg.token(), old_arg, false, false, self.allocator);
@@ -246,7 +253,7 @@ pub fn implicit_ref(self: *Self) void {
 }
 
 /// Validates that the number of arguments matches the number of parameters
-pub fn validate_args_arity(self: *Self) Validate_Error_Enum!void {
+pub fn validate_arity(self: *Self) Validate_Error_Enum!void {
     const expected_length = self.expected.items.len;
     if (self.variadic) {
         if (self.args.items.len < expected_length) {
@@ -287,6 +294,36 @@ pub fn validate_requested_contexts(contexts: []const *Type_AST, errors: *errs_.E
                 .msg = "can't request this context",
             } });
             return error.CompileError;
+        }
+    }
+}
+
+pub fn validate_type(
+    self: *Self,
+    subst: *unification_.Substitutions,
+    ctx: *Compiler_Context,
+) Validate_Error_Enum!void {
+    const expected_length = self.expected.items.len;
+
+    for (0..expected_length) |i| {
+        const param_type = self.expected.items[i];
+        const term_type = ctx.typecheck.typecheck_AST(self.args.items[i], param_type, subst) catch {
+            self.error_details = .{ .param_idx = i };
+            return error.CompileError;
+        };
+        if (param_type.* != .unit_type) {
+            unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
+                self.error_details = .{ .param_idx = i, .arg_type = term_type };
+                return error.CompileError;
+            };
+        }
+    }
+    if (self.variadic) {
+        for (expected_length..self.args.items.len) |i| {
+            _ = ctx.typecheck.typecheck_AST(self.args.items[i], null, subst) catch {
+                self.error_details = .{ .param_idx = i };
+                return error.CompileError;
+            };
         }
     }
 }

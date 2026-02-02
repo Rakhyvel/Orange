@@ -63,7 +63,7 @@ pub const Type_AST = union(enum) {
     as_trait: struct {
         common: Type_AST_Common,
         _lhs: *Type_AST,
-        _rhs: *Type_AST,
+        constraints: std.array_list.Managed(*Type_AST),
     },
     generic_apply: struct {
         common: Type_AST_Common,
@@ -268,12 +268,12 @@ pub const Type_AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_as_trait(_token: Token, _lhs: *Type_AST, _rhs: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_as_trait(_token: Token, _lhs: *Type_AST, constraints: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .as_trait = .{
             .common = _common,
             ._lhs = _lhs,
-            ._rhs = _rhs,
+            .constraints = constraints,
         } }, allocator);
     }
 
@@ -550,6 +550,13 @@ pub const Type_AST = union(enum) {
                 break :blk id;
             },
             .unit_value => Type_AST.create_unit_type(ast.token(), allocator),
+            .as => blk: {
+                const as_trait_lhs = from_ast(ast.expr(), allocator);
+                var constraints = std.array_list.Managed(*Type_AST).init(allocator);
+                constraints.append(ast.as._type) catch unreachable;
+                const as_trait = Type_AST.create_as_trait(ast.token(), as_trait_lhs, constraints, allocator);
+                break :blk as_trait;
+            },
             else => std.debug.panic("unable to construct type from {t}", .{ast.*}),
         };
     }
@@ -705,10 +712,18 @@ pub const Type_AST = union(enum) {
                 }
             } else if (res.* == .annotation) {
                 res = res.child();
+            } else if (res.* == .as_trait) {
+                res = res.lhs();
             } else {
                 return res;
             }
         }
+    }
+
+    pub fn strip_addrs(self: *Type_AST) *Type_AST {
+        var retval = self;
+        while (retval.* == .addr_of) : (retval = retval.child()) {}
+        return retval;
     }
 
     pub fn unexpand_type(self: *Type_AST) *Type_AST {
@@ -847,7 +862,14 @@ pub const Type_AST = union(enum) {
             .access => {
                 try out.print("{f}::{s}", .{ self.lhs(), self.rhs().token().data });
             },
-            .as_trait => try out.print("({f} as {f})", .{ self.lhs(), self.rhs() }),
+            .as_trait => {
+                try out.print("({f} as {f}", .{ self.lhs(), self.as_trait.constraints.items[0] });
+                var i: usize = 1;
+                while (i < self.as_trait.constraints.items.len) : (i += 1) {
+                    try out.print(" + {f}", .{self.as_trait.constraints.items[i]});
+                }
+                try out.print(")", .{});
+            },
             .generic_apply => {
                 try self.generic_apply._lhs.print_type(out);
                 try out.print("[", .{});
@@ -1169,7 +1191,18 @@ pub const Type_AST = union(enum) {
         }
 
         return switch (from_expanded.*) {
-            .addr_of => from_expanded.addr_of.multiptr and to_expanded.addr_of.multiptr and (!to_expanded.addr_of.mut or from_expanded.addr_of.mut),
+            .addr_of => {
+                if (to_expanded.addr_of.mut and !from_expanded.addr_of.mut) {
+                    // Casting away mutability directly is never allowed
+                    // Cast to Word64 first like a normal person
+                    return false;
+                }
+                if (to_expanded.addr_of.multiptr) {
+                    // Casting to a multi-ptr is always allowed
+                    return true;
+                }
+                return false;
+            },
             .dyn_type => is_sub_trait(from.child(), to.child()) and (!to_expanded.dyn_type.mut or from_expanded.dyn_type.mut),
             else => false,
         };
@@ -1274,6 +1307,8 @@ pub const Type_AST = union(enum) {
         } else if (other.* == .access) {
             return c_types_match(self, other.symbol().?.init_typedef().?);
         }
+        if (self.* == .as_trait) return c_types_match(self.lhs(), other);
+        if (other.* == .as_trait) return c_types_match(self, other.lhs());
         if (other.* == .anyptr_type and self.* == .addr_of) {
             return true;
         }
@@ -1335,7 +1370,7 @@ pub const Type_AST = union(enum) {
             },
             .field => return self,
             .access => return create_type_access(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
-            .as_trait => return create_as_trait(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
+            .as_trait => return create_as_trait(self.token(), self.lhs().clone(substs, allocator), clone_types(self.as_trait.constraints, substs, allocator), allocator),
             .type_of => {
                 const _expr = self.expr().clone(substs, allocator);
                 return create_type_of(self.token(), _expr, allocator);

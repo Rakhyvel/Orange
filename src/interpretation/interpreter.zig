@@ -422,9 +422,10 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     self.stack_pointer += local_size_bytes;
 
     // jump to symbol addr
+    const module_uid = function_symbol.cfg.?.symbol.scope.module.?.uid;
     self.instruction_pointer = Instruction_Pointer{
-        .module_uid = function_symbol.scope.module.?.uid,
-        .inst_idx = function_symbol.cfg.?.offset_table.get(function_symbol.scope.module.?.uid).?,
+        .module_uid = module_uid,
+        .inst_idx = function_symbol.cfg.?.offset_table.get(module_uid).?,
     };
 }
 

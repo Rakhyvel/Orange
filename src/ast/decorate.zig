@@ -70,7 +70,7 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
 
         .identifier => {
             if (ast.symbol() != null) {
-                return self;
+                return null;
             }
 
             const res = ast.scope().?.lookup(ast.token().data, .{ .allow_modules = false });
@@ -147,7 +147,10 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         else => {},
 
         .access => {
-            if (ast.lhs().refers_to_type()) {
+            if (ast.symbol() != null) {
+                return;
+            }
+            if (ast.lhs().refers_to_type() or ast.lhs().refers_to_trait()) {
                 const scope = ast.scope();
                 ast.* = ast_.AST.create_type_access(ast.token(), Type_AST.from_ast(ast.lhs(), self.ctx.allocator()), ast.rhs(), self.ctx.allocator()).*;
                 ast.set_scope(scope);
@@ -157,7 +160,12 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
         },
 
-        .type_access => ast.set_symbol(try self.resolve_type_access_ast(ast)),
+        .type_access => {
+            if (ast.symbol() != null) {
+                return;
+            }
+            ast.set_symbol(try self.resolve_type_access_ast(ast));
+        },
 
         .call => {
             if (ast.lhs().* == .enum_value) {
@@ -287,6 +295,9 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
     switch (ast.*) {
         .access => {
+            if (ast.symbol() != null) {
+                return;
+            }
             ast.set_symbol(try self.resolve_access_type(ast));
         },
 
@@ -324,20 +335,21 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
     else
         lhs;
 
-    if (stripped_lhs.* == .type_of) {
-        try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
-    } else if (stripped_lhs.* == .generic_apply) {
+    try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
+    if (stripped_lhs.* == .generic_apply) {
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
     if (stripped_lhs.* == .as_trait) {
-        const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), stripped_lhs.rhs().symbol().?, self.ctx);
-        if (res.ast != null) {
-            const decl = Scope.search_impl(res.ast.?, rhs.data);
-            try walk_.walk_ast(decl, self);
-            return decl.?.symbol().?;
-        } else {
-            const decl = try scope.?.lookup_member_in_trait(stripped_lhs.rhs().symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
-            return decl.?.symbol().?;
+        for (stripped_lhs.as_trait.constraints.items) |constraint| {
+            const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
+            if (res.ast != null) {
+                const decl = Scope.search_impl(res.ast.?, rhs.data) orelse continue;
+                try walk_.walk_ast(decl, self);
+                return decl.symbol().?;
+            } else {
+                const decl = try scope.?.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
+                return decl.?.symbol().?;
+            }
         }
     }
     if (stripped_lhs.* != .access and stripped_lhs.* != .identifier and stripped_lhs.* != .generic_apply) {
@@ -443,6 +455,8 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
         return decl.symbol().?;
     } else if (decl.* == .binding) {
         return decl.binding.pattern.symbol().?;
+    } else if (decl.* == .pattern_symbol) {
+        return decl.symbol().?;
     } else {
         std.debug.panic("compiler error: unsupported access symbol resolution for decl-like AST: {s}", .{@tagName(decl.*)});
     }

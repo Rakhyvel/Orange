@@ -31,6 +31,8 @@ uid_gen: *UID_Gen,
 function_depth: usize = 0,
 inner_function: ?*Symbol = null,
 
+var twenties: usize = 0;
+
 pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Self {
     var retval = allocator.create(Self) catch unreachable;
     retval.parent = parent;
@@ -41,6 +43,12 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.enums = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
+    if (retval.uid == 20) {
+        twenties += 1;
+        if (twenties == 2) {
+            // std.debug.panic("created the 20 scope\n", .{});
+        }
+    }
     retval.uid_gen = uid_gen;
     if (parent) |_parent| {
         _parent.children.append(retval) catch unreachable;
@@ -155,7 +163,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
 fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
     if (false) {
         std.debug.print("searching {} for impls of {s} for {f}\n", .{ self.impls.items.len, trait.name, for_type.* });
-        Tree_Writer.print_type_tree(for_type);
+        Tree_Writer.print(for_type);
         self.pprint();
     }
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null, .subst = null };
@@ -172,8 +180,19 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     }
 
     // As-trait ascription, return positive count with null ast if traits match
-    if (for_type.* == .as_trait and for_type.rhs().symbol().? == trait) {
-        return self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
+    if (for_type.* == .as_trait) {
+        for (for_type.as_trait.constraints.items) |constraint| {
+            const trait_decl = (try Decorate.symbol(constraint, ctx)).decl.?;
+            if (constraint.symbol().? == trait) {
+                const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
+                if (res.count > 0) return res;
+            }
+            for (trait_decl.trait.super_traits.items) |super_trait| {
+                if (super_trait.symbol().? != trait) continue;
+                const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), super_trait.symbol().?, ctx);
+                if (res.count > 0) return res;
+            }
+        }
     }
 
     const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
@@ -184,7 +203,8 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
 
     // Go through the scope's list of implementations, check to see if the types and traits match
     for (self.impls.items) |impl| {
-        const traits_match = (try Decorate.symbol(impl.impl.trait.?, ctx)) == trait;
+        const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
+        const traits_match = impl_trait == trait;
         if (!traits_match) continue;
 
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
@@ -203,8 +223,10 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             if (sat_res != .satisfies) continue;
         }
 
+        const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, ctx);
+
         retval.count += 1;
-        retval.ast = retval.ast orelse impl;
+        retval.ast = retval.ast orelse instantiated_impl;
         retval.subst = retval.subst orelse subst;
     }
 
@@ -235,6 +257,22 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     } else {
         // Not found, parent scope is null
         return retval;
+    }
+}
+
+pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), ctx: *Compiler_Context) !void {
+    try ctx.validate_type.validate_type(for_type);
+    for (traits) |constraint| {
+        const scope = constraint.scope().?;
+        const constraint_symbol = try Decorate.symbol(constraint, ctx);
+        const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
+        if (res.count > 0) {
+            if (search_impl(res.ast.?, name)) |method| {
+                try matches.put(method, void{});
+            }
+        }
+        const trait_decl = constraint_symbol.decl.?;
+        try as_trait_member_lookup(for_type, trait_decl.trait.super_traits.items, name, matches, ctx);
     }
 }
 
@@ -284,7 +322,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         defer subst.deinit();
         subst.put("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
@@ -435,7 +473,7 @@ pub fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     }
     for (impl.impl.const_defs.items) |const_def| {
         if (std.mem.eql(u8, const_def.binding.pattern.symbol().?.name, name)) {
-            return const_def;
+            return const_def.binding.pattern;
         }
     }
     for (impl.impl.type_defs.items) |type_def| {

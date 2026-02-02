@@ -245,6 +245,10 @@ pub fn monomorphize(
         }
     }
 
+    const Symbol_Tree = @import("../ast/symbol-tree.zig");
+    const Decorate = @import("../ast/decorate.zig");
+    const walker_ = @import("../ast/walker.zig");
+
     if (self.monomorphs.get(key)) |retval| {
         // std.debug.print("eat slop ({*})\n", .{retval});
         return retval;
@@ -253,16 +257,16 @@ pub fn monomorphize(
         var subst = unification_.Substitutions.init(ctx.allocator());
         defer subst.deinit();
         for (self.decl.?.generic_params().items, key.items) |param, arg| {
-            try subst.put(param.symbol().?.name, arg);
+            var to_be_substd = arg;
+            if (param.* == .type_param_decl and param.type_param_decl.constraints.items.len > 0) {
+                to_be_substd = Type_AST.create_as_trait(to_be_substd.token(), to_be_substd, param.type_param_decl.constraints, ctx.allocator());
+            }
+            try subst.put(param.symbol().?.name, to_be_substd);
         }
 
         // Clone the decl with the substitution
         const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
-
-        const Symbol_Tree = @import("../ast/symbol-tree.zig");
-        const Decorate = @import("../ast/decorate.zig");
-        const walker_ = @import("../ast/walker.zig");
 
         decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
 

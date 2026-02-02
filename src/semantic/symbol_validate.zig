@@ -4,6 +4,7 @@ const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Const_Eval = @import("const_eval.zig");
+const Decorate = @import("../ast/decorate.zig");
 const typecheck_AST = @import("typecheck.zig").typecheck_AST;
 const errs_ = @import("../util/errors.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
@@ -35,7 +36,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     _ = symbol.assert_symbol_valid();
     const expected: ?*Type_AST = switch (symbol.kind) {
-        .@"fn", .@"test" => symbol.type().rhs(),
+        .@"fn", .@"test", .@"comptime" => symbol.type().rhs(),
         .type, .context => null,
         .import_inner => if (symbol.decl.?.* == .type_alias) null else symbol.type(),
         else => symbol.type(),
@@ -55,7 +56,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         }
     }
 
-    // std.debug.print("validating init for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
+    // std.debug.print("validating init for: {s} ({t})\n", .{ symbol.name, symbol.kind });
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
@@ -69,7 +70,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 return error.CompileError;
             },
         };
-        if (_init.* != .module) {
+        if (_init.* != .module and symbol.kind != .@"comptime") {
             try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
         }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {

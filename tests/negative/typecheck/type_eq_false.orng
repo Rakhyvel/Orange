@@ -1,3 +1,6 @@
+// type_eq_false.orng:6:11: error: unexpected type
+//     if Int == Bool {
+//          ^
 // 
 fn main() -> Int {
     if Int == Bool {

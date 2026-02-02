@@ -25,12 +25,14 @@ pub const AST_Validation_State = validation_state_.Validation_State;
 
 pub const Receiver_Kind = enum {
     value, // Receiver is taken by value
+    value_virtual, // Receiver is taken by value, but this is a virtual method so it's actually taken by an immutable address
     addr_of, // Receiver is taken by immutable address
     mut_addr_of, // Receiver is taken by mutable address
 
     pub fn to_string(self: @This()) []const u8 {
         return switch (self) {
             .value => "self",
+            .value_virtual => "self__ptr",
             .addr_of => "&self",
             .mut_addr_of => "&mut self",
         };
@@ -103,6 +105,7 @@ pub const AST = union(enum) {
         _expr: *AST,
         name: ?*AST = null,
         result: ?*AST = null,
+        _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation. Used to create a comptime symbol
     },
 
@@ -1672,12 +1675,16 @@ pub const AST = union(enum) {
                 Type_AST.clone_types(self.generic_apply._children, substs, allocator),
                 allocator,
             ),
-            .select => return create_select(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
+            .select => {
+                var retval = create_select(
+                    self.token(),
+                    self.lhs().clone(substs, allocator),
+                    self.rhs().clone(substs, allocator),
+                    allocator,
+                );
+                retval.select._pos = self.select._pos;
+                return retval;
+            },
             .access => return create_access(
                 self.token(),
                 self.lhs().clone(substs, allocator),
@@ -2409,6 +2416,17 @@ pub const AST = union(enum) {
         };
     }
 
+    pub fn refers_to_trait(self: *AST) bool {
+        return switch (self.*) {
+            else => false,
+
+            .identifier, .access, .type_access => if (self.symbol()) |sym| sym.is_trait() else false,
+
+            .as => self.expr().refers_to_type(),
+            .index, .generic_apply => self.lhs().refers_to_trait(),
+        };
+    }
+
     /// Used to poison an AST node. Marks as valid, so any attempt to validate is memoized to return poison.
     pub fn enpoison(self: *AST) void {
         self.common().validation_state = .invalid;
@@ -2499,9 +2517,9 @@ pub const AST = union(enum) {
             },
             .format_args => {
                 try out.print("format_args(", .{});
-                for (self.print._children.items, 0..) |item, i| {
+                for (self.format_args._children.items, 0..) |item, i| {
                     try out.print("{f}", .{item});
-                    if (i < self.print._children.items.len - 1) {
+                    if (i < self.format_args._children.items.len - 1) {
                         try out.print(",", .{});
                     }
                 }
