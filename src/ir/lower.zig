@@ -16,7 +16,7 @@ const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 
-pub const Lower_Errors = error{CompileError};
+pub const Lower_Errors = error{ CompileError, OutOfMemory };
 
 const Self = @This();
 

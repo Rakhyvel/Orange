@@ -2516,9 +2516,9 @@ pub const AST = union(enum) {
             },
             .format_args => {
                 try out.print("format_args(", .{});
-                for (self.print._children.items, 0..) |item, i| {
+                for (self.format_args._children.items, 0..) |item, i| {
                     try out.print("{f}", .{item});
-                    if (i < self.print._children.items.len - 1) {
+                    if (i < self.format_args._children.items.len - 1) {
                         try out.print(",", .{});
                     }
                 }

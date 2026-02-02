@@ -30,7 +30,7 @@ impl for Outer {
 
     fn add_entry(&mut self, name: String, other: Int) -> () {
         while let mut i = 0; i < self.requirements.length; i += 1 {
-            if self.requirements[i] == .none {
+            if self.requirements[i].>is_none() {
                 self.requirements[i] = .some((name, other))
                 return
             }

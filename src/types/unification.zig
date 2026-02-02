@@ -197,6 +197,8 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             }
             const lhs_constructor = lhs.lhs();
             const rhs_constructor = rhs.lhs();
+            std.debug.assert(lhs_constructor.symbol() != null);
+            std.debug.assert(rhs_constructor.symbol() != null);
             if (lhs_constructor.symbol() != rhs_constructor.symbol()) {
                 return error.TypesMismatch;
             }

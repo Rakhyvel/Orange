@@ -172,6 +172,7 @@ fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
 
         // Check that return type matches
+        _ = try walk_.walk_type(trait_decl.?.method_decl.ret_type, Decorate.new(self.ctx));
         unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst, .{}) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,

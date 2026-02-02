@@ -240,6 +240,7 @@ pub const Module = struct {
         }
         try module.collect_impls_cfgs(compiler);
         try module.collect_tests(compiler);
+        try module.const_eval_all_cfgs(compiler);
         module.collect_local_types();
     }
 
@@ -286,6 +287,7 @@ pub const Module = struct {
     }
 
     /// This allows us to pick up anon and inner CFGs that wouldn't be exposed to the module's scope
+    /// CFGs are placed into the `self.cfgs` list
     fn collect_cfgs(self: *Module, cfg: *CFG) void {
         var cfg_dfs_iter = Cfg_Iterator.init(cfg, self.allocator);
         while (cfg_dfs_iter.next()) |next_cfg| {
@@ -293,6 +295,13 @@ pub const Module = struct {
             if (next_cfg.symbol.decl.?.* == .method_decl and next_cfg.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
             next_cfg.collect_generated_symbvers();
             _ = next_cfg.emplace_cfg(self.uid, &self.cfgs, &self.instructions);
+        }
+    }
+
+    fn const_eval_all_cfgs(self: *Module, compiler: *Compiler_Context) !void {
+        for (self.cfgs.items) |cfg| {
+            const symbol: *Symbol = cfg.symbol;
+            try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
         }
     }
 
@@ -332,6 +341,7 @@ pub const Module = struct {
         for (impl.impl.method_defs.items) |def| {
             const symbol = def.symbol().?;
             const interned_strings = compiler.lookup_interned_string_set(self.uid).?;
+            try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
             const cfg = try compiler.cfg_store.get_cfg(symbol, interned_strings);
             cfg.assert_needed_at_runtime();
             self.collect_cfgs(cfg);

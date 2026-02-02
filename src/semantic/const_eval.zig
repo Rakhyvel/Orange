@@ -108,7 +108,7 @@ fn interpret_comptime_expr(
         ret_type,
         scope,
         self.ctx.allocator(),
-    )).assert_symbol_valid().assert_init_valid();
+    ));
 
     // Get the cfg from the symbol, and embed into the module
     const module = symbol.scope.module.?;

@@ -22,7 +22,7 @@ const Self = @This();
 const Error = error{CompileError};
 
 /// Interpreter execution timeout in milliseconds
-const timeout_ms = 3_000;
+const timeout_ms = 3_00000000000;
 /// Size of the stack. 32 KiB, or around 1024 stack frames.
 const stack_limit = 0x8000; // 32 KiB
 
@@ -422,9 +422,10 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     self.stack_pointer += local_size_bytes;
 
     // jump to symbol addr
+    const module_uid = function_symbol.cfg.?.symbol.scope.module.?.uid;
     self.instruction_pointer = Instruction_Pointer{
-        .module_uid = (try self.curr_module()).uid,
-        .inst_idx = function_symbol.cfg.?.offset_table.get((try self.curr_module()).uid).?,
+        .module_uid = module_uid,
+        .inst_idx = function_symbol.cfg.?.offset_table.get(module_uid).?,
     };
 }
 

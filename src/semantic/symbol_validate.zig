@@ -36,7 +36,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
 
     _ = symbol.assert_symbol_valid();
     const expected: ?*Type_AST = switch (symbol.kind) {
-        .@"fn", .@"test" => symbol.type().rhs(),
+        .@"fn", .@"test", .@"comptime" => symbol.type().rhs(),
         .type, .context => null,
         .import_inner => if (symbol.decl.?.* == .type_alias) null else symbol.type(),
         else => symbol.type(),
@@ -56,20 +56,23 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         }
     }
 
-    // std.debug.print("validating init for: {s} ({t}): {?f}\n", .{ symbol.name, symbol.kind, expected });
+    // std.debug.print("validating init for: {s} ({t})\n", .{ symbol.name, symbol.kind });
 
     if (symbol.init_value()) |_init| {
         // might be null for parameters
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
         _ = self.ctx.typecheck.typecheck_AST(_init, expected, &subst) catch |e| switch (e) {
-            error.CompileError => return error.CompileError,
+            error.CompileError => unreachable,
             error.OutOfMemory => return error.OutOfMemory,
             error.UnexpectedTypeType => {
                 self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = _init.token().span } });
                 return error.CompileError;
             },
         };
+        if (_init.* != .module) {
+            try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
+        }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {
         try self.ctx.validate_type.validate_type(symbol.init_typedef().?);
         if (self.ctx.validate_type.detect_cycle(symbol.init_typedef().?, symbol)) {

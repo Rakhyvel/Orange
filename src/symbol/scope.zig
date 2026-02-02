@@ -264,13 +264,14 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
     try ctx.validate_type.validate_type(for_type);
     for (traits) |constraint| {
         const scope = constraint.scope().?;
-        const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, ctx);
+        const constraint_symbol = try Decorate.symbol(constraint, ctx);
+        const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
         if (res.count > 0) {
             if (search_impl(res.ast.?, name)) |method| {
                 try matches.put(method, void{});
             }
         }
-        const trait_decl = (try Decorate.symbol(constraint, ctx)).decl.?;
+        const trait_decl = constraint_symbol.decl.?;
         try as_trait_member_lookup(for_type, trait_decl.trait.super_traits.items, name, matches, ctx);
     }
 }

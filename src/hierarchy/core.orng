@@ -165,6 +165,15 @@ impl Format for String {
     }
 }
 
+impl[T] for ?T {
+    fn is_none(self) -> Bool {
+        match self {
+            .none => true
+            _     => false
+        }
+    }
+}
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }

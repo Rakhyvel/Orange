@@ -140,7 +140,7 @@ struct Delimiter_Iterator {
 impl core::Iterator for Delimiter_Iterator {
     type Item = []Byte
 
-    fn next(&mut self) -> ?Self::Item {
+    fn next(&mut self) -> ?[]Byte {
         if self.cursor >= self.data.length {
             return .none
         }
@@ -164,7 +164,7 @@ test "delimiter iterator" {
     try testing::expect(eql("a", delim_iter.>next().some))
     try testing::expect(eql("b", delim_iter.>next().some))
     try testing::expect(eql("c", delim_iter.>next().some))
-    try testing::expect(delim_iter.>next() == .none)
+    try testing::expect(delim_iter.>next().>is_none())
 
     .ok
 }

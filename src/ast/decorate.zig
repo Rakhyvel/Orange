@@ -325,9 +325,6 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         lhs;
 
     try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
-    // if (stripped_lhs.* == .type_of) {
-    //     try walk_.walk_type(stripped_lhs, Type_Decorate.new(self.ctx));
-    // } else
     if (stripped_lhs.* == .generic_apply) {
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }

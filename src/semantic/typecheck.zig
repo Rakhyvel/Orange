@@ -80,7 +80,7 @@ pub fn typecheck_AST(
 ) Validate_Error_Enum!*Type_AST {
     // TODO: Bit long
     if (ast.common().validation_state == .validating) {
-        // std.debug.print("{}\n", .{ast});
+        // std.debug.print("{f}\n", .{ast});
         self.ctx.errors.add_error(errs_.Error{ .recursive_definition = .{
             .span = ast.token().span,
             .symbol_name = null,
@@ -110,6 +110,8 @@ pub fn typecheck_AST(
         return e;
     };
 
+    try walk_.walk_type(actual_type, Decorate.new(self.ctx));
+
     if (expected_type) |_| {
         const expanded_expected = expected_type.?.expand_identifier();
         if (expanded_expected.* != .unit_type or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
@@ -120,6 +122,7 @@ pub fn typecheck_AST(
     }
 
     if (actual_type.* != .poison) {
+        try walk_.walk_type(actual_type, Type_Decorate.new(self.ctx));
         self.map.put(ast, actual_type) catch unreachable;
         ast.common().validation_state = .valid;
     } else {
@@ -163,7 +166,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            try self.ctx.validate_symbol.validate_symbol(symbol);
+            if (symbol.kind == .@"const") {
+                try self.ctx.validate_symbol.validate_symbol(symbol);
+            }
             if (symbol.is_type() or symbol.kind == .context) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
@@ -179,7 +184,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } });
                 return error.CompileError;
             }
-            return symbol.type();
+            const _type = symbol.type();
+            try self.ctx.validate_type.validate_type(_type);
+            return _type;
         },
         .access => {
             _ = self.typecheck_AST(ast.lhs(), null, subst) catch |e| switch (e) {
@@ -192,7 +199,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            try self.ctx.validate_symbol.validate_symbol(symbol);
+            // try self.ctx.validate_symbol.validate_symbol(symbol);
 
             if (symbol.decl.?.num_generic_params() > 0) {
                 self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
@@ -211,7 +218,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return prelude_.unit_type;
                 }
             } else {
-                return symbol.type();
+                const _type = symbol.type();
+                try self.ctx.validate_type.validate_type(_type);
+                return _type;
             }
         },
         .type_access => {
@@ -222,7 +231,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            try self.ctx.validate_symbol.validate_symbol(symbol);
+            // try self.ctx.validate_symbol.validate_symbol(symbol);
 
             if (symbol.decl.?.num_generic_params() > 0) {
                 self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
@@ -241,7 +250,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return prelude_.unit_type;
                 }
             } else {
-                return symbol.type();
+                const _type = symbol.type();
+                try self.ctx.validate_type.validate_type(_type);
+                return _type;
             }
         },
         .true, .false => return prelude_.bool_type,
@@ -471,7 +482,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            try self.ctx.validate_symbol.validate_symbol(symbol);
+            // try self.ctx.validate_symbol.validate_symbol(symbol);
             if (symbol.is_type() or symbol.kind == .context) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
@@ -479,7 +490,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 return error.UnexpectedTypeType;
             }
-            return symbol.type();
+            const _type = symbol.type();
+            try self.ctx.validate_type.validate_type(_type);
+            return _type;
         },
         .select => {
             const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
@@ -564,7 +577,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            const method_decl_type = self.typecheck_AST(method_decl.?, null, subst) catch return error.CompileError;
+            const method_decl_type = method_decl.?.decl_type();
 
             const domain = method_decl.?.decl_type().function.args;
             try self.validate_context(method_decl_type, ast);
