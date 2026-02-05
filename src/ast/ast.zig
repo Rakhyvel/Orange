@@ -2374,6 +2374,23 @@ pub const AST = union(enum) {
         return member.assert_ast_valid();
     }
 
+    pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
+        const exp_type = Type_AST.create_type_of(_token, exp, allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
+        const eq_trait_field = Type_AST.create_field(Token.init_simple(trait_name), allocator);
+        const eq_trait = Type_AST.create_type_access(_token, core_ident, eq_trait_field, allocator);
+        var constraints = std.array_list.Managed(*Type_AST).init(allocator);
+        try constraints.append(eq_trait);
+        const trait_as = Type_AST.create_as_trait(_token, exp_type, constraints, allocator);
+        const eq_method_field = AST.create_field(Token.init_simple(method_name), allocator);
+        const eq_method = AST.create_type_access(_token, trait_as, eq_method_field, allocator);
+
+        var args = std.array_list.Managed(*AST).init(allocator);
+        try args.append(exp);
+        try args.append(other);
+        return AST.create_call(_token, eq_method, args, allocator);
+    }
+
     pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         switch (_token.kind) {
             .plus_equals => return create_add(_token, _lhs, _rhs, allocator),

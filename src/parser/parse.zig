@@ -704,42 +704,22 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
-        // (@typeof(exp) as core::Eq)::eq(exp, range_expr())
-        // call (
-        //   type_acces(
-        //     trait_as(
-        //       typeof(exp),
-        //       core::PartialEq
-        //     ),
-        //     field("eq")
-        //   ),
-        //   [exp, range_expr()]
-        // )
-
-        const exp_type = Type_AST.create_type_of(token, exp, self.allocator);
-        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
-        const eq_trait_field = Type_AST.create_field(Token.init_simple("Eq"), self.allocator);
-        const eq_trait = Type_AST.create_type_access(token, core_ident, eq_trait_field, self.allocator);
-        var constraints = std.array_list.Managed(*Type_AST).init(self.allocator);
-        try constraints.append(eq_trait);
-        const trait_as = Type_AST.create_as_trait(token, exp_type, constraints, self.allocator);
-        const eq_method_field = ast_.AST.create_field(Token.init_simple("eq"), self.allocator);
-        const eq_method = ast_.AST.create_type_access(token, trait_as, eq_method_field, self.allocator);
         const rhs = try self.range_expr();
-
-        var args = std.array_list.Managed(*ast_.AST).init(self.allocator);
-        try args.append(exp);
-        try args.append(rhs);
-        exp = ast_.AST.create_call(token, eq_method, args, self.allocator);
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "eq", self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
+        // TODO: Trait call
         exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {
+        // TODO: Trait call
         exp = ast_.AST.create_greater(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser)) |token| {
+        // TODO: Trait call
         exp = ast_.AST.create_lesser(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater_equal)) |token| {
+        // TODO: Trait call
         exp = ast_.AST.create_greater_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.lesser_equal)) |token| {
+        // TODO: Trait call
         exp = ast_.AST.create_lesser_equal(token, exp, try self.range_expr(), self.allocator);
     }
     return exp;
@@ -771,8 +751,10 @@ fn shift_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.int_expr();
     while (true) {
         if (self.accept(.double_lesser)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_left_shift(token, exp, try self.int_expr(), self.allocator);
         } else if (self.accept(.double_greater)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_right_shift(token, exp, try self.int_expr(), self.allocator);
         } else {
             return exp;
@@ -784,8 +766,10 @@ fn int_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.term_expr();
     while (true) {
         if (self.accept(.plus)) |token| {
-            exp = ast_.AST.create_add(token, exp, try self.term_expr(), self.allocator);
+            const rhs = try self.term_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Add", "add", self.allocator);
         } else if (self.accept(.minus)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_sub(token, exp, try self.term_expr(), self.allocator);
         } else {
             return exp;
@@ -797,10 +781,13 @@ fn term_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.as_expr();
     while (true) {
         if (self.accept(.star)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_mult(token, exp, try self.as_expr(), self.allocator);
         } else if (self.accept(.slash)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_div(token, exp, try self.as_expr(), self.allocator);
         } else if (self.accept(.percent)) |token| {
+            // TODO: Trait call?
             exp = ast_.AST.create_mod(token, exp, try self.as_expr(), self.allocator);
         } else {
             return exp;
@@ -825,7 +812,10 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         const token = try self.expect(.identifier);
 
         // TODO: Would be nice to make a table of this, somehow!
-        if (std.mem.eql(u8, token.data, "default")) {
+        if (std.mem.eql(u8, token.data, "add")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "default")) {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);
         } else if (std.mem.eql(u8, token.data, "sizeof")) {
@@ -870,11 +860,13 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (self.accept(.minus)) |token| {
         return ast_.AST.create_negate(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.tilde)) |token| {
+        // TODO: Trait call?
         return ast_.AST.create_bit_not(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.ampersand)) |token| {
         const mut = self.accept(.mut);
         return ast_.AST.create_addr_of(token, try self.prefix_expr(), mut != null, false, self.allocator);
     } else if (self.accept(.left_square)) |token| {
+        // TODO: Trait call for index
         if (self.accept(.mut)) |_| {
             _ = try self.expect(.right_square);
             return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);

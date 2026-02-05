@@ -403,16 +403,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
                 method_identifier.set_symbol(method.symbol());
                 ast.set_lhs(method_identifier);
-
-                // for (ast.lhs().type_access._lhs_type.as_trait.constraints.items) |constraint| { // TODO: Select based on expected type if >1? Or just throw an ambiguous error
-                //     const scope = constraint.scope().?;
-                //     const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, self.ctx);
-                //     std.debug.assert(res.count > 0); // TODO: Throw error
-                //     const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data) orelse continue;
-                //     var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                //     method_identifier.set_symbol(method.symbol());
-                //     ast.set_lhs(method_identifier);
-                // }
             }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
