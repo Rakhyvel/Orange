@@ -20,6 +20,9 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_module(self: *Self, module: *module_.Module) Validate_Error_Enum!void {
+    for (module.impls.items) |impl| {
+        try self.ctx.validate_scope.validate_impl(impl);
+    }
     try self.ctx.validate_scope.validate_scope(self.ctx.module_scope(module.absolute_path).?);
     for (0..module.cincludes.items.len) |i| {
         var subst = unification_.Substitutions.init(self.ctx.allocator());

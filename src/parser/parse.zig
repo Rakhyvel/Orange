@@ -643,8 +643,6 @@ fn statement(self: *Self) Parser_Error_Enum!*ast_.AST {
         return self.type_alias_declaration();
     } else if (self.peek_kind(.trait)) {
         return self.trait_declaration();
-    } else if (self.peek_kind(.impl)) {
-        return self.impl_declaration();
     } else if (self.accept(.@"defer")) |token| {
         return ast_.AST.create_defer(token, try self.assignment_expr(), self.allocator);
     } else if (self.accept(.@"errdefer")) |token| {

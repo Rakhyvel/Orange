@@ -23,9 +23,6 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
-    for (scope.impls.items) |impl| {
-        try self.validate_impl(impl);
-    }
     var i: usize = 0;
     while (i < scope.symbols.keys().len) : (i += 1) {
         const key = scope.symbols.keys()[i];
@@ -41,7 +38,7 @@ pub fn validate_scope(self: *Self, scope: *Scope) Validate_Error_Enum!void {
 }
 
 // TODO: Split up into smaller functions
-fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
+pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     if (impl.impl._type.* == .addr_of and !impl.impl._type.addr_of.multiptr) {
         self.ctx.errors.add_error(errs_.Error{ .basic = .{
             .span = impl.impl._type.token().span,
