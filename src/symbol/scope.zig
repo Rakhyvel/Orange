@@ -425,6 +425,13 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     try walker_.walk_ast(new_impl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
     new_impl.set_scope(new_scope);
 
+    // Re-attach the trait symbol after cloning
+    if (new_impl.impl.trait != null and !new_impl.impl.impls_anon_trait) {
+        if (impl.impl.trait.?.symbol()) |sym| {
+            new_impl.impl.trait.?.set_symbol(sym);
+        }
+    }
+
     if (new_impl.impl.trait == null or new_impl.impl.impls_anon_trait) {
         // impl'd for an anon trait, create a new anon trait for it
         var token = new_impl.token();
