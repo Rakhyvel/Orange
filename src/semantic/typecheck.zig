@@ -399,10 +399,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     });
                     return error.CompileError;
                 }
-                const method = candidate_method_decls.keys()[0];
-                var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                method_identifier.set_symbol(method.symbol());
-                ast.set_lhs(method_identifier);
             }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
