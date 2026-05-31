@@ -456,20 +456,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.set_children(try args_validator.fill_default_args());
             args_validator.implicit_ref();
             try args_validator.validate_arity();
-            args_validator.validate_type(subst, self.ctx) catch {
-                if (args_validator.error_details) |details| {
-                    if (details.arg_type) |actual| {
-                        const expected_type = domain.items[details.param_idx];
-                        return typing_.throw_unexpected_type(
-                            ast.children().items[details.param_idx].token().span,
-                            expected_type,
-                            actual,
-                            &self.ctx.errors,
-                        );
-                    }
-                }
-                return error.CompileError;
-            };
+            try args_validator.validate_type(subst, self.ctx);
             return codomain;
         },
         .index => {
@@ -639,9 +626,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
                 for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-                    const constraint_trait = constraint.symbol().?;
-                    const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
-                    if (constraint_trait == dyn_trait) {
+                    if (Type_AST.is_sub_trait(constraint, ast.dyn_value.dyn_type.child())) {
                         found_constraint = true;
                         break;
                     }
@@ -1216,16 +1201,14 @@ fn method_fits(
 
     temp_args = try args_validator.fill_default_args();
 
-    // Disable error recording
+    // Disable error recording so typecheck_AST errors inside probe_type are not stored
     self.ctx.errors.record_errors = false;
     defer self.ctx.errors.record_errors = true;
     args_validator.validate_arity() catch return .{ .not_viable = .{ .arity_mismatch = .{ .expects = domain.items.len, .got = temp_args.items.len } } };
-    args_validator.validate_type(subst, self.ctx) catch {
-        const param_idx = args_validator.error_details.?.param_idx;
-        const expected_type = domain.items[param_idx];
-        const actual_type = args_validator.error_details.?.arg_type;
-        return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = param_idx, .expects = expected_type, .got = actual_type } } };
-    };
+    if (args_validator.probe_type(subst, self.ctx)) |failure| {
+        const expected_type = domain.items[failure.param_idx];
+        return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = failure.param_idx, .expects = expected_type, .got = failure.arg_type } } };
+    }
 
     return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
 }

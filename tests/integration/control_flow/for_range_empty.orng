@@ -1,0 +1,8 @@
+// 99
+fn main() -> Int {
+    let mut retval = 99
+    for _ in 5...5 {
+        retval = 0
+    }
+    retval
+}

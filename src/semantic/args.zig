@@ -42,6 +42,12 @@ pub const Validate_Args_Thing = enum {
 
 const Self = @This();
 
+/// Structured result returned by probe_type on failure. Used by method_fits for viability checking.
+pub const Type_Failure = struct {
+    param_idx: usize,
+    arg_type: ?*const Type_AST = null,
+};
+
 thing: Validate_Args_Thing,
 args: *std.array_list.Managed(*ast_.AST),
 span: Span,
@@ -49,10 +55,6 @@ expected: *const std.array_list.Managed(*Type_AST),
 errors: *errs_.Errors,
 variadic: bool = false,
 allocator: std.mem.Allocator,
-error_details: ?struct {
-    param_idx: usize,
-    arg_type: ?*const Type_AST = null,
-} = null,
 
 pub fn init(thing: Validate_Args_Thing, args: *std.array_list.Managed(*ast_.AST), span: Span, expected: *const std.array_list.Managed(*Type_AST), errors: *errs_.Errors, allocator: std.mem.Allocator) Self {
     return Self{
@@ -298,32 +300,50 @@ pub fn validate_requested_contexts(contexts: []const *Type_AST, errors: *errs_.E
     }
 }
 
-pub fn validate_type(
+/// Checks argument types against parameter types without emitting errors. Returns the first
+/// failure encountered, or null if all args are valid. Used by method dispatch for viability
+/// probing. Call validate_type for normal error-reporting call sites.
+pub fn probe_type(
     self: *Self,
     subst: *unification_.Substitutions,
     ctx: *Compiler_Context,
-) Validate_Error_Enum!void {
+) ?Type_Failure {
     const expected_length = self.expected.items.len;
-
     for (0..expected_length) |i| {
         const param_type = self.expected.items[i];
         const term_type = ctx.typecheck.typecheck_AST(self.args.items[i], param_type, subst) catch {
-            self.error_details = .{ .param_idx = i };
-            return error.CompileError;
+            return .{ .param_idx = i };
         };
         if (param_type.* != .unit_type) {
             unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
-                self.error_details = .{ .param_idx = i, .arg_type = term_type };
-                return error.CompileError;
+                return .{ .param_idx = i, .arg_type = term_type };
             };
         }
     }
     if (self.variadic) {
         for (expected_length..self.args.items.len) |i| {
             _ = ctx.typecheck.typecheck_AST(self.args.items[i], null, subst) catch {
-                self.error_details = .{ .param_idx = i };
-                return error.CompileError;
+                return .{ .param_idx = i };
             };
         }
+    }
+    return null;
+}
+
+/// Validates argument types against parameter types. Emits an error for unification failures
+pub fn validate_type(
+    self: *Self,
+    subst: *unification_.Substitutions,
+    ctx: *Compiler_Context,
+) Validate_Error_Enum!void {
+    if (self.probe_type(subst, ctx)) |failure| {
+        if (failure.arg_type) |arg_type| {
+            self.errors.add_error(errs_.Error{ .unexpected_type = .{
+                .span = self.args.items[failure.param_idx].token().span,
+                .expected = self.expected.items[failure.param_idx],
+                .got = arg_type,
+            } });
+        }
+        return error.CompileError;
     }
 }
