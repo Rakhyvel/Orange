@@ -14,6 +14,7 @@ const prelude_ = @import("../hierarchy/prelude.zig");
 const repo_ = @import("../util/repo.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Scope = @import("../symbol/scope.zig");
+const Impl_Trait_Lookup_Result = Scope.Impl_Trait_Lookup_Result;
 const Type_AST = @import("../types/type.zig").Type_AST;
 
 const Validate_Module = @import("../semantic/module_validate.zig");
@@ -61,6 +62,10 @@ module_interned_strings: std.AutoArrayHashMap(u32, *Interned_String_Set),
 // Maps package names to their root module
 packages: std.StringArrayHashMap(*Package),
 
+impl_cache: std.AutoHashMap(Impl_Cache_Key, Impl_Trait_Lookup_Result),
+
+pub const Impl_Cache_Key = struct { type_sym: *Symbol, trait: *Symbol };
+
 /// Throws an error if the prelude could not be compiled
 pub fn init(stderr: ?std.fs.File, alloc: std.mem.Allocator) Error!*Self {
     var retval: *Self = try alloc.create(Self);
@@ -73,6 +78,7 @@ pub fn init(stderr: ?std.fs.File, alloc: std.mem.Allocator) Error!*Self {
     retval.module_interned_strings = std.AutoArrayHashMap(u32, *Interned_String_Set).init(retval.allocator());
     retval.modules = std.StringArrayHashMap(*Symbol).init(retval.allocator());
     retval.packages = std.StringArrayHashMap(*Package).init(retval.allocator());
+    retval.impl_cache = std.AutoHashMap(Impl_Cache_Key, Impl_Trait_Lookup_Result).init(retval.allocator());
     retval.core = null;
     retval.stderr = stderr;
 

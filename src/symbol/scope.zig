@@ -147,7 +147,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
     }
 }
 
-const Impl_Trait_Lookup_Result = struct {
+pub const Impl_Trait_Lookup_Result = struct {
     count: u8,
     ast: ?*ast_.AST,
     subst: ?unification_.Substitutions,
@@ -155,6 +155,20 @@ const Impl_Trait_Lookup_Result = struct {
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
+    if (for_type.* == .identifier) {
+        // Hot path, if we've seen (for_type, trait) before, return the cached result
+        if (for_type.symbol()) |type_sym| {
+            if (type_sym.decl == null or type_sym.decl.?.* != .type_param_decl) {
+                const key = Compiler_Context.Impl_Cache_Key{ .type_sym = type_sym, .trait = trait };
+                if (ctx.impl_cache.get(key)) |cached| return cached;
+                const result = try impl_trait_lookup_inner(self, self, for_type, trait, ctx);
+                ctx.impl_cache.put(key, result) catch {};
+                return result;
+            }
+        }
+    }
+
+    // Cold path, do full lookup
     return impl_trait_lookup_inner(self, self, for_type, trait, ctx);
 }
 
