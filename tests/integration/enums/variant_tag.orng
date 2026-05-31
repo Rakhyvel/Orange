@@ -8,5 +8,5 @@ enum My_Enum {
 }
 
 fn main() -> Word64 {
-    410 + @variant_tag(My_Enum.variant_5)
+    @variant_tag(My_Enum.variant_5) + 410
 }

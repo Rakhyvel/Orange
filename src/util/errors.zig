@@ -208,7 +208,7 @@ pub const Error = union(enum) {
     unexpected_type: struct {
         span: Span,
         expected: *Type_AST,
-        got: *Type_AST,
+        got: *const Type_AST,
     },
     non_convertible: struct {
         span: Span,
@@ -893,7 +893,7 @@ pub const Errors = struct {
     pub fn add_error(self: *Errors, err: Error) void {
         if (self.record_errors) {
             self.errors_list.append(err) catch unreachable;
-            std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+            // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
         }
     }
 

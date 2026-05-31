@@ -199,7 +199,10 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     // this scan to avoid double-counting.
     const entering_new_module = self.module != null and (self == original_scope or self.module != original_scope.module);
     if (entering_new_module) {
-        for (self.module.?.impls.items) |impl| {
+        // instantiate_generic_impl may append to module.impls, potentially reallocating the backing array
+        const n = self.module.?.impls.items.len;
+        for (0..n) |ii| {
+            const impl = self.module.?.impls.items[ii];
             const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
             const traits_match = impl_trait == trait;
             if (!traits_match) continue;
@@ -263,12 +266,20 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
         const scope = constraint.scope().?;
         const constraint_symbol = try Decorate.symbol(constraint, ctx);
         const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
+        const trait_decl = constraint_symbol.decl.?;
         if (res.count > 0) {
-            if (search_impl(res.ast.?, name)) |method| {
-                try matches.put(method, void{});
+            if (res.ast) |impl_ast| {
+                if (search_impl(impl_ast, name)) |method| {
+                    try matches.put(method, void{});
+                }
+            } else {
+                // Type parameter satisfies the trait but no concrete impl exists yet.
+                // Fall back to the abstract method_decl with Self substituted with for_type
+                if (try scope.lookup_member_in_trait(trait_decl, for_type, name, ctx)) |method| {
+                    try matches.put(method, void{});
+                }
             }
         }
-        const trait_decl = constraint_symbol.decl.?;
         try as_trait_member_lookup(for_type, trait_decl.trait.super_traits.items, name, matches, ctx);
     }
 }
@@ -455,7 +466,7 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
         );
         try walker_.walk_ast(anon_trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         new_impl.impl.trait = ast_.AST.create_identifier(token, compiler.allocator());
-        try walker_.walk_ast(new_impl.impl.trait, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        new_impl.impl.trait.?.set_symbol(anon_trait.symbol().?);
         new_impl.impl.impls_anon_trait = true;
     }
 

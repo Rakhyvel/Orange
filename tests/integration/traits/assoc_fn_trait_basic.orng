@@ -1,0 +1,15 @@
+// 455
+
+trait My_Sub {
+    fn sub(self, other: Int) -> Int
+}
+
+impl My_Sub for Int {
+    fn sub(self, other: Int) -> Int { self - other }
+}
+
+fn main() -> Int {
+    let x: Int = 500
+    let y: Int = 45
+    My_Sub::sub(x, y)
+}

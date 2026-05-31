@@ -1,9 +1,9 @@
-// invoke_addr_method_not_found.orng:8:8: error: the type `Int` does not contain the member `add`
-//     y.>add(56)
+// invoke_addr_method_not_found.orng:8:8: error: the type `Int` does not contain the member `this_doesnt_exist`
+//     y.>this_doesnt_exist(56)
 //       ^
 // 
 fn main() -> Int {
     let x = 4
     let y = &x
-    y.>add(56)
+    y.>this_doesnt_exist(56)
 }

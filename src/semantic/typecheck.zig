@@ -225,7 +225,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .type_access => {
-            try self.ctx.validate_type.validate_type(ast.type_access._lhs_type);
+            const lhs_is_trait_ident = ast.type_access._lhs_type.* == .identifier and
+                ast.type_access._lhs_type.symbol() != null and
+                ast.type_access._lhs_type.symbol().?.kind == .trait;
+
+            if (!lhs_is_trait_ident) {
+                // Trait::method uses a trait identifier as lhs_type. Traits are not types so skip validation.
+                try self.ctx.validate_type.validate_type(ast.type_access._lhs_type);
+            }
 
             // look up symbol, that's the type
             const symbol = try Decorate.symbol(ast, self.ctx);
@@ -378,6 +385,33 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .call => {
             const lhs_span = ast.lhs().token().span;
+            if (ast.lhs().* == .type_access) {
+                // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
+                const lhs_type_node = ast.lhs().type_access._lhs_type;
+                if (lhs_type_node.* == .identifier and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
+                    if (ast.children().items.len == 0) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument (the receiver)" } });
+                        return error.CompileError;
+                    }
+                    const receiver_type = self.typecheck_AST(ast.children().items[0], null, subst) catch return error.CompileError;
+                    // Strip as_trait (monomorphization wrapper) and addr_of (explicit &self receiver
+                    // in FQS calls like Trait::method(&x, ...)) to reach the base type for impl lookup.
+                    var concrete_type = receiver_type;
+                    while (concrete_type.* == .as_trait) concrete_type = concrete_type.lhs();
+                    if (concrete_type.* == .addr_of) concrete_type = concrete_type.child();
+                    const method_name = ast.lhs().rhs().token().data;
+                    var candidate_methods = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
+                    defer candidate_methods.deinit();
+                    var constraints_arr = [1]*Type_AST{lhs_type_node};
+                    try Scope.as_trait_member_lookup(concrete_type, &constraints_arr, method_name, &candidate_methods, self.ctx);
+                    if (candidate_methods.keys().len == 0) {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type, .candidates = null } });
+                        return error.CompileError;
+                    }
+                    ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
+                }
+            }
+
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const for_type = ast.lhs().type_access._lhs_type.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
@@ -422,7 +456,20 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.set_children(try args_validator.fill_default_args());
             args_validator.implicit_ref();
             try args_validator.validate_arity();
-            try args_validator.validate_type(subst, self.ctx);
+            args_validator.validate_type(subst, self.ctx) catch {
+                if (args_validator.error_details) |details| {
+                    if (details.arg_type) |actual| {
+                        const expected_type = domain.items[details.param_idx];
+                        return typing_.throw_unexpected_type(
+                            ast.children().items[details.param_idx].token().span,
+                            expected_type,
+                            actual,
+                            &self.ctx.errors,
+                        );
+                    }
+                }
+                return error.CompileError;
+            };
             return codomain;
         },
         .index => {

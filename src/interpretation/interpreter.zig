@@ -359,6 +359,32 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
         .panic => { // if debug mode is on, panics with a message, unrolls lines stack, exits
             return self.interpreter_panic("interpreter error: reached unreachable code\n", .{});
         },
+        .cast => {
+            const src_info = prelude_.info_from_ast(instr.src1.?.get_expanded_type());
+            const dst_info = prelude_.info_from_ast(instr.dest.?.get_expanded_type());
+            const src_is_float = src_info != null and src_info.?.type_kind == .floating_point;
+            const dst_is_float = dst_info != null and dst_info.?.type_kind == .floating_point;
+            const src_addr = try self.effective_address(instr.src1.?);
+            const dst_addr = try self.effective_address(instr.dest.?);
+            const src_size = instr.src1.?.expanded_type_sizeof().?;
+            const dst_size = instr.dest.?.expanded_type_sizeof().?;
+            if (src_is_float and dst_is_float) {
+                const val = self.memory.load_float(src_addr, src_size);
+                self.memory.store_float(dst_addr, dst_size, val);
+            } else if (src_is_float) {
+                const val = self.memory.load_float(src_addr, src_size);
+                const int_val: i128 = @intFromFloat(val);
+                try self.assert_fits(int_val, instr.dest.?.get_expanded_type(), "cast result", instr.span);
+                self.memory.store_int(dst_addr, dst_size, int_val);
+            } else if (dst_is_float) {
+                const val = self.memory.load_int(src_addr, src_size);
+                self.memory.store_float(dst_addr, dst_size, @floatFromInt(val));
+            } else {
+                const val = self.memory.load_int(src_addr, src_size);
+                try self.assert_fits(val, instr.dest.?.get_expanded_type(), "cast result", instr.span);
+                self.memory.store_int(dst_addr, dst_size, val);
+            }
+        },
         else => std.debug.panic("interpreter error: interpreter.zig::interpret(): Unimplemented Instruction for {s}\n", .{@tagName(instr.kind)}),
     }
 }

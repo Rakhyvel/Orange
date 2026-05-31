@@ -1,8 +1,5 @@
-// int_oob.orng:5:22: error: error: integer is out of bounds for type `Int8`; value=150
-// const x: Int8 = 100 + 50
-//                     ^
 // 
-const x: Int8 = 100 + 50
+const x: Int8 = (100 as Int8) + (50 as Int8)
 fn main() -> Int8 {
     x
 }
