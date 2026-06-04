@@ -708,17 +708,17 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         // TODO: Trait call
         exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
     } else if (self.accept(.greater)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_greater(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "gt", self.allocator);
     } else if (self.accept(.lesser)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_lesser(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "lt", self.allocator);
     } else if (self.accept(.greater_equal)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_greater_equal(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "ge", self.allocator);
     } else if (self.accept(.lesser_equal)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_lesser_equal(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "le", self.allocator);
     }
     return exp;
 }
@@ -825,6 +825,18 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         } else if (std.mem.eql(u8, token.data, "mod")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "lt")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_lesser(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "gt")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_greater(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "le")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_lesser_equal(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "ge")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "default")) {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);

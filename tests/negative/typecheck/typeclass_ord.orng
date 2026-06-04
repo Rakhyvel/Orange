@@ -1,4 +1,4 @@
-// typeclass_ord.orng:8:8: error: expected a value of a(n) orderable type, got `Bool`
+// typeclass_ord.orng:8:8: error: the type `Bool` does not contain the member `lt`
 //     x < y
 //       ^
 // 

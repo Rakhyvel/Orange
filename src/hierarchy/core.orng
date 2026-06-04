@@ -247,6 +247,35 @@ impl Mod for Word32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
 impl Mod for Word16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
 impl Mod for Word8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
 
+trait Partial_Ord {
+    fn lt(self, other: Self) -> Bool
+    fn gt(self, other: Self) -> Bool
+    fn le(self, other: Self) -> Bool
+    fn ge(self, other: Self) -> Bool
+}
+
+impl Partial_Ord for Int { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word64 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Float { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Float32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+
+trait Ord: Partial_Ord {}
+
+impl Ord for Int {}
+impl Ord for Int32 {}
+impl Ord for Int16 {}
+impl Ord for Int8 {}
+impl Ord for Word64 {}
+impl Ord for Word32 {}
+impl Ord for Word16 {}
+impl Ord for Word8 {}
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }
