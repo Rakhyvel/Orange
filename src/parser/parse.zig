@@ -779,14 +779,14 @@ fn term_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.as_expr();
     while (true) {
         if (self.accept(.star)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_mult(token, exp, try self.as_expr(), self.allocator);
+            const rhs = try self.as_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Mul", "mul", self.allocator);
         } else if (self.accept(.slash)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_div(token, exp, try self.as_expr(), self.allocator);
+            const rhs = try self.as_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Div", "div", self.allocator);
         } else if (self.accept(.percent)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_mod(token, exp, try self.as_expr(), self.allocator);
+            const rhs = try self.as_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Mod", "mod", self.allocator);
         } else {
             return exp;
         }
@@ -816,6 +816,15 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         } else if (std.mem.eql(u8, token.data, "sub")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "mul")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_mult(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "div")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_div(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "mod")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "default")) {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);

@@ -2396,9 +2396,9 @@ pub const AST = union(enum) {
         switch (_token.kind) {
             .plus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Add", "add", allocator),
             .minus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Sub", "sub", allocator),
-            .star_equals => return create_mult(_token, _lhs, _rhs, allocator),
-            .slash_equals => return create_div(_token, _lhs, _rhs, allocator),
-            .percent_equals => return create_mod(_token, _lhs, _rhs, allocator),
+            .star_equals => return create_core_trait_op(_token, _lhs, _rhs, "Mul", "mul", allocator),
+            .slash_equals => return create_core_trait_op(_token, _lhs, _rhs, "Div", "div", allocator),
+            .percent_equals => return create_core_trait_op(_token, _lhs, _rhs, "Mod", "mod", allocator),
             .double_lesser_equals => return create_left_shift(_token, _lhs, _rhs, allocator),
             .double_greater_equals => return create_right_shift(_token, _lhs, _rhs, allocator),
             .bar_equals => return create_bit_or(_token, _lhs, _rhs, allocator),

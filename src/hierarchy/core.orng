@@ -204,6 +204,49 @@ impl Sub for Word8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
 impl Sub for Float { fn sub(self, other: Self) -> Self { @sub(self, other) } }
 impl Sub for Float32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
 
+trait Mul {
+    fn mul(self, other: Self) -> Self
+}
+
+impl Mul for Int { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word64 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Float { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Float32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+
+trait Div {
+    fn div(self, other: Self) -> Self
+}
+
+impl Div for Int { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int16 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int8 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word64 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word16 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word8 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Float { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Float32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+
+trait Mod {
+    fn mod(self, other: Self) -> Self
+}
+
+impl Mod for Int { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word64 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }
