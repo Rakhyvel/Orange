@@ -189,6 +189,21 @@ impl Add for Word8 { fn add(self, other: Self) -> Self { @add(self, other) } }
 impl Add for Float { fn add(self, other: Self) -> Self { @add(self, other) } }
 impl Add for Float32 { fn add(self, other: Self) -> Self { @add(self, other) } }
 
+trait Sub {
+    fn sub(self, other: Self) -> Self
+}
+
+impl Sub for Int { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word64 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Float { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Float32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }

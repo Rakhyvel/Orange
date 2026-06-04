@@ -665,7 +665,7 @@ fn assignment_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         return ast_.AST.create_assign(token, exp, try self.bool_expr(), self.allocator);
     } else if (self.next_is_compound_assign()) {
         const token = self.pop();
-        return ast_.AST.create_assign(token, exp, ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
+        return ast_.AST.create_assign(token, exp, try ast_.AST.create_binop(token, exp, try self.bool_expr(), self.allocator), self.allocator);
     } else {
         return exp;
     }
@@ -767,8 +767,8 @@ fn int_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
             const rhs = try self.term_expr();
             exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Add", "add", self.allocator);
         } else if (self.accept(.minus)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_sub(token, exp, try self.term_expr(), self.allocator);
+            const rhs = try self.term_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Sub", "sub", self.allocator);
         } else {
             return exp;
         }
@@ -813,6 +813,9 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (std.mem.eql(u8, token.data, "add")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "sub")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "default")) {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);

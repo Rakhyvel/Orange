@@ -76,6 +76,18 @@ fn create_core(compiler: *Compiler_Context) !void {
     try compiler.prelude.put_symbol(core_symbol.?, &compiler.errors);
     core.?.module = module;
 
+    // Add a `core` import symbol to core's own scope so that `core::X` references
+    // resolve inside core.orng itself (e.g. operator trait desugaring generates `core::Add`).
+    const core_self_import = Symbol.init(
+        core.?,
+        "core",
+        ast_.AST.create_module(Token.init_simple("core"), core.?, module, compiler.allocator()),
+        .{ .import = .{ .real_name = "core", .real_symbol = core_symbol.? } },
+        .local,
+        compiler.allocator(),
+    );
+    try core.?.put_symbol(core_self_import, &compiler.errors);
+
     const contents: []const u8 = @embedFile("core.orng");
     try module_.Module.fill_contents(
         contents,

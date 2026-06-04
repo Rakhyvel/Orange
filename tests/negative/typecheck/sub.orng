@@ -1,5 +1,5 @@
-// sub.orng:5:21: error: expected a value of type `Bool`, got a value of type `Int`
+// sub.orng:5:23: error: expected a value of type `Bool`, got a value of type `Int`
 // fn main() -> Bool {4 - 5}
-//                    ^
+//                      ^
 // 
 fn main() -> Bool {4 - 5}

@@ -160,9 +160,11 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
         if (for_type.symbol()) |type_sym| {
             if (type_sym.decl == null or type_sym.decl.?.* != .type_param_decl) {
                 const key = Compiler_Context.Impl_Cache_Key{ .type_sym = type_sym, .trait = trait };
-                if (ctx.impl_cache.get(key)) |cached| return cached;
+                if (ctx.impl_cache.get(key)) |cached| {
+                    return cached;
+                }
                 const result = try impl_trait_lookup_inner(self, self, for_type, trait, ctx);
-                ctx.impl_cache.put(key, result) catch {};
+                if (result.count > 0) ctx.impl_cache.put(key, result) catch {};
                 return result;
             }
         }
@@ -221,6 +223,10 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             const traits_match = impl_trait == trait;
             if (!traits_match) continue;
 
+            if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {
+                _ = try Decorate.symbol(impl.impl._type, ctx);
+            }
+
             var subst = unification_.Substitutions.init(std.heap.page_allocator);
             errdefer subst.deinit();
             unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
@@ -252,6 +258,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
+            if (module_scope == self) continue; // skip self-referential imports
             const import_res = try module_scope.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
             if (import_res.count > 0) {
                 retval.count += import_res.count;
@@ -423,6 +430,7 @@ fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8
             var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
 
             const module_scope = res_symbol.init_value().?.scope().?;
+            if (module_scope == self) continue; // skip self-referential imports
             try module_scope.lookup_impl_member(for_type, name, matches, true, compiler);
         }
     }

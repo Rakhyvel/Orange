@@ -2392,10 +2392,10 @@ pub const AST = union(enum) {
         return AST.create_call(_token, eq_method, args, allocator);
     }
 
-    pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+    pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) !*AST {
         switch (_token.kind) {
-            .plus_equals => return create_add(_token, _lhs, _rhs, allocator),
-            .minus_equals => return create_sub(_token, _lhs, _rhs, allocator),
+            .plus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Add", "add", allocator),
+            .minus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Sub", "sub", allocator),
             .star_equals => return create_mult(_token, _lhs, _rhs, allocator),
             .slash_equals => return create_div(_token, _lhs, _rhs, allocator),
             .percent_equals => return create_mod(_token, _lhs, _rhs, allocator),
