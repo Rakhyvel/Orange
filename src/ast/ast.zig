@@ -2376,7 +2376,8 @@ pub const AST = union(enum) {
     }
 
     pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
-        const exp_type = Type_AST.create_type_of(_token, exp, allocator);
+        const dispatch_expr = if (exp.* == .int or exp.* == .float) other else exp;
+        const exp_type = Type_AST.create_type_of(_token, dispatch_expr, allocator);
         const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
         const eq_trait_field = Type_AST.create_field(Token.init_simple(trait_name), allocator);
         const eq_trait = Type_AST.create_type_access(_token, core_ident, eq_trait_field, allocator);

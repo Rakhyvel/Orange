@@ -34,7 +34,7 @@ impl core::Format for Int {
         // Extract digits in reverse order
         while value > 0 {
             let digit = (value % 10) as Byte
-            buf[i] = '0' as Byte + digit
+            buf[i] = '0' + digit
             i += 1
             value /= 10
         }
@@ -61,7 +61,7 @@ impl core::Format for Byte {
         // Extract digits in reverse order
         while value > 0 {
             let digit = (value % 10) as Byte
-            buf[i] = '0' as Byte + digit
+            buf[i] = '0' + digit
             i += 1
             value /= 10
         }
@@ -88,7 +88,7 @@ impl core::Format for Word32 {
         // Extract digits in reverse order
         while value > 0 {
             let digit = (value % 10) as Byte
-            buf[i] = '0' as Byte + digit
+            buf[i] = '0' + digit
             i += 1
             value /= 10
         }
