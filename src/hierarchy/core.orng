@@ -363,6 +363,22 @@ impl Eq for String {
     }
 }
 
+trait Index[Idx] {
+    type Output
+
+    fn index(&self, idx: Idx) -> &Self::Output
+}
+
+// impl[T, const n: Int] Index[Int] for [n]T { ... }
+// impl[T] Index[Int] for []T { ... }
+// impl[T] Index[Int] for [mut]T { ... }
+// impl[T] Index[Int] for [*]T { ... }
+// impl[T] Index[Int] for [*mut]T { ... }
+
+trait Index_Mut[Idx] : Index[Idx] {
+    fn index_mut(&mut self, idx: Idx) -> &mut Self::Output
+}
+
 trait Hash: Eq {
     virtual fn hash(&self) -> Word64
 }
