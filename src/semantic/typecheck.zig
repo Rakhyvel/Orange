@@ -390,7 +390,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 const lhs_type_node = ast.lhs().type_access._lhs_type;
                 if (lhs_type_node.* == .identifier and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
                     if (ast.children().items.len == 0) {
-                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument (the receiver)" } });
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument" } });
                         return error.CompileError;
                     }
                     const receiver_type = self.typecheck_AST(ast.children().items[0], null, subst) catch return error.CompileError;

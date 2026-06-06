@@ -1,0 +1,4 @@
+//
+fn main() -> Int {
+    comptime { 9223372036854775808.0 as Int }
+}
