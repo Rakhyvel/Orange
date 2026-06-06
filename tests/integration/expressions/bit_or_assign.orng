@@ -1,0 +1,6 @@
+// 255
+fn main() -> Word32 {
+    let mut x: Word32 = 0xF0
+    x |= 0x0F
+    x
+}

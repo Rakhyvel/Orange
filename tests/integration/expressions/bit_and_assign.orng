@@ -1,0 +1,6 @@
+// 15
+fn main() -> Word32 {
+    let mut x: Word32 = 0xFF
+    x &= 0x0F
+    x
+}
