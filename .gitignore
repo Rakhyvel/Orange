@@ -1,5 +1,7 @@
-.zig-cache/
-.vscode/
+.*/
+!.gitignore
+!.gitmodules
+!.github
 zig-out/
 kcov-out*/
 **/build
