@@ -71,7 +71,7 @@ impl for Xoshiro128 {
 }
 
 fn rotl(x: Word32, k: Word32) -> Word32 {
-    x << k | x >> (32 - k)
+    x << k | x >> (32 as Word32 - k)
 }
 
 test "rand" {
