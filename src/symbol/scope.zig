@@ -196,6 +196,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
                 const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
                 if (res.count > 0) return res;
             }
+            if (trait_decl.* != .trait) continue;
             for (trait_decl.trait.super_traits.items) |super_trait| {
                 if (super_trait.symbol().? != trait) continue;
                 const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), super_trait.symbol().?, ctx);

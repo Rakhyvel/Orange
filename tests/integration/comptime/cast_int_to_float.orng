@@ -1,4 +1,0 @@
-// 1
-fn main() -> Int {
-    if comptime { 4 as Float } == 4.0 { 1 } else { 0 }
-}

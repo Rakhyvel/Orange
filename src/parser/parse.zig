@@ -354,14 +354,25 @@ fn function_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
 }
 
 fn error_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
-    var exp = try self.prefix_type_expr();
+    var exp = try self.ascription_type_expr();
     while (true) {
         if (self.accept(.exclamation_mark)) |_| {
-            exp = Type_AST.create_error_type(exp, try self.prefix_type_expr(), self.allocator);
+            exp = Type_AST.create_error_type(exp, try self.ascription_type_expr(), self.allocator);
         } else {
             return exp;
         }
     }
+}
+
+// Wraps prefix_type_expr with optional `as Trait` ascription(s).
+// This layer is separate so that cast targets (which use prefix_type_expr directly)
+// are not greedy about consuming `as`, keeping `x as T1 as T2` left-associative.
+fn ascription_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
+    var exp = try self.prefix_type_expr();
+    while (self.accept(.as)) |token| {
+        exp = Type_AST.create_as_trait(token, exp, try self.constraint_list(), self.allocator);
+    }
+    return exp;
 }
 
 fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
@@ -440,7 +451,6 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
 }
 
 fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
-    // FIXME: High Cyclo
     var exp = try self.terminal_type_expr();
     while (true) {
         if (self.accept(.double_colon)) |token| {
@@ -450,13 +460,6 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
                 Type_AST.create_field(try self.expect(.identifier), self.allocator),
                 self.allocator,
             );
-        } else if (self.accept(.as)) |token| {
-            exp = Type_AST.create_as_trait(
-                token,
-                exp,
-                try self.constraint_list(),
-                self.allocator,
-            );
         } else if (self.peek_kind(.left_square)) {
             const args = try self.generics_args();
             exp = Type_AST.create_generic_apply_type(exp.token(), exp, args, self.allocator);
@@ -464,6 +467,12 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             return exp;
         }
     }
+}
+
+// Cast targets use prefix_type_expr, which stops before ascription_type_expr,
+// so `expr as T1 as T2` parses left-to-right as `(expr as T1) as T2`.
+fn cast_target_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
+    return self.prefix_type_expr();
 }
 
 fn terminal_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
@@ -797,12 +806,11 @@ fn term_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 }
 
 fn as_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
-    const exp = try self.prefix_expr();
-    if (self.accept(.as)) |token| {
-        return ast_.AST.create_as(token, exp, try self.type_expr(), self.allocator);
-    } else {
-        return exp;
+    var exp = try self.prefix_expr();
+    while (self.accept(.as)) |token| {
+        exp = ast_.AST.create_as(token, exp, try self.cast_target_type_expr(), self.allocator);
     }
+    return exp;
 }
 
 fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {

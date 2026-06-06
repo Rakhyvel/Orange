@@ -1,4 +1,0 @@
-// 3
-fn main() -> Int {
-    comptime { 3.7 as Int }
-}
