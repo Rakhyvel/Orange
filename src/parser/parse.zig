@@ -688,11 +688,14 @@ fn bitwise_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.comparison_expr();
     while (true) {
         if (self.accept(.bar)) |token| {
-            exp = ast_.AST.create_bit_or(token, exp, try self.comparison_expr(), self.allocator);
+            const rhs = try self.comparison_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Bit_Or", "bit_or", self.allocator);
         } else if (self.accept(.tilde)) |token| {
-            exp = ast_.AST.create_bit_xor(token, exp, try self.comparison_expr(), self.allocator);
+            const rhs = try self.comparison_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Bit_Xor", "bit_xor", self.allocator);
         } else if (self.accept(.ampersand)) |token| {
-            exp = ast_.AST.create_bit_and(token, exp, try self.comparison_expr(), self.allocator);
+            const rhs = try self.comparison_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Bit_And", "bit_and", self.allocator);
         } else {
             return exp;
         }
@@ -749,11 +752,11 @@ fn shift_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.int_expr();
     while (true) {
         if (self.accept(.double_lesser)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_left_shift(token, exp, try self.int_expr(), self.allocator);
+            const rhs = try self.int_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Shl", "shl", self.allocator);
         } else if (self.accept(.double_greater)) |token| {
-            // TODO: Trait call?
-            exp = ast_.AST.create_right_shift(token, exp, try self.int_expr(), self.allocator);
+            const rhs = try self.int_expr();
+            exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Shr", "shr", self.allocator);
         } else {
             return exp;
         }
@@ -837,6 +840,24 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         } else if (std.mem.eql(u8, token.data, "ge")) {
             const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
             return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "bit_and")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_bit_and(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "bit_or")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_bit_or(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "bit_xor")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_bit_xor(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "bit_not")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+            return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "shl")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
+        } else if (std.mem.eql(u8, token.data, "shr")) {
+            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+            return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
         } else if (std.mem.eql(u8, token.data, "default")) {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return ast_.AST.create_default(token, args.items[0], self.allocator);
@@ -882,8 +903,7 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (self.accept(.minus)) |token| {
         return ast_.AST.create_negate(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.tilde)) |token| {
-        // TODO: Trait call?
-        return ast_.AST.create_bit_not(token, try self.prefix_expr(), self.allocator);
+        return try ast_.AST.create_core_trait_unary_op(token, try self.prefix_expr(), "Bit_Not", "bit_not", self.allocator);
     } else if (self.accept(.ampersand)) |token| {
         const mut = self.accept(.mut);
         return ast_.AST.create_addr_of(token, try self.prefix_expr(), mut != null, false, self.allocator);
