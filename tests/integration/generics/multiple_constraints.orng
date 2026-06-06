@@ -16,7 +16,7 @@ impl Default for Int {
 fn sum[T: Add + Default](ts: []T) -> T {
     let mut retval = T::default()
     while let mut i = 0; i < ts.length; i += 1 {
-        retval = retval.>add(ts[i])
+        retval = Add::add(retval, ts[i])
     }
     return retval
 }

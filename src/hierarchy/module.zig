@@ -233,7 +233,7 @@ pub const Module = struct {
 
         // Perform checks and collections on the module
         try compiler.validate_module.validate_module(module);
-        compiler.module_scope(module.absolute_path).?.collect_traits_and_impls_and_enums(&module.traits, &module.impls, &module.enums);
+        compiler.module_scope(module.absolute_path).?.collect_traits_and_enums(&module.traits, &module.enums);
         try module.add_all_cfgs(entry_name, compiler);
         if (module.entry) |entry| {
             entry.assert_needed_at_runtime();

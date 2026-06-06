@@ -1,0 +1,17 @@
+// inner_trait.orng:10:9: error: expected a statement here, got `impl`
+//     impl Return_322 for Int { // Now a parser error!
+//        ^
+// 
+fn main() -> Int {
+    trait Return_322 {
+        fn get() -> Int
+    }
+
+    impl Return_322 for Int { // Now a parser error!
+        fn get() -> Int { 322 }
+    }
+
+    let x: Int = 4
+    _ = x
+    x.>get()
+}

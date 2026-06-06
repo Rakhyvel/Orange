@@ -1,0 +1,6 @@
+// 16
+fn main() -> Word64 {
+    let mut x: Word64 = 1
+    x <<= 4
+    x
+}

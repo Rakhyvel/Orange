@@ -1,0 +1,4 @@
+// 1
+fn main() -> Int {
+    if comptime { 2.5 as Float32 as Float } == 2.5 { 1 } else { 0 }
+}

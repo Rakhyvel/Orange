@@ -101,7 +101,7 @@ pub fn type_check_bits(span: Span, got: *Type_AST, errors: *errs_.Errors) Valida
     }
 }
 
-pub fn throw_unexpected_type(span: Span, expected: *Type_AST, got: *Type_AST, errors: *errs_.Errors) Validate_Error_Enum {
+pub fn throw_unexpected_type(span: Span, expected: *Type_AST, got: *const Type_AST, errors: *errs_.Errors) Validate_Error_Enum {
     errors.add_error(errs_.Error{ .unexpected_type = .{ .span = span, .expected = expected, .got = got } });
     return error.CompileError;
 }

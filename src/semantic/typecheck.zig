@@ -225,7 +225,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .type_access => {
-            try self.ctx.validate_type.validate_type(ast.type_access._lhs_type);
+            const lhs_is_trait_ident = ast.type_access._lhs_type.* == .identifier and
+                ast.type_access._lhs_type.symbol() != null and
+                ast.type_access._lhs_type.symbol().?.kind == .trait;
+
+            if (!lhs_is_trait_ident) {
+                // Trait::method uses a trait identifier as lhs_type. Traits are not types so skip validation.
+                try self.ctx.validate_type.validate_type(ast.type_access._lhs_type);
+            }
 
             // look up symbol, that's the type
             const symbol = try Decorate.symbol(ast, self.ctx);
@@ -378,6 +385,33 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .call => {
             const lhs_span = ast.lhs().token().span;
+            if (ast.lhs().* == .type_access) {
+                // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
+                const lhs_type_node = ast.lhs().type_access._lhs_type;
+                if (lhs_type_node.* == .identifier and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
+                    if (ast.children().items.len == 0) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument" } });
+                        return error.CompileError;
+                    }
+                    const receiver_type = self.typecheck_AST(ast.children().items[0], null, subst) catch return error.CompileError;
+                    // Strip as_trait (monomorphization wrapper) and addr_of (explicit &self receiver
+                    // in FQS calls like Trait::method(&x, ...)) to reach the base type for impl lookup.
+                    var concrete_type = receiver_type;
+                    while (concrete_type.* == .as_trait) concrete_type = concrete_type.lhs();
+                    if (concrete_type.* == .addr_of) concrete_type = concrete_type.child();
+                    const method_name = ast.lhs().rhs().token().data;
+                    var candidate_methods = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
+                    defer candidate_methods.deinit();
+                    var constraints_arr = [1]*Type_AST{lhs_type_node};
+                    try Scope.as_trait_member_lookup(concrete_type, &constraints_arr, method_name, &candidate_methods, self.ctx);
+                    if (candidate_methods.keys().len == 0) {
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type, .candidates = null } });
+                        return error.CompileError;
+                    }
+                    ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
+                }
+            }
+
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const for_type = ast.lhs().type_access._lhs_type.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
@@ -399,20 +433,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     });
                     return error.CompileError;
                 }
-                const method = candidate_method_decls.keys()[0];
-                var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                method_identifier.set_symbol(method.symbol());
-                ast.set_lhs(method_identifier);
-
-                // for (ast.lhs().type_access._lhs_type.as_trait.constraints.items) |constraint| { // TODO: Select based on expected type if >1? Or just throw an ambiguous error
-                //     const scope = constraint.scope().?;
-                //     const res = try scope.impl_trait_lookup(for_type, constraint.symbol().?, self.ctx);
-                //     std.debug.assert(res.count > 0); // TODO: Throw error
-                //     const method = Scope.search_impl(res.ast.?, ast.lhs().rhs().token().data) orelse continue;
-                //     var method_identifier = ast_.AST.create_identifier(ast.lhs().rhs().token(), self.ctx.allocator());
-                //     method_identifier.set_symbol(method.symbol());
-                //     ast.set_lhs(method_identifier);
-                // }
             }
             var lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = lhs_type.expand_identifier();
@@ -606,9 +626,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
                 for (type_param_decl.type_param_decl.constraints.items) |constraint| {
-                    const constraint_trait = constraint.symbol().?;
-                    const dyn_trait = ast.dyn_value.dyn_type.child().symbol().?;
-                    if (constraint_trait == dyn_trait) {
+                    if (Type_AST.is_sub_trait(constraint, ast.dyn_value.dyn_type.child())) {
                         found_constraint = true;
                         break;
                     }
@@ -1183,16 +1201,14 @@ fn method_fits(
 
     temp_args = try args_validator.fill_default_args();
 
-    // Disable error recording
+    // Disable error recording so typecheck_AST errors inside probe_type are not stored
     self.ctx.errors.record_errors = false;
     defer self.ctx.errors.record_errors = true;
     args_validator.validate_arity() catch return .{ .not_viable = .{ .arity_mismatch = .{ .expects = domain.items.len, .got = temp_args.items.len } } };
-    args_validator.validate_type(subst, self.ctx) catch {
-        const param_idx = args_validator.error_details.?.param_idx;
-        const expected_type = domain.items[param_idx];
-        const actual_type = args_validator.error_details.?.arg_type;
-        return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = param_idx, .expects = expected_type, .got = actual_type } } };
-    };
+    if (args_validator.probe_type(subst, self.ctx)) |failure| {
+        const expected_type = domain.items[failure.param_idx];
+        return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = failure.param_idx, .expects = expected_type, .got = failure.arg_type } } };
+    }
 
     return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
 }

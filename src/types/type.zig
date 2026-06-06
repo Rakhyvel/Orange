@@ -1282,7 +1282,7 @@ pub const Type_AST = union(enum) {
         return .satisfies;
     }
 
-    fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
+    pub fn is_sub_trait(maybe_sub: *Type_AST, maybe_super: *Type_AST) bool {
         const maybe_sub_symbol = maybe_sub.symbol().?;
         const maybe_super_symbol = maybe_super.symbol().?;
         if (maybe_sub_symbol == maybe_super_symbol) return true;

@@ -1,16 +1,16 @@
 // use_undef5.orng:15:8: error: symbol `x` is never defined
-//     y.>add(x)
+//     y.>my_add(x)
 //       ^
 // use_undef5.orng:13:10: note: declared here
 //     let x: Int = undefined
 //         ^
 // 
 impl for Int {
-    fn add(self, other: Int) -> Int { self + other }
+    fn my_add(self, other: Int) -> Int { self + other }
 }
 
 fn main() -> Int {
     let x: Int = undefined
     let y: Int = 44
-    y.>add(x)
+    y.>my_add(x)
 }

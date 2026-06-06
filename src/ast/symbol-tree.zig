@@ -315,7 +315,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 ast.impl.impls_anon_trait = true;
             }
 
-            try self.scope.impls.append(ast);
+            try self.scope.module.?.impls.append(ast);
 
             return new_self;
         },

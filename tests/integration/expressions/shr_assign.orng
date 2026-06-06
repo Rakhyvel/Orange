@@ -1,0 +1,6 @@
+// 32
+fn main() -> Word64 {
+    let mut x: Word64 = 256
+    x >>= 3
+    x
+}

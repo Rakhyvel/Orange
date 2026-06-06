@@ -92,7 +92,7 @@ pub fn load_float(self: *Self, address: i64, size: i64) f64 {
 pub fn store(self: *Self, comptime T: type, address: i64, val: T) void {
     std.debug.assert(address >= 0);
     // std.debug.print("[0x{X}:{}] = {}\n", .{ address, @alignOf(T), val });
-    @as(*T, @alignCast(@ptrCast(&self.memory[@as(usize, @intCast(address))]))).* = val;
+    @as(*T, @ptrCast(@alignCast(&self.memory[@as(usize, @intCast(address))]))).* = val;
 }
 
 /// Loads a value of type T from the specified address in the interpreter's memory.

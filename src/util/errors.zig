@@ -208,7 +208,7 @@ pub const Error = union(enum) {
     unexpected_type: struct {
         span: Span,
         expected: *Type_AST,
-        got: *Type_AST,
+        got: *const Type_AST,
     },
     non_convertible: struct {
         span: Span,

@@ -1,8 +1,8 @@
-// invoke_static_method_not_found.orng:7:8: error: the type `Int` does not contain the member `add`
-//     x.>add(56)
+// invoke_static_method_not_found.orng:7:8: error: the type `Int` does not contain the member `this_doesnt_exist`
+//     x.>this_doesnt_exist(56)
 //       ^
 // 
 fn main() -> Int {
     let x = 4
-    x.>add(56)
+    x.>this_doesnt_exist(56)
 }

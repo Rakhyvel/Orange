@@ -2196,6 +2196,7 @@ pub const AST = union(enum) {
             .type_alias => self.type_alias.init,
             .type_param_decl => null, // No type... yet!
             .module => null,
+            .trait => null, // Traits are not types, callers should check decl kind first
             else => std.debug.panic("compiler error: cannot call `.decl_typedef()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }
@@ -2374,18 +2375,52 @@ pub const AST = union(enum) {
         return member.assert_ast_valid();
     }
 
-    pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+    pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
+        const dispatch_expr = if (exp.* == .int or exp.* == .float) other else exp;
+        const exp_type = Type_AST.create_type_of(_token, dispatch_expr, allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
+        const eq_trait_field = Type_AST.create_field(Token.init_simple(trait_name), allocator);
+        const eq_trait = Type_AST.create_type_access(_token, core_ident, eq_trait_field, allocator);
+        var constraints = std.array_list.Managed(*Type_AST).init(allocator);
+        try constraints.append(eq_trait);
+        const trait_as = Type_AST.create_as_trait(_token, exp_type, constraints, allocator);
+        const eq_method_field = AST.create_field(Token.init_simple(method_name), allocator);
+        const eq_method = AST.create_type_access(_token, trait_as, eq_method_field, allocator);
+
+        var args = std.array_list.Managed(*AST).init(allocator);
+        try args.append(exp);
+        try args.append(other);
+        return AST.create_call(_token, eq_method, args, allocator);
+    }
+
+    pub fn create_core_trait_unary_op(_token: Token, exp: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
+        const exp_type = Type_AST.create_type_of(_token, exp, allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
+        const trait_field = Type_AST.create_field(Token.init_simple(trait_name), allocator);
+        const trait_type = Type_AST.create_type_access(_token, core_ident, trait_field, allocator);
+        var constraints = std.array_list.Managed(*Type_AST).init(allocator);
+        try constraints.append(trait_type);
+        const trait_as = Type_AST.create_as_trait(_token, exp_type, constraints, allocator);
+        const method_field = AST.create_field(Token.init_simple(method_name), allocator);
+        const method = AST.create_type_access(_token, trait_as, method_field, allocator);
+
+        var args = std.array_list.Managed(*AST).init(allocator);
+        try args.append(exp);
+        return AST.create_call(_token, method, args, allocator);
+    }
+
+    pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) !*AST {
         switch (_token.kind) {
-            .plus_equals => return create_add(_token, _lhs, _rhs, allocator),
-            .minus_equals => return create_sub(_token, _lhs, _rhs, allocator),
-            .star_equals => return create_mult(_token, _lhs, _rhs, allocator),
-            .slash_equals => return create_div(_token, _lhs, _rhs, allocator),
-            .percent_equals => return create_mod(_token, _lhs, _rhs, allocator),
-            .double_lesser_equals => return create_left_shift(_token, _lhs, _rhs, allocator),
-            .double_greater_equals => return create_right_shift(_token, _lhs, _rhs, allocator),
-            .bar_equals => return create_bit_or(_token, _lhs, _rhs, allocator),
-            .ampersand_equals => return create_bit_and(_token, _lhs, _rhs, allocator),
-            .tilde_equals => return create_bit_xor(_token, _lhs, _rhs, allocator),
+            .plus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Add", "add", allocator),
+            .minus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Sub", "sub", allocator),
+            .star_equals => return create_core_trait_op(_token, _lhs, _rhs, "Mul", "mul", allocator),
+            .slash_equals => return create_core_trait_op(_token, _lhs, _rhs, "Div", "div", allocator),
+            .percent_equals => return create_core_trait_op(_token, _lhs, _rhs, "Mod", "mod", allocator),
+            .double_lesser_equals => return create_core_trait_op(_token, _lhs, _rhs, "Shl", "shl", allocator),
+            .double_greater_equals => return create_core_trait_op(_token, _lhs, _rhs, "Shr", "shr", allocator),
+            .bar_equals => return create_core_trait_op(_token, _lhs, _rhs, "Bit_Or", "bit_or", allocator),
+            .ampersand_equals => return create_core_trait_op(_token, _lhs, _rhs, "Bit_And", "bit_and", allocator),
+            .tilde_equals => return create_core_trait_op(_token, _lhs, _rhs, "Bit_Xor", "bit_xor", allocator),
             else => std.debug.panic("compiler error: {s} is not a operator-assign token", .{@tagName(_token.kind)}),
         }
     }

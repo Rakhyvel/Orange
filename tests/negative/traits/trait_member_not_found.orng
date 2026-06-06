@@ -1,0 +1,12 @@
+// trait_member_not_found.orng:11:13: error: member `baz` not in trait `Foo`
+//     Foo::baz
+//            ^
+// 
+//
+trait Foo {
+    fn bar(self) -> Int
+}
+
+fn main() -> Int {
+    Foo::baz
+}

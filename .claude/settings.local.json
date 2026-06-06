@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /home/jshimel/ && pwd)",
+      "Read(///wsl.localhost/Ubuntu/home/**)",
+      "Bash(git config *)",
+      "Read(///wsl.localhost/Ubuntu/home/jshimel/Orng/src/**/**)",
+      "Bash(grep -v \"unreachable$\")",
+      "Bash(grep -n \"unreachable\\\\b\" //wsl.localhost/Ubuntu/home/jshimel/Orng/src/**/*.zig //wsl.localhost/Ubuntu/home/jshimel/Orng/src/*.zig 2>/dev/null | grep -v \"catch unreachable\\\\|// \" | wc -l)",
+      "Bash(grep -n \"catch unreachable\" //wsl.localhost/Ubuntu/home/jshimel/Orng/src/**/*.zig //wsl.localhost/Ubuntu/home/jshimel/Orng/src/*.zig 2>/dev/null | wc -l)",
+      "Bash(grep -n \"std.debug.dumpCurrentStackTrace\" //wsl.localhost/Ubuntu/home/jshimel/Orng/src/**/*.zig //wsl.localhost/Ubuntu/home/jshimel/Orng/src/*.zig 2>/dev/null)",
+      "Bash(cat //wsl.localhost/Ubuntu/home/jshimel/Orng/src/util/errors.zig | grep -n \"dumpCurrentStackTrace\" )",
+      "Read(///wsl.localhost/Ubuntu/home/jshimel/Orng/src/util/**)",
+      "Bash(grep -n \"var twenties\\\\|var count\\\\b\\\\|var debug\\\\b\\\\|var log\\\\b\" //wsl.localhost/Ubuntu/home/jshimel/Orng/src/**/*.zig //wsl.localhost/Ubuntu/home/jshimel/Orng/src/*.zig 2>/dev/null)",
+      "Bash(grep -n \"std.debug.print\" //wsl.localhost/Ubuntu/home/jshimel/Orng/src/hierarchy/module.zig)",
+      "Read(///wsl.localhost/Ubuntu/home/jshimel/Orng/src/hierarchy/**)",
+      "Bash(sed 's/:.*//g')",
+      "Bash(sed 's/^    //g')",
+      "Bash(xargs grep -l \"ampersand_equals\\\\|bar_equals\\\\|tilde_equals\")",
+      "Bash(xargs head -1)",
+      "Bash(xargs grep -h \"^fn\\\\|^trait\\\\|^impl\\\\|^struct\\\\|^enum\\\\|^context\\\\|^extern\\\\|^type\")"
+    ]
+  }
+}

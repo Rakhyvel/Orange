@@ -1,0 +1,12 @@
+// 10
+fn sum_range(start: Int, end: Int) -> Int {
+    let mut sum = 0
+    for i in start...end {
+        sum += i
+    }
+    sum
+}
+
+fn main() -> Int {
+    sum_range(1, 5)
+}

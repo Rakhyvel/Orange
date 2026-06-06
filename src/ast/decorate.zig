@@ -380,6 +380,25 @@ fn resolve_access_symbol(self: Self, sym: *Symbol, rhs: Token, scope: ?*Scope, s
 
         .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?),
 
+        .trait => {
+            // bind abstract method_decl, typecheck resolves concrete impl at call site.
+            const trait_decl = sym.decl.?;
+            for (trait_decl.trait.method_decls.items) |method_decl| {
+                if (std.mem.eql(u8, method_decl.method_decl.name.token().data, rhs.data)) {
+                    return method_decl.symbol().?;
+                }
+            }
+            self.ctx.errors.add_error(errs_.Error{
+                .member_not_in_module = .{
+                    .span = rhs.span,
+                    .identifier = rhs.data,
+                    .name = "trait",
+                    .module_name = sym.name,
+                },
+            });
+            return error.CompileError;
+        },
+
         else => {
             self.ctx.errors.add_error(errs_.Error{
                 .member_not_in_module = .{

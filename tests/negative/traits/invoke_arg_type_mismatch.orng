@@ -1,0 +1,22 @@
+// invoke_arg_type_mismatch.orng:21:8: error: the type `Int` does not contain the member `bar`
+//     x.>bar(n)
+//       ^
+// invoke_arg_type_mismatch.orng:15:7: note: candidate not viable: candidate expects type `&Int` for parameter 2
+//     fn bar(self, x: &Int) -> Int { x^ }
+//      ^
+// 
+//
+
+trait My_Foo {
+    fn bar(self, x: &Int) -> Int
+}
+
+impl My_Foo for Int {
+    fn bar(self, x: &Int) -> Int { x^ }
+}
+
+fn main() -> Int {
+    let n: Int = 5
+    let x: Int = 10
+    x.>bar(n)
+}

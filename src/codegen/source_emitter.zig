@@ -1,5 +1,4 @@
 // This file contains the implementation of the Orange compiler's C code generator.
-// TODO: Make this a context struct (to fix cheat_module)
 
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
@@ -60,9 +59,7 @@ pub fn output_header_include(self: *Self) CodeGen_Error!void {
     , .{ self.module.package_name, self.module.name() });
 }
 
-fn output_impls(
-    self: *Self,
-) CodeGen_Error!void {
+fn output_impls(self: *Self) CodeGen_Error!void {
     var vtable_count: usize = 0;
     for (self.module.impls.items) |impl| {
         if (impl.impl.num_virtual_methods != 0) {

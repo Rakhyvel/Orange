@@ -169,12 +169,12 @@
         - [x] Character escapes (`\n`, `\r`, `\t`)
         - [x] Error on invalid escapes
         - [x] Error if character literal contains more than one character
-- [ ] Sum types
+- [x] Sum types
     - [x] `||` for union
     - [x] Optimize `double.orng`: use-def analysis is buggy for selects, select-copy elimination opt isn't working
     - [x] equality on sum type values
     - [x] reset back to call syntax, arrow syntax sucks weenee
-    - [ ] Builtin-function (?) to get tag name as string from sum
+    - [x] Builtin-function (?) to get tag name as string from sum
 - [x] optionals
     - [x] `?` constructor
     - [x] remove `fromOptional`
@@ -385,7 +385,6 @@
     - [x] `Self` type
         - [x] `Self` type in traits means the future type that will implement the type
         - [x] `Self` type in impls means the "for" type
-    - [ ] `Ty <: Tr` returns if a type implements a trait
     - [ ] Add an optimization such that if the type of an invoke is known, rather than an invoke, change to just a call to the method
 - [ ] function stamping
     - [x] functions returning `Type` should be capitalized
@@ -399,15 +398,15 @@
         - [x] generic types without `comptime` keyword
     - [x] memoize expanded call types
     - [ ] impl constants
-        - [ ] iterators & for loops
+        - [x] iterators & for loops
             - [ ] multi-loops, ranges like zig
-        - [ ] type methods (Default trait)
+        - [x] type methods (Default trait)
     - [ ] generic traits
         - [ ] `trait From(const T: Type) { fn from(value: T) -> Self }`
-    - [ ] generic type unification
+    - [x] generic type unification
         > Types can begin with `$ident`, where the type of `ident` will be inferred, and defined as a constant parameter
-        - [ ] error if an identifier is `$` twice
-        - [ ] error if `$` appears anywhere else but a type annotation
+        - [x] error if an identifier is `$` twice
+        - [x] error if `$` appears anywhere else but a type annotation
     - [ ] generic methods
     - [ ] `impl Tr` stamps out a new monomorphised function for every new impl of `Tr`
         > Even though the type is stamped out, you can only treat it using its trait methods
@@ -441,11 +440,11 @@
         > Modules are either `.orng` files, or directories with a `root.orng` file, that conventionally imports/uses other modules in it's directory
         > Importing/Using namespaces begin either locally in the immediate directory, or with the dependencies added in the packages `build.orng`
         - [ ] `Builder::add_dependency`, which can take either an absolute, relative, or git input
-    - [ ] `::` for module access
+    - [x] `::` for module access
     - [ ] `@filename()`, `@line()`, `@fn_name()`
-    - [ ] `test` to do tests
+    - [x] `test` to do tests
         > Rework integration tests
-    - [ ] `fn main(sys: System)->!()`
+    - [x] `fn main(sys: System)->!()`
         > System contains:
             - args: []String // the command line args
             - stdin: dyn Reader
@@ -473,8 +472,18 @@
     - [ ] `@type_info()` and `@Type_Info()`, which give and are type reflection respectively
     - [ ] `@insert()`, which takes a comptime string and returns comptime AST structure
 
-### Maybe Pile
-- [ ] `undefined` (does this break some optimization assumptions?)
+### Maybe Pile & Refactors
+- [x] `undefined` (does this break some optimization assumptions?)
+- [ ] Split up validate into separate passes (typecheck, pattern, arg resolution, consteval)
+- [ ] Split up CompilerContext into separate views (Module_Compiler, Package_Resolver, Compilation_Session coords both)
+- [ ] Node IDs for ASTs, Symbols. Lazy passes hold maps from ID to some record answering some query.
+- [ ] Various AST wrappers w/ information (Typed AST, Decorated AST, Lowered AST) and avoid modifying ASTs in-place
+- [ ] `Symbol` shouldn't hold pointer to `CFG`
+- [ ] Counter for how many impls/symbols/etc have been validated, ensure everything is validated before codegen
+- [ ] `AST.clone` preserves identifiers if not being substituted
+- [ ] Make test script more "TUI"-y, only re-write last line, newlines only for errors
+- [ ] Convert some recursive calls to iteration
+- [ ] Logger
 
 ### Core Library
 > Mostly trait and type definitions, and really basic stuff. Available for freestanding programs
@@ -486,34 +495,35 @@
     - [ ] `trait Mul`
     - [ ] `trait Div`
     - [ ] `trait Mod`
-- [ ] IO
-    - [ ] `trait Writer`
-    - [ ] `trait Reader`
-- [ ] Iterator
-    - [ ] `trait Iterator`
-    - [ ] `trait Into_Iterator`
-- [ ] ASCII
-    - [ ] `is_whitespace()`
-    - [ ] `is_lower()`
-    - [ ] `is_upper()`
-    - [ ] `is_digit()`
-    - [ ] `is_alphanumeric()`
+- [x] IO
+    - [x] `trait Writer`
+    - [x] `trait Reader`
+- [x] Iterator
+    - [x] `trait Iterator`
+    - [x] `trait Into_Iterator`
+    - [ ] `map`, `filter`, `reduce` (requires templated methods)
+- [x] ASCII
+    - [x] `is_whitespace()`
+    - [x] `is_lower()`
+    - [x] `is_upper()`
+    - [x] `is_digit()`
+    - [x] `is_alphanumeric()`
 - [ ] Collections
     - [ ] List
-        - [ ] `map`, `filter`, `reduce`
-        - [ ] `Array_List`, `Double_Linked_List`
-    - [ ] HashMap
+        - [x] `Array_List`
+        - [ ] `Double_Linked_List`
+    - [x] HashMap
 - [ ] Memory
-    - [ ] `trait Allocator`
-    - [ ] `const Fixed_Buffer_Allocator`
-    - [ ] `const Arena_Allocator`
+    - [x] `trait Allocator`
+    - [x] `const Fixed_Buffer_Allocator`
+    - [x] `const Arena_Allocator`
     - [ ] `impl Eq for []T\Eq`
-- [ ] Strings
-    - [ ] String Buffer
-- [ ] UTF8
-    - [ ] `utf8_byte_sequence_length()`
-    - [ ] `utf8_decode()`
-    - [ ] `utf8_count_codepoints`
+- [x] Strings
+    - [x] String Buffer
+- [x] UTF8
+    - [x] `utf8_byte_sequence_length()`
+    - [x] `utf8_decode()`
+    - [x] `utf8_count_codepoints`
 
 ### Standard Library
 > Full standard library for user-mode programs

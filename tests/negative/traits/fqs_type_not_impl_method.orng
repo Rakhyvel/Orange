@@ -1,0 +1,12 @@
+// fqs_type_not_impl_method.orng:11:14: error: the type `Int` does not contain the member `bar`
+//     Foo::bar(5)
+//             ^
+// 
+//
+trait Foo {
+    fn bar(self) -> Int
+}
+
+fn main() -> Int {
+    Foo::bar(5)
+}

@@ -174,6 +174,162 @@ impl[T] for ?T {
     }
 }
 
+trait Add {
+    fn add(self, other: Self) -> Self
+}
+
+impl Add for Int { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Int32 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Int16 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Int8 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Word64 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Word32 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Word16 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Word8 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Float { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl Add for Float32 { fn add(self, other: Self) -> Self { @add(self, other) } }
+
+trait Sub {
+    fn sub(self, other: Self) -> Self
+}
+
+impl Sub for Int { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Int8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word64 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Word8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Float { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl Sub for Float32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+
+trait Mul {
+    fn mul(self, other: Self) -> Self
+}
+
+impl Mul for Int { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Int8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word64 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Word8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Float { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl Mul for Float32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+
+trait Div {
+    fn div(self, other: Self) -> Self
+}
+
+impl Div for Int { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int16 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Int8 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word64 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word16 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Word8 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Float { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl Div for Float32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+
+trait Mod {
+    fn mod(self, other: Self) -> Self
+}
+
+impl Mod for Int { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Int8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word64 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+impl Mod for Word8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
+
+trait Partial_Ord {
+    fn lt(self, other: Self) -> Bool
+    fn gt(self, other: Self) -> Bool
+    fn le(self, other: Self) -> Bool
+    fn ge(self, other: Self) -> Bool
+}
+
+impl Partial_Ord for Int { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Int8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word64 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Word8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Float { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+impl Partial_Ord for Float32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+
+trait Ord: Partial_Ord {}
+
+impl Ord for Int {}
+impl Ord for Int32 {}
+impl Ord for Int16 {}
+impl Ord for Int8 {}
+impl Ord for Word64 {}
+impl Ord for Word32 {}
+impl Ord for Word16 {}
+impl Ord for Word8 {}
+
+trait Bit_And {
+    fn bit_and(self, other: Self) -> Self
+}
+
+impl Bit_And for Word64 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
+impl Bit_And for Word32 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
+impl Bit_And for Word16 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
+impl Bit_And for Word8 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
+
+trait Bit_Or {
+    fn bit_or(self, other: Self) -> Self
+}
+
+impl Bit_Or for Word64 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
+impl Bit_Or for Word32 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
+impl Bit_Or for Word16 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
+impl Bit_Or for Word8 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
+
+trait Bit_Xor {
+    fn bit_xor(self, other: Self) -> Self
+}
+
+impl Bit_Xor for Word64 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
+impl Bit_Xor for Word32 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
+impl Bit_Xor for Word16 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
+impl Bit_Xor for Word8 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
+
+trait Bit_Not {
+    fn bit_not(self) -> Self
+}
+
+impl Bit_Not for Word64 { fn bit_not(self) -> Self { @bit_not(self) } }
+impl Bit_Not for Word32 { fn bit_not(self) -> Self { @bit_not(self) } }
+impl Bit_Not for Word16 { fn bit_not(self) -> Self { @bit_not(self) } }
+impl Bit_Not for Word8 { fn bit_not(self) -> Self { @bit_not(self) } }
+
+trait Shl {
+    fn shl(self, other: Self) -> Self
+}
+
+impl Shl for Word64 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
+impl Shl for Word32 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
+impl Shl for Word16 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
+impl Shl for Word8 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
+
+trait Shr {
+    fn shr(self, other: Self) -> Self
+}
+
+impl Shr for Word64 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
+impl Shr for Word32 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
+impl Shr for Word16 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
+impl Shr for Word8 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }

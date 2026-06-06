@@ -1,0 +1,12 @@
+// fqs_no_args.orng:11:14: error: trait method call requires at least one argument
+//     Foo::bar()
+//             ^
+// 
+//
+trait Foo {
+    fn bar(self) -> Int
+}
+
+fn main() -> Int {
+    Foo::bar()
+}
