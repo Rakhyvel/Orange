@@ -9,6 +9,7 @@ const Span = @import("../util/span.zig");
 const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const generic_arg_ = @import("../ast/generic_arg.zig");
 const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
 const unification_ = @import("../types/unification.zig");
 const validation_state_ = @import("../util/validation_state.zig");
@@ -230,18 +231,19 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 
 pub fn monomorphize(
     self: *Self,
-    key: std.array_list.Managed(*Type_AST),
+    key: std.array_list.Managed(generic_arg_.GenericArg),
     ctx: *Compiler_Context,
 ) error{ OutOfMemory, CompileError }!*Self {
-    // std.debug.print("monomorphize {s}{f} ({*})\n", .{ self.name, fmt_.List_Printer(Type_AST){ .list = &key }, self });
+    // std.debug.print("monomorphize {s} ({*})\n", .{ self.name, self });
     if (key.items.len == 0) {
         // std.debug.print("nothing to do\n", .{});
         return self;
     }
 
     for (key.items) |k| {
-        if (k.* == .identifier and k.symbol().?.decl.?.* == .type_param_decl) {
-            return self;
+        switch (k) {
+            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl) return self,
+            .const_arg => |v| if (v.is_const_param_ref()) return self,
         }
     }
 
@@ -257,11 +259,19 @@ pub fn monomorphize(
         var subst = unification_.Substitutions.init(ctx.allocator());
         defer subst.deinit();
         for (self.decl.?.generic_params().items, key.items) |param, arg| {
-            var to_be_substd = arg;
-            if (param.* == .type_param_decl and param.type_param_decl.constraints.items.len > 0) {
-                to_be_substd = Type_AST.create_as_trait(to_be_substd.token(), to_be_substd, param.type_param_decl.constraints, ctx.allocator());
+            switch (param.*) {
+                .type_param_decl => {
+                    var to_be_substd = arg.type_arg;
+                    if (param.type_param_decl.constraints.items.len > 0) {
+                        to_be_substd = Type_AST.create_as_trait(to_be_substd.token(), to_be_substd, param.type_param_decl.constraints, ctx.allocator());
+                    }
+                    try subst.put_type(param.symbol().?.name, to_be_substd);
+                },
+                .const_param_decl => {
+                    try subst.put_const(param.symbol().?.name, arg.const_arg);
+                },
+                else => unreachable,
             }
-            try subst.put(param.symbol().?.name, to_be_substd);
         }
 
         // Clone the decl with the substitution

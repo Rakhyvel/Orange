@@ -6,6 +6,8 @@ const Fmt_String = @import("fmt_string.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
+const generic_arg_ = @import("../ast/generic_arg.zig");
+const GenericArg = generic_arg_.GenericArg;
 const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self: type = @This();
@@ -461,8 +463,8 @@ fn postfix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
                 self.allocator,
             );
         } else if (self.peek_kind(.left_square)) {
-            const args = try self.generics_args();
-            exp = Type_AST.create_generic_apply_type(exp.token(), exp, args, self.allocator);
+            const generic_args = try self.generics_args();
+            exp = Type_AST.create_generic_apply_type(exp.token(), exp, generic_args, self.allocator);
         } else {
             return exp;
         }
@@ -1032,9 +1034,9 @@ fn call_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     return retval;
 }
 
-fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
+fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(GenericArg) {
     _ = try self.expect(.left_square);
-    var retval = std.array_list.Managed(*Type_AST).init(self.allocator);
+    var retval = std.array_list.Managed(GenericArg).init(self.allocator);
     retval.append(try self.generic_arg()) catch unreachable;
     while (self.accept(.comma)) |_| {
         if (self.peek_kind(.right_square)) {
@@ -1046,12 +1048,19 @@ fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST
     return retval;
 }
 
-fn generic_arg(self: *Self) Parser_Error_Enum!*Type_AST {
-    var retval = try self.type_expr();
-    if (self.accept(.single_equals)) |token| {
-        retval = Type_AST.create_eq_constraint(token, retval, try self.type_expr(), self.allocator);
+fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
+    const is_value = self.peek_kind(.dec_int) or self.peek_kind(.hex_int) or
+        self.peek_kind(.oct_int) or self.peek_kind(.bin_int) or
+        self.peek_kind(.float) or self.peek_kind(.true) or self.peek_kind(.false) or
+        self.peek_kind(.minus);
+    if (is_value) {
+        return .{ .const_arg = try self.bool_expr() };
     }
-    return retval;
+    var ty = try self.type_expr();
+    if (self.accept(.single_equals)) |token| {
+        ty = Type_AST.create_eq_constraint(token, ty, try self.type_expr(), self.allocator);
+    }
+    return .{ .type_arg = ty };
 }
 
 fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {
@@ -1568,10 +1577,18 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
     var params = std.array_list.Managed(*ast_.AST).init(self.allocator);
     if (self.accept(.left_square) != null) {
         while (!self.peek_kind(.right_square)) {
-            const param_token = try self.expect(.identifier);
-            const constraints = try self.colon_started_constraint_list();
-            const param_ident = ast_.AST.create_type_param_decl(param_token, false, constraints, self.allocator);
-            params.append(param_ident) catch unreachable;
+            if (self.accept(.@"const")) |_| {
+                const name_token = try self.expect(.identifier);
+                _ = try self.expect(.single_colon);
+                const param_type = try self.type_expr();
+                const const_param = ast_.AST.create_const_param_decl(name_token, param_type, self.allocator);
+                params.append(const_param) catch unreachable;
+            } else {
+                const param_token = try self.expect(.identifier);
+                const constraints = try self.colon_started_constraint_list();
+                const param_ident = ast_.AST.create_type_param_decl(param_token, false, constraints, self.allocator);
+                params.append(param_ident) catch unreachable;
+            }
             if (self.accept(.comma) == null) {
                 break;
             }
@@ -1643,7 +1660,7 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     const gen_params = try self.generic_params_list();
     for (gen_params.items) |gen_param| {
-        gen_param.type_param_decl.rigid = true;
+        if (gen_param.* == .type_param_decl) gen_param.type_param_decl.rigid = true;
     }
 
     const trait_ident: ?*ast_.AST = if (!self.peek_kind(.@"for")) (try self.bool_expr()) else null;

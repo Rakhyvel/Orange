@@ -117,7 +117,11 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
             const trait_decl = trait_symbol.decl.?;
 
             if (constraint.* == .generic_apply) {
-                for (constraint.children().items) |eq_constraint| {
+                for (constraint.generic_apply.args.items) |_ga| {
+                    const eq_constraint = switch (_ga) {
+                        .type_arg => |ty| ty,
+                        .const_arg => continue,
+                    };
                     if (eq_constraint.* != .eq_constraint) continue;
                     const associated_type_name = eq_constraint.lhs().token().data;
                     for (trait_decl.trait.type_decls.items) |maybe_type_def| {

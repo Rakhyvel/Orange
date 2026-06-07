@@ -1,0 +1,11 @@
+// const_param_type_mismatch.orng:10:15: error: expected a value of type `Int`, got a value of type `Float`
+//     first[3.14, Int](x)
+//              ^
+// 
+fn first[const n: Int, T](arr: [n]T) -> T {
+    arr[0]
+}
+fn main() -> Int {
+    let x: [3]Int = [5, 10, 15]
+    first[3.14, Int](x)
+}

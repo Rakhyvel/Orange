@@ -1,0 +1,9 @@
+// 5
+fn first[const n: Int, T](arr: [n]T) -> T {
+    arr[0]
+}
+
+fn main() -> Int {
+    let x: [3]Int = [5, 10, 15]
+    first[comptime { 3 }, Int](x)
+}

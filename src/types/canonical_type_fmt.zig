@@ -103,6 +103,7 @@ fn hash_type_internal(
             try append_tuple_fields(real_type, seen_map, next_id, writer);
         },
         .array_of => {
+            std.debug.assert(!real_type.array_of.len.is_const_param_ref()); // must be monomorphized before codegen
             try writer.print("array{}_", .{real_type.array_of.len.int.data});
             try hash_type_internal(real_type.child(), seen_map, next_id, writer);
         },

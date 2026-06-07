@@ -88,6 +88,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         => {},
 
         .type_param_decl => try walk_types(&ast.type_param_decl.constraints, new_context),
+        .const_param_decl => try walk_type(ast.const_param_decl._type, new_context),
 
         .context_value_decl => {
             try walk_ast(ast.context_value_decl.init, new_context);
@@ -169,7 +170,12 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
         .generic_apply => {
             try walk_ast(ast.lhs(), new_context);
-            try walk_types(&ast.generic_apply._children, new_context);
+            for (ast.generic_apply._children.items) |arg| {
+                switch (arg) {
+                    .type_arg => |ty| try walk_type(ty, new_context),
+                    .const_arg => |v| try walk_ast(v, new_context),
+                }
+            }
         },
 
         .context_value => {
@@ -356,7 +362,12 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
 
         .generic_apply => {
             try walk_type(_type.lhs(), new_context);
-            try walk_types(_type.children(), new_context);
+            for (_type.generic_apply.args.items) |arg| {
+                switch (arg) {
+                    .type_arg => |ty| try walk_type(ty, new_context),
+                    .const_arg => |v| try walk_ast(v, new_context),
+                }
+            }
         },
 
         .eq_constraint => {

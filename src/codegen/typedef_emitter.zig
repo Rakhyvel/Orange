@@ -104,6 +104,7 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
         try self.output_field_list(self.dep.base.children(), 4);
         try self.writer.print("}};\n\n", .{});
     } else if (self.dep.base.* == .array_of) {
+        std.debug.assert(!self.dep.base.array_of.len.is_const_param_ref()); // must be monomorphized before codegen
         try self.writer.print("struct {f} {{\n    ", .{Canonical_Type_Fmt{ .type = self.dep.base }});
         try self.emitter.output_type(self.dep.base.child());
         try self.writer.print(" _0[{}];\n", .{self.dep.base.array_of.len.int.data});

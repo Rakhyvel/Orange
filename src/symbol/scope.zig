@@ -350,7 +350,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
+        subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -362,7 +362,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
+        subst.put_type("Self", for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -446,12 +446,12 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     if (subst_contains_generics) return impl;
 
     // Already instantiated, return the memoized impl
-    const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
-    if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
+    const generic_arg_list = unification_.generic_arg_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
+    if (impl.impl.instantiations.get(generic_arg_list)) |instantiated| return instantiated;
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
-    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
+    impl.impl.instantiations.put(generic_arg_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
@@ -501,7 +501,7 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     }
 
     // Store in the memo
-    return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
+    return impl.impl.instantiations.get(generic_arg_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 
 /// Searches an impl for a field name

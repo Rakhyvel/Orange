@@ -858,7 +858,12 @@ fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
                 try self.writer.print("(", .{});
             }
             try self.writer.print("&", .{});
-            try self.output_rvalue(lvalue, Instruction.Precedence.prefix);
+            if (lvalue.* == .symbver and lvalue.symbver.symbol.decl.?.* == .receiver) {
+                // Value receivers are already the concrete type, the cast done in output_rvalue turns the lvalue into an rvalue, preventing address-taking (e.g. for array indexing)
+                try self.emitter.output_symbol(lvalue.symbver.symbol);
+            } else {
+                try self.output_rvalue(lvalue, Instruction.Precedence.prefix);
+            }
             if (@intFromEnum(outer_precedence) < @intFromEnum(Instruction.Precedence.prefix)) {
                 try self.writer.print(")", .{});
             }

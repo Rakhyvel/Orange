@@ -194,11 +194,16 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
             // child points to a generic function
             if (decl.num_generic_params() > 0) {
-                var types = std.array_list.Managed(*Type_AST).init(self.ctx.allocator());
-                for (ast.children().items) |arg| {
-                    try types.append(Type_AST.from_ast(arg, self.ctx.allocator()));
+                var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
+                const params = decl.generic_params().items;
+                for (ast.children().items, 0..) |arg, i| {
+                    if (i < params.len and params[i].* == .const_param_decl) {
+                        try generic_args.append(.{ .const_arg = arg });
+                    } else {
+                        try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) });
+                    }
                 }
-                ast.* = ast_.AST.create_generic_apply(ast.token(), child, types, self.ctx.allocator()).*;
+                ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
                 try generic_apply_.instantiate(ast, self.ctx);
             }
         },
