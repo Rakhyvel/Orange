@@ -1,0 +1,13 @@
+// 466
+fn select[const pick_left: Bool](a: Int, b: Int) -> Int {
+    maybe_unused[Int](b)
+    if pick_left { a } else { b }
+}
+
+fn maybe_unused[T](x: T) {
+    _ = x
+}
+
+fn main() -> Int {
+    select[true](466, 0)
+}

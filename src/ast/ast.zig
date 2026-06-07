@@ -1537,6 +1537,10 @@ pub const AST = union(enum) {
                     if (substs.get_type(self.token().data)) |replacement| {
                         return create_identifier(replacement.token(), allocator);
                     }
+                } else if (self.is_const_param_ref()) {
+                    if (substs.get_const(self.token().data)) |replacement| {
+                        return replacement;
+                    }
                 }
                 return create_identifier(self.token(), allocator);
             },
@@ -1688,7 +1692,7 @@ pub const AST = union(enum) {
                 for (self.generic_apply._children.items) |arg| {
                     switch (arg) {
                         .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
-                        .const_arg => |v| cloned_args.append(.{ .const_arg = v }) catch unreachable,
+                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
                     }
                 }
                 return create_generic_apply(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);

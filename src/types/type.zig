@@ -1470,7 +1470,7 @@ pub const Type_AST = union(enum) {
                 for (self.generic_apply.args.items) |arg| {
                     switch (arg) {
                         .type_arg => |ty| new_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
-                        .const_arg => |v| new_args.append(.{ .const_arg = v }) catch unreachable,
+                        .const_arg => |v| new_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
                     }
                 }
                 return create_generic_apply_type(self.token(), self.lhs().clone(substs, allocator), new_args, allocator);

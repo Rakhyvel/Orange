@@ -1,0 +1,7 @@
+// 468
+fn last[const n: Int, T](arr: [n]T) -> T { arr[n - 1] }
+
+fn main() -> Int {
+    let x: [3]Int = [5, 10, 468]
+    last[3, Int](x)
+}

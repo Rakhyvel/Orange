@@ -200,7 +200,16 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                     if (i < params.len and params[i].* == .const_param_decl) {
                         try generic_args.append(.{ .const_arg = arg });
                     } else {
-                        try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) });
+                        switch (arg.*) {
+                            .int, .float, .true, .false, .negate => {
+                                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                    .msg = "expected a type argument, got a value",
+                                    .span = arg.token().span,
+                                } });
+                                return error.CompileError;
+                            },
+                            else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
+                        }
                     }
                 }
                 ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;

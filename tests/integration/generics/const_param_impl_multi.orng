@@ -1,0 +1,17 @@
+// 471
+impl[const n: Int] for [n]Int {
+    fn sum(&self) -> Int {
+        let mut acc = 0
+        for i in 0...n {
+            acc += self^[i]
+        }
+        acc
+    }
+}
+
+fn main() -> Int {
+    let x: [3]Int = [400, 0, 1]
+    let y: [2]Int = [30, 40]
+
+    x.>sum() + y.>sum()
+}

@@ -1,0 +1,10 @@
+// 469
+struct Fixed_Array[const n: Int, T] {
+    data: [n]T,
+    len: Int
+}
+
+fn main() -> Int {
+    let a: Fixed_Array[3, Int] = Fixed_Array[3, Int]([1, 2, 466], 3)
+    a.len + a.data[2]
+}
