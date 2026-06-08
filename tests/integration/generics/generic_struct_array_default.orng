@@ -1,0 +1,11 @@
+// 0
+struct Buf[const n: Int] { data: [n]Int, used: Int }
+fn empty_buf[const n: Int]() -> Buf[n] {
+    let x: Buf[n]
+    x
+}
+
+fn main() -> Int {
+    let b = empty_buf[3]()
+    b.used
+}

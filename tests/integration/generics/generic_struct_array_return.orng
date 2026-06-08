@@ -1,0 +1,12 @@
+// 482
+struct Buf[const n: Int] { data: [n]Int, used: Int }
+fn id[const n: Int](x: Buf[n]) -> Buf[n] {
+    x
+}
+
+fn main() -> Int {
+    let mut x: Buf[3]
+    x.data[1] = 482
+    x = id[3](x)
+    x.data[1]
+}

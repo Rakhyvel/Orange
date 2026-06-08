@@ -211,7 +211,8 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             const l_is_param = l_len.is_const_param_ref();
             const r_is_param = r_len.is_const_param_ref();
             if (l_is_param and r_is_param) {
-                return error.TypesMismatch; // TODO: handle `where n = m` equality constraints here
+                // Cannot verify equality at the abstract level; both sides are const param refs
+                // that may or may not be equal. Concrete equality is enforced at instantiation.
             } else if (l_is_param) {
                 try subst.put_const(l_len.token().data, r_len);
             } else if (r_is_param) {

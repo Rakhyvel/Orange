@@ -1,0 +1,17 @@
+// 479
+fn ones[const n: Int]() -> [n]Float {
+    let mut x: [n]Float
+    for i in 0...n {
+        x[i] = 1.0
+    }
+    x
+}
+
+fn main() -> Int {
+    let x = ones[10]()
+    if x[2] == 1.0 {
+        479
+    } else {
+        unreachable
+    }
+}

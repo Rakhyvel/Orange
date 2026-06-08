@@ -75,6 +75,10 @@ pub fn generate_default(_type: *Type_AST, span: Span, errors: *errs_.Errors, all
         },
         .as_trait => return generate_default(_type.lhs(), span, errors, allocator),
         .array_of => {
+            if (_type.array_of.len.is_const_param_ref()) {
+                // Length is still abstract, defer default generation until after monomorphization
+                return ast_.AST.create_default(_type.token(), _type, allocator);
+            }
             var value_terms = std.array_list.Managed(*ast_.AST).init(allocator);
             const child = try generate_default(_type.child(), span, errors, allocator);
             for (0..@intCast(_type.array_of.len.int.data)) |_| {

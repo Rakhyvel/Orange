@@ -89,6 +89,13 @@ pub fn assert_pattern_matches(
             if (expanded_expr_type.* != .array_of) {
                 return typing_.throw_wrong_from("array", "array pattern", expanded_expr_type, expr_type.token().span, &self.ctx.errors);
             }
+            if (expanded_expr_type.array_of.len.is_const_param_ref()) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                    .span = pattern.token().span,
+                    .msg = "cannot match against an array with generic size",
+                } });
+                return error.CompileError;
+            }
             if (expanded_expr_type.array_of.len.int.data != pattern.children().items.len) {
                 const got = self.ctx.typecheck.typecheck_AST(pattern, null, subst) catch poison_.poisoned_type;
                 return typing_.throw_unexpected_type(pattern.token().span, expr_type, got, &self.ctx.errors);

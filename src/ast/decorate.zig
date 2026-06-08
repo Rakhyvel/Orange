@@ -316,6 +316,25 @@ fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
         },
 
         .generic_apply => {
+            // The parser can only detect const_args lexically (integer/float/bool literals).
+            // Identifier const param refs (`n` in `Buf[n]`) arrive as type_arg when parsed in a type position.
+            // Reclassify them here, after symbols have been set.
+            for (ast.generic_apply.args.items) |*arg| {
+                switch (arg.*) {
+                    .type_arg => |ty| {
+                        if (ty.* == .identifier) {
+                            const sym = ty.symbol() orelse continue;
+                            const decl = sym.decl orelse continue;
+                            if (decl.* == .const_param_decl) {
+                                const id = ast_.AST.create_identifier(ty.token(), self.ctx.allocator());
+                                id.set_symbol(sym);
+                                arg.* = .{ .const_arg = id };
+                            }
+                        }
+                    },
+                    .const_arg => {},
+                }
+            }
             try generic_apply_.instantiate(ast, self.ctx);
         },
         else => {},
