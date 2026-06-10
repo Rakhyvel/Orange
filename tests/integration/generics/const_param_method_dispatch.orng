@@ -1,0 +1,11 @@
+// 0
+struct Buf[const n: Int] { data: [n]Int }
+
+impl[const n: Int] for Buf[n] {
+    fn get(self) -> Int { self.data[0] }
+}
+
+fn main() -> Int {
+    let x: Buf[3]
+    x.>get()
+}

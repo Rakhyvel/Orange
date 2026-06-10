@@ -574,6 +574,8 @@
     - [ ] `///` Comment blocks are documentation
     - [ ] `\<attribute>` to mark attributes
     - [ ] error if attributes aren't documented or if they are but aren't present in the function
+- [ ] Testing
+    - [ ] Can discover and run tests in VSCode
 
 ### Wishlist
 - [ ] Make matches have to be exhaustive over all product types too. Make it UB to not match. Don't return optional value for matches

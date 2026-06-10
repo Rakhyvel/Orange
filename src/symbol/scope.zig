@@ -221,7 +221,16 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         for (0..n) |ii| {
             const impl = self.module.?.impls.items[ii];
             const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
-            const traits_match = impl_trait == trait;
+            var traits_match = impl_trait == trait;
+            if (!traits_match) {
+                // Check if `trait` is a monomorphized form of some generic trait
+                for (impl_trait.monomorphs.pairs.items) |pair| {
+                    if (pair.value == trait) {
+                        traits_match = true;
+                        break;
+                    }
+                }
+            }
             if (!traits_match) continue;
 
             if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {

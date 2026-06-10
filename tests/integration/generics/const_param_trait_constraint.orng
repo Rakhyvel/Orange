@@ -1,0 +1,19 @@
+// 3
+trait Scale[const n: Int] {
+    fn size(self) -> Int
+}
+
+struct Buf[const n: Int] { data: [n]Int }
+
+impl[const n: Int] Scale[n] for Buf[n] {
+    fn size(self) -> Int { _ = self; n }
+}
+
+fn get_size[T: Scale[3]](x: T) -> Int {
+    x.>size()
+}
+
+fn main() -> Int {
+    let b: Buf[3]
+    get_size[Buf[3]](b)
+}

@@ -253,6 +253,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             const r_args = rhs.generic_apply.args.items;
             if (l_args.len != r_args.len) return error.TypesMismatch;
             for (l_args, r_args) |l_arg, r_arg| {
+                if (std.meta.activeTag(l_arg) != std.meta.activeTag(r_arg)) return error.TypesMismatch;
                 switch (l_arg) {
                     .type_arg => |l_ty| try unify_inner(l_ty, r_arg.type_arg, subst, visited_map, options),
                     .const_arg => |l_v| {

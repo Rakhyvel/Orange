@@ -1373,7 +1373,7 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
-            .generic_apply => {
+            .generic_apply => { // reachable only when both sides are unexpanded (no init_typedef) callers must ensure const_args are concrete literals, not const_param_refs
                 if (self.lhs().symbol() != other.lhs().symbol()) return false;
                 const a_args = self.generic_apply.args.items;
                 const b_args = other.generic_apply.args.items;
