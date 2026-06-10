@@ -77,7 +77,7 @@ fn create_core(compiler: *Compiler_Context) !void {
     core.?.module = module;
 
     // Add a `core` import symbol to core's own scope so that `core::X` references
-    // resolve inside core.orng itself (e.g. operator trait desugaring generates `core::Add`).
+    // resolve inside core.orng itself (like operator trait desugaring generates `core::Add`).
     const core_self_import = Symbol.init(
         core.?,
         "core",

@@ -800,7 +800,16 @@ fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
             }
         },
         .symbver => {
-            if (lvalue.symbver.symbol.decl.?.* == .receiver) {
+            const is_value_receiver = lvalue.symbver.symbol.decl.?.* == .receiver and
+                (lvalue.symbver.symbol.decl.?.receiver.kind == .value or
+                    lvalue.symbver.symbol.decl.?.receiver.kind == .value_virtual);
+            if (is_value_receiver) {
+                // Use *(ConcreteType*)& instead of (ConcreteType) so the result remains an lvalue
+                // Required when callers take the address (like array indexing)
+                try self.writer.print("(*(", .{});
+                try self.emitter.output_type(lvalue.get_expanded_type());
+                try self.writer.print("*)&", .{});
+            } else if (lvalue.symbver.symbol.decl.?.* == .receiver) {
                 try self.writer.print("((", .{});
                 try self.emitter.output_type(lvalue.get_expanded_type());
                 try self.writer.print(")", .{});
@@ -858,12 +867,7 @@ fn output_lvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
                 try self.writer.print("(", .{});
             }
             try self.writer.print("&", .{});
-            if (lvalue.extract_symbver().symbol.decl.?.* == .receiver) {
-                // Value receivers are already the concrete type, the cast done in output_rvalue turns the lvalue into an rvalue, preventing address-taking (e.g. for array indexing)
-                try self.emitter.output_symbol(lvalue.extract_symbver().symbol);
-            } else {
-                try self.output_rvalue(lvalue, Instruction.Precedence.prefix);
-            }
+            try self.output_rvalue(lvalue, Instruction.Precedence.prefix);
             if (@intFromEnum(outer_precedence) < @intFromEnum(Instruction.Precedence.prefix)) {
                 try self.writer.print(")", .{});
             }

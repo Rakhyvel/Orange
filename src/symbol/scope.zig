@@ -212,7 +212,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     const is_type_param = constraints.len > 0;
 
     // Scan module-level impls only once per module: at the original call site, or when entering
-    // a different module (e.g., an imported module). Parent-scope passes in the same module skip
+    // a different module (like an imported module). Parent-scope passes in the same module skip
     // this scan to avoid double-counting.
     const entering_new_module = self.module != null and (self == original_scope or self.module != original_scope.module);
     if (entering_new_module) {
@@ -279,7 +279,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         }
     }
 
-    // Walk up parent scopes to discover imports defined at outer scope levels (e.g., the
+    // Walk up parent scopes to discover imports defined at outer scope levels (like the
     // `core` import lives on the module root scope, not on nested impl/fn scopes).
     if (self.parent) |p| {
         const parent_res = try p.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
