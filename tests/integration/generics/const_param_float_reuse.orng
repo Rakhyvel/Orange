@@ -1,0 +1,6 @@
+// 4.000000
+fn scale[const x: Float](y: Float) -> Float { x * y }
+
+fn main() -> Float {
+    scale[2.0](1.0) + scale[2.0](1.0)
+}

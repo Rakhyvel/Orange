@@ -216,6 +216,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             } else if (l_is_param) {
                 try subst.put_const(l_len.token().data, r_len);
             } else if (r_is_param) {
+                if (!options.allow_rigid) return error.TypesMismatch;
                 try subst.put_const(r_len.token().data, l_len);
             } else {
                 if (l_len.int.data != r_len.int.data) return error.TypesMismatch;
@@ -261,6 +262,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
                         if (l_v.is_const_param_ref()) {
                             try subst.put_const(l_v.token().data, r_v);
                         } else if (r_v.is_const_param_ref()) {
+                            if (!options.allow_rigid) return error.TypesMismatch;
                             try subst.put_const(r_v.token().data, l_v);
                         } else {
                             if (l_v.int.data != r_v.int.data) return error.TypesMismatch;
