@@ -1,0 +1,10 @@
+// unify_kind_mismatch.orng:8:61: error: expected a value of type `Pair[T, Int]`, got a value of type `Pair[T, n]`
+// fn wrong[T, const n: Int](x: Pair[T, n]) -> Pair[T, Int] { x }
+//                                                            ^
+// 
+//
+struct Pair[T, const n: Int] { data: T }
+
+fn wrong[T, const n: Int](x: Pair[T, n]) -> Pair[T, Int] { x }
+
+fn main() -> Int { 0 }

@@ -1,0 +1,5 @@
+// 32
+struct Buf[const n: Int] { data: [n]Int, used: Int }
+fn buf_size[const n: Int]() -> Int { @sizeof(Buf[n]) }
+
+fn main() -> Int { buf_size[3]() }

@@ -1,0 +1,4 @@
+// 470
+fn add_const[const a: Int, const b: Int]() -> Int { a + b }
+
+fn main() -> Int { add_const[400, 70]() }

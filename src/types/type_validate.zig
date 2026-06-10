@@ -55,7 +55,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
             defer subst.deinit();
             _ = self.ctx.typecheck.typecheck_AST(@"type".array_of.len, prelude_.int_type, &subst) catch return error.CompileError;
             try walk_.walk_ast(@"type".array_of.len, Const_Eval.new(self.ctx));
-            if (@"type".array_of.len.* != .int) {
+            if (@"type".array_of.len.* != .int and !@"type".array_of.len.is_const_param_ref()) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = @"type".token().span, .msg = "not a constant integer" } });
                 return error.CompileError;
             }

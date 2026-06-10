@@ -800,7 +800,16 @@ fn output_rvalue(self: *Self, lvalue: *lval_.L_Value, outer_precedence: Instruct
             }
         },
         .symbver => {
-            if (lvalue.symbver.symbol.decl.?.* == .receiver) {
+            const is_value_receiver = lvalue.symbver.symbol.decl.?.* == .receiver and
+                (lvalue.symbver.symbol.decl.?.receiver.kind == .value or
+                    lvalue.symbver.symbol.decl.?.receiver.kind == .value_virtual);
+            if (is_value_receiver) {
+                // Use *(ConcreteType*)& instead of (ConcreteType) so the result remains an lvalue
+                // Required when callers take the address (like array indexing)
+                try self.writer.print("(*(", .{});
+                try self.emitter.output_type(lvalue.get_expanded_type());
+                try self.writer.print("*)&", .{});
+            } else if (lvalue.symbver.symbol.decl.?.* == .receiver) {
                 try self.writer.print("((", .{});
                 try self.emitter.output_type(lvalue.get_expanded_type());
                 try self.writer.print(")", .{});

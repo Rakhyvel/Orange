@@ -1,0 +1,15 @@
+// 42
+trait Get_First {
+    fn get_first(self) -> Int
+}
+
+impl[const n: Int] Get_First for [n]Int {
+    fn get_first(self) -> Int {
+        self[0]
+    }
+}
+
+fn main() -> Int {
+    let x: [2]Int = [42, 99]
+    x.>get_first()
+}

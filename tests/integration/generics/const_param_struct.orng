@@ -1,0 +1,9 @@
+// 42
+struct My_Array[const n: Int, T] {
+    data: [n]T
+}
+
+fn main() -> Int {
+    let x: My_Array[3, Int] = My_Array[3, Int]([42, 10, 20])
+    x.data[0]
+}

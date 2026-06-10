@@ -1,0 +1,11 @@
+// const_param_kind_mismatch.orng:10:17: error: expected a type argument, got a value
+//     first[Int, 3](x)
+//                ^
+// 
+fn first[const n: Int, T](arr: [n]T) -> T {
+    arr[0]
+}
+fn main() -> Int {
+    let x: [3]Int = [5, 10, 15]
+    first[Int, 3](x)
+}

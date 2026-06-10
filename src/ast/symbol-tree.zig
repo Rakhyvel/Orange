@@ -194,6 +194,17 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try self.register_symbol(ast, symbol);
         },
+        .const_param_decl => {
+            const symbol = Symbol.init(
+                self.scope,
+                ast.token().data,
+                ast,
+                .@"const",
+                .local,
+                self.allocator,
+            );
+            try self.register_symbol(ast, symbol);
+        },
 
         .@"test" => {
             var new_self = self.new_scope(ast);
@@ -268,10 +279,10 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             try walk_.walk_ast(self_type_decl, new_self);
 
             for (ast.impl.method_defs.items, 0..) |method_def, i| {
-                var subst = std.StringArrayHashMap(*Type_AST).init(self.allocator);
+                var subst = unification_.Substitutions.init(self.allocator);
                 defer subst.deinit();
 
-                try subst.put("Self", ast.impl._type);
+                try subst.put_type("Self", ast.impl._type);
 
                 ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
             }

@@ -212,7 +212,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     const is_type_param = constraints.len > 0;
 
     // Scan module-level impls only once per module: at the original call site, or when entering
-    // a different module (e.g., an imported module). Parent-scope passes in the same module skip
+    // a different module (like an imported module). Parent-scope passes in the same module skip
     // this scan to avoid double-counting.
     const entering_new_module = self.module != null and (self == original_scope or self.module != original_scope.module);
     if (entering_new_module) {
@@ -221,7 +221,16 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         for (0..n) |ii| {
             const impl = self.module.?.impls.items[ii];
             const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
-            const traits_match = impl_trait == trait;
+            var traits_match = impl_trait == trait;
+            if (!traits_match) {
+                // Check if `trait` is a monomorphized form of some generic trait
+                for (impl_trait.monomorphs.pairs.items) |pair| {
+                    if (pair.value == trait) {
+                        traits_match = true;
+                        break;
+                    }
+                }
+            }
             if (!traits_match) continue;
 
             if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {
@@ -270,7 +279,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         }
     }
 
-    // Walk up parent scopes to discover imports defined at outer scope levels (e.g., the
+    // Walk up parent scopes to discover imports defined at outer scope levels (like the
     // `core` import lives on the module root scope, not on nested impl/fn scopes).
     if (self.parent) |p| {
         const parent_res = try p.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
@@ -350,7 +359,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
+        subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -362,7 +371,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put("Self", for_type) catch unreachable;
+        subst.put_type("Self", for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
         const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
@@ -446,12 +455,12 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     if (subst_contains_generics) return impl;
 
     // Already instantiated, return the memoized impl
-    const type_param_list = unification_.type_param_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
-    if (impl.impl.instantiations.get(type_param_list)) |instantiated| return instantiated;
+    const generic_arg_list = unification_.generic_arg_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
+    if (impl.impl.instantiations.get(generic_arg_list)) |instantiated| return instantiated;
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
-    impl.impl.instantiations.put(type_param_list, new_impl) catch unreachable;
+    impl.impl.instantiations.put(generic_arg_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
     }
@@ -501,7 +510,7 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     }
 
     // Store in the memo
-    return impl.impl.instantiations.get(type_param_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
+    return impl.impl.instantiations.get(generic_arg_list) orelse new_impl; // TODO: substitutions need to be in the same order as generic params
 }
 
 /// Searches an impl for a field name

@@ -1,0 +1,10 @@
+// 465
+fn first[const n: Int, T](arr: [n]T) -> T {
+    arr[0]
+}
+
+fn main() -> Int {
+    let x: [3]Int = [400, 10, 15]
+    let y: [2]Int = [65, 20]
+    first[3, Int](x) + first[2, Int](y)
+}

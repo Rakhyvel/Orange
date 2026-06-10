@@ -1,0 +1,8 @@
+// 480
+fn arr_size[const n: Int]() -> Int {
+    @sizeof([n]Int)
+}
+
+fn main() -> Int {
+    arr_size[60]()
+}

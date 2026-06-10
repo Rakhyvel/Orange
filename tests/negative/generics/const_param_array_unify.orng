@@ -1,0 +1,12 @@
+// const_param_array_unify.orng:7:22: error: expected a value of type `[identifier("n")]Int`, got a value of type `[int(3)]Int`
+//     let y: [n]Int = x
+//                     ^
+// 
+fn bar[const n: Int]() -> Int {
+    let x: [3]Int = [1, 2, 3]
+    let y: [n]Int = x
+    _ = y
+    n
+}
+
+fn main() -> Int { bar[3]() }

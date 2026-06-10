@@ -12,6 +12,8 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
+const generic_arg_ = @import("../ast/generic_arg.zig");
+const GenericArg = generic_arg_.GenericArg;
 
 pub const Type_AST_Common = struct {
     /// Token that defined the type
@@ -68,7 +70,7 @@ pub const Type_AST = union(enum) {
     generic_apply: struct {
         common: Type_AST_Common,
         _lhs: *Type_AST,
-        args: std.array_list.Managed(*Type_AST),
+        args: std.array_list.Managed(GenericArg),
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
@@ -277,7 +279,7 @@ pub const Type_AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_generic_apply_type(_token: Token, _lhs: *Type_AST, args: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_generic_apply_type(_token: Token, _lhs: *Type_AST, args: std.array_list.Managed(GenericArg), allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .generic_apply = .{
             .common = _common,
@@ -531,15 +533,19 @@ pub const Type_AST = union(enum) {
             },
             .index => blk: {
                 const base = from_ast(ast.lhs(), allocator);
-                var args = std.array_list.Managed(*Type_AST).init(allocator);
+                var args = std.array_list.Managed(GenericArg).init(allocator);
                 for (ast.children().items) |arg| {
-                    args.append(from_ast(arg, allocator)) catch unreachable;
+                    args.append(.{ .type_arg = from_ast(arg, allocator) }) catch unreachable;
                 }
                 break :blk Type_AST.create_generic_apply_type(ast.token(), base, args, allocator);
             },
             .generic_apply => blk: {
                 const _lhs = from_ast(ast.lhs(), allocator);
-                const gen_apply = Type_AST.create_generic_apply_type(ast.token(), _lhs, ast.generic_apply._children, allocator);
+                var gen_args = std.array_list.Managed(GenericArg).init(allocator);
+                for (ast.generic_apply._children.items) |arg| {
+                    gen_args.append(arg) catch unreachable;
+                }
+                const gen_apply = Type_AST.create_generic_apply_type(ast.token(), _lhs, gen_args, allocator);
                 gen_apply.set_scope(ast.scope());
                 gen_apply.set_symbol(ast.symbol());
                 break :blk gen_apply;
@@ -641,7 +647,6 @@ pub const Type_AST = union(enum) {
     pub fn children(self: *const Type_AST) *const std.array_list.Managed(*Type_AST) {
         return switch (self.*) {
             .function => &self.function.args,
-            .generic_apply => &self.generic_apply.args,
             .enum_type => &self.enum_type._terms,
             .untagged_sum_type => self.child().expand_identifier().children(),
             .context_type => &self.context_type._terms,
@@ -738,7 +743,11 @@ pub const Type_AST = union(enum) {
         const type_param_decl = self.lhs().symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             if (constraint.* != .generic_apply) continue;
-            for (constraint.children().items) |child_constraint| {
+            for (constraint.generic_apply.args.items) |_ga| {
+                const child_constraint = switch (_ga) {
+                    .type_arg => |ty| ty,
+                    .const_arg => continue,
+                };
                 if (child_constraint.* != .eq_constraint) continue;
                 if (std.mem.eql(u8, child_constraint.lhs().token().data, self.rhs().token().data)) return child_constraint.rhs();
             }
@@ -873,10 +882,19 @@ pub const Type_AST = union(enum) {
             .generic_apply => {
                 try self.generic_apply._lhs.print_type(out);
                 try out.print("[", .{});
-                try self.generic_apply.args.items[0].print_type(out);
-                for (self.generic_apply.args.items[1..]) |arg| {
-                    try out.print(", ", .{});
-                    try arg.print_type(out);
+                const items = self.generic_apply.args.items;
+                if (items.len > 0) {
+                    switch (items[0]) {
+                        .type_arg => |ty| try ty.print_type(out),
+                        .const_arg => |v| try out.print("{s}", .{v.token().data}),
+                    }
+                    for (items[1..]) |arg| {
+                        try out.print(", ", .{});
+                        switch (arg) {
+                            .type_arg => |ty| try ty.print_type(out),
+                            .const_arg => |v| try out.print("{s}", .{v.token().data}),
+                        }
+                    }
                 }
                 try out.print("]", .{});
             },
@@ -937,6 +955,7 @@ pub const Type_AST = union(enum) {
 
             .array_of => {
                 const child_size = self.child().sizeof() orelse return null;
+                if (self.array_of.len.is_const_param_ref()) return null;
                 return child_size * @as(i64, @intCast(self.array_of.len.int.data));
             },
 
@@ -1114,7 +1133,11 @@ pub const Type_AST = union(enum) {
             },
             .as_trait => return types_match(A.lhs(), B.lhs()),
             .addr_of => return (!B.addr_of.mut or B.addr_of.mut == A.addr_of.mut) and (B.addr_of.multiptr == A.addr_of.multiptr) and types_match(A.child(), B.child()),
-            .array_of => return types_match(A.child(), B.child()) and A.array_of.len.int.data == B.array_of.len.int.data,
+            .array_of => {
+                if (!types_match(A.child(), B.child())) return false;
+                if (A.array_of.len.is_const_param_ref() or B.array_of.len.is_const_param_ref()) return false;
+                return A.array_of.len.int.data == B.array_of.len.int.data;
+            },
             .anyptr_type => return B.* == .anyptr_type,
             .unit_type => return true,
             .struct_type, .tuple_type, .context_type => {
@@ -1131,12 +1154,23 @@ pub const Type_AST = union(enum) {
                 return retval;
             },
             .generic_apply => {
-                if (!lengths_match(A.children(), B.children())) return false;
-                var retval = A.lhs().symbol() == B.lhs().symbol();
-                for (A.children().items, B.children().items) |term, B_term| {
-                    retval = retval and term.types_match(B_term);
+                if (A.lhs().symbol() != B.lhs().symbol()) return false;
+                const a_args = A.generic_apply.args.items;
+                const b_args = B.generic_apply.args.items;
+                if (a_args.len != b_args.len) return false;
+                for (a_args, b_args) |a_arg, b_arg| {
+                    switch (a_arg) {
+                        .type_arg => |a_ty| {
+                            if (b_arg != .type_arg) return false;
+                            if (!a_ty.types_match(b_arg.type_arg)) return false;
+                        },
+                        .const_arg => |a_v| {
+                            if (b_arg != .const_arg) return false;
+                            if (a_v.int.data != b_arg.const_arg.int.data) return false;
+                        },
+                    }
                 }
-                return retval;
+                return true;
             },
             .enum_type, .untagged_sum_type => {
                 if (!lengths_match(A.children(), B.children())) return false;
@@ -1235,7 +1269,11 @@ pub const Type_AST = union(enum) {
                 }
 
                 if (constraint.* == .generic_apply) {
-                    for (constraint.children().items) |eq_constraint| {
+                    for (constraint.generic_apply.args.items) |_ga| {
+                        const eq_constraint = switch (_ga) {
+                            .type_arg => |ty| ty,
+                            .const_arg => continue,
+                        };
                         if (eq_constraint.* != .eq_constraint) continue;
                         const impl = res.ast orelse {
                             if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
@@ -1335,15 +1373,24 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
-            .generic_apply => {
-                if (other.children().items.len != self.children().items.len) {
-                    return false;
+            .generic_apply => { // reachable only when both sides are unexpanded (no init_typedef) callers must ensure const_args are concrete literals, not const_param_refs
+                if (self.lhs().symbol() != other.lhs().symbol()) return false;
+                const a_args = self.generic_apply.args.items;
+                const b_args = other.generic_apply.args.items;
+                if (a_args.len != b_args.len) return false;
+                for (a_args, b_args) |a_arg, b_arg| {
+                    switch (a_arg) {
+                        .type_arg => |a_ty| {
+                            if (b_arg != .type_arg) return false;
+                            if (!a_ty.c_types_match(b_arg.type_arg)) return false;
+                        },
+                        .const_arg => |a_v| {
+                            if (b_arg != .const_arg) return false;
+                            if (a_v.int.data != b_arg.const_arg.int.data) return false;
+                        },
+                    }
                 }
-                var retval = self.lhs().symbol() == other.lhs().symbol();
-                for (self.children().items, other.children().items) |term, B_term| {
-                    retval = retval and term.c_types_match(B_term);
-                }
-                return retval;
+                return true;
             },
             .function => {
                 if (other.children().items.len != self.children().items.len) {
@@ -1363,7 +1410,7 @@ pub const Type_AST = union(enum) {
     pub fn clone(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
-            .identifier => if (substs.get(self.token().data)) |replacement| {
+            .identifier => if (substs.get_type(self.token().data)) |replacement| {
                 return replacement;
             } else {
                 return self;
@@ -1381,7 +1428,11 @@ pub const Type_AST = union(enum) {
             },
             .array_of => {
                 const _expr = clone(self.child(), substs, allocator);
-                return create_array_of(self.token(), _expr, self.array_of.len, allocator);
+                const new_len = if (self.array_of.len.* == .identifier)
+                    substs.get_const(self.array_of.len.token().data) orelse self.array_of.len
+                else
+                    self.array_of.len;
+                return create_array_of(self.token(), _expr, new_len, allocator);
             },
             .annotation => {
                 const _type = clone(self.child(), substs, allocator);
@@ -1415,13 +1466,14 @@ pub const Type_AST = union(enum) {
                 return create_tuple_type(self.token(), new_children, allocator);
             },
             .generic_apply => {
-                const new_args = clone_types(self.children().*, substs, allocator);
-                return create_generic_apply_type(
-                    self.token(),
-                    self.lhs().clone(substs, allocator),
-                    new_args,
-                    allocator,
-                );
+                var new_args = std.array_list.Managed(GenericArg).init(allocator);
+                for (self.generic_apply.args.items) |arg| {
+                    switch (arg) {
+                        .type_arg => |ty| new_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
+                        .const_arg => |v| new_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
+                    }
+                }
+                return create_generic_apply_type(self.token(), self.lhs().clone(substs, allocator), new_args, allocator);
             },
             .eq_constraint => return create_eq_constraint(
                 self.token(),
@@ -1445,7 +1497,8 @@ pub const Type_AST = union(enum) {
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type => false,
             .identifier, .access => _type.symbol().?.decl.?.* == .type_param_decl,
-            .addr_of, .array_of => _type.child().is_generic(),
+            .addr_of => _type.child().is_generic(),
+            .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
             .annotation => _type.child().is_generic(),
             .function => {
                 for (_type.function.args.items) |arg| {
@@ -1455,7 +1508,16 @@ pub const Type_AST = union(enum) {
                 }
                 return _type.rhs().is_generic();
             },
-            .generic_apply, .struct_type, .tuple_type, .enum_type => {
+            .generic_apply => {
+                for (_type.generic_apply.args.items) |arg| {
+                    switch (arg) {
+                        .type_arg => |ty| if (ty.is_generic()) return true,
+                        .const_arg => |v| if (v.is_const_param_ref()) return true,
+                    }
+                }
+                return false;
+            },
+            .struct_type, .tuple_type, .enum_type => {
                 for (_type.children().items) |item| {
                     if (item.is_generic()) {
                         return true;

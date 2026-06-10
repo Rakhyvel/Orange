@@ -83,26 +83,29 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
 
         .size_of => {
             const _type = ast.size_of._type;
-            if (self.ctx.validate_type.detect_cycle(ast.size_of._type, null)) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                    .msg = "cyclic type detected",
-                    .span = ast.token().span,
-                } });
-                return error.CompileError;
+            if (!_type.is_generic()) {
+                if (self.ctx.validate_type.detect_cycle(ast.size_of._type, null)) {
+                    self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                        .msg = "cyclic type detected",
+                        .span = ast.token().span,
+                    } });
+                    return error.CompileError;
+                }
+                const size = _type.sizeof();
+                if (size == null) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        ._type = _type,
+                        .trait_name = "Sized",
+                    } });
+                    return error.CompileError;
+                }
+                ast.* = ast_.AST.create_int(ast.token(), size.?, self.ctx.allocator()).*;
+                var subst = unification_.Substitutions.init(self.ctx.allocator());
+                defer subst.deinit();
+                _ = self.ctx.typecheck.typecheck_AST(ast, null, &subst) catch return error.CompileError;
             }
-            const size = _type.sizeof();
-            if (size == null) {
-                self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
-                    .span = ast.token().span,
-                    ._type = _type,
-                    .trait_name = "Sized",
-                } });
-                return error.CompileError;
-            }
-            ast.* = ast_.AST.create_int(ast.token(), size.?, self.ctx.allocator()).*;
-            var subst = unification_.Substitutions.init(self.ctx.allocator());
-            defer subst.deinit();
-            _ = self.ctx.typecheck.typecheck_AST(ast, null, &subst) catch return error.CompileError;
+            // If generic, defer folding until monomorphization provides a concrete type
         },
     }
     return self.*;

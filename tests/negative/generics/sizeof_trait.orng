@@ -1,0 +1,9 @@
+// sizeof_trait.orng:8:21: error: expected a type
+//     @sizeof(Drawable)
+//                    ^
+// 
+trait Drawable { fn draw(self) -> Int }
+
+fn main() -> Int {
+    @sizeof(Drawable)
+}

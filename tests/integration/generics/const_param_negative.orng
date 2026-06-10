@@ -1,0 +1,4 @@
+// 467
+fn constant[const n: Int]() -> Int { n }
+
+fn main() -> Int { -constant[-467]() }

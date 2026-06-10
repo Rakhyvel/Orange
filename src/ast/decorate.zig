@@ -194,11 +194,25 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
             // child points to a generic function
             if (decl.num_generic_params() > 0) {
-                var types = std.array_list.Managed(*Type_AST).init(self.ctx.allocator());
-                for (ast.children().items) |arg| {
-                    try types.append(Type_AST.from_ast(arg, self.ctx.allocator()));
+                var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
+                const params = decl.generic_params().items;
+                for (ast.children().items, 0..) |arg, i| {
+                    if (i < params.len and params[i].* == .const_param_decl) {
+                        try generic_args.append(.{ .const_arg = arg });
+                    } else {
+                        switch (arg.*) {
+                            .int, .float, .true, .false, .negate => {
+                                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                    .msg = "expected a type argument, got a value",
+                                    .span = arg.token().span,
+                                } });
+                                return error.CompileError;
+                            },
+                            else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
+                        }
+                    }
                 }
-                ast.* = ast_.AST.create_generic_apply(ast.token(), child, types, self.ctx.allocator()).*;
+                ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
                 try generic_apply_.instantiate(ast, self.ctx);
             }
         },
@@ -302,6 +316,25 @@ fn decorate_postfix_type(self: Self, ast: *Type_AST) walk_.Error!void {
         },
 
         .generic_apply => {
+            // The parser can only detect const_args lexically (integer/float/bool literals).
+            // Identifier const param refs (`n` in `Buf[n]`) arrive as type_arg when parsed in a type position.
+            // Reclassify them here, after symbols have been set.
+            for (ast.generic_apply.args.items) |*arg| {
+                switch (arg.*) {
+                    .type_arg => |ty| {
+                        if (ty.* == .identifier) {
+                            const sym = ty.symbol() orelse continue;
+                            const decl = sym.decl orelse continue;
+                            if (decl.* == .const_param_decl) {
+                                const id = ast_.AST.create_identifier(ty.token(), self.ctx.allocator());
+                                id.set_symbol(sym);
+                                arg.* = .{ .const_arg = id };
+                            }
+                        }
+                    },
+                    .const_arg => {},
+                }
+            }
             try generic_apply_.instantiate(ast, self.ctx);
         },
         else => {},

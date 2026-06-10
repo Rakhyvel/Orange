@@ -16,6 +16,8 @@ const process_state_ = @import("../util/process_state.zig");
 const Token = @import("../lexer/token.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Monomorph_Map = @import("../types/type_map.zig").Monomorph_Map;
+const generic_arg_ = @import("../ast/generic_arg.zig");
+pub const GenericArg = generic_arg_.GenericArg;
 const validation_state_ = @import("../util/validation_state.zig");
 const unification_ = @import("../types/unification.zig");
 const fmt_ = @import("../util/fmt.zig");
@@ -144,7 +146,7 @@ pub const AST = union(enum) {
     generic_apply: struct {
         common: AST_Common,
         _lhs: *AST,
-        _children: std.array_list.Managed(*Type_AST),
+        _children: std.array_list.Managed(GenericArg),
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
@@ -446,6 +448,11 @@ pub const AST = union(enum) {
         rigid: bool,
         _symbol: ?*Symbol = null,
         constraints: std.array_list.Managed(*Type_AST),
+    },
+    const_param_decl: struct {
+        common: AST_Common,
+        _type: *Type_AST,
+        _symbol: ?*Symbol = null,
     },
     struct_decl: struct {
         common: AST_Common,
@@ -860,7 +867,7 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_generic_apply(_token: Token, _lhs: *AST, _children: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *AST {
+    pub fn create_generic_apply(_token: Token, _lhs: *AST, _children: std.array_list.Managed(GenericArg), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .generic_apply = .{
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
@@ -1361,6 +1368,13 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
+    pub fn create_const_param_decl(_token: Token, _type: *Type_AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .const_param_decl = .{
+            .common = AST_Common{ ._token = _token },
+            ._type = _type,
+        } }, allocator);
+    }
+
     pub fn create_struct_decl(
         _token: Token,
         name: *AST,
@@ -1520,8 +1534,12 @@ pub const AST = union(enum) {
             .field => return create_field(self.token(), allocator),
             .identifier => {
                 if (self.refers_to_type()) {
-                    if (substs.get(self.token().data)) |replacement| {
+                    if (substs.get_type(self.token().data)) |replacement| {
                         return create_identifier(replacement.token(), allocator);
+                    }
+                } else if (self.is_const_param_ref()) {
+                    if (substs.get_const(self.token().data)) |replacement| {
+                        return replacement;
                     }
                 }
                 return create_identifier(self.token(), allocator);
@@ -1669,12 +1687,16 @@ pub const AST = union(enum) {
                 clone_children(self.children().*, substs, allocator),
                 allocator,
             ),
-            .generic_apply => return create_generic_apply(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                Type_AST.clone_types(self.generic_apply._children, substs, allocator),
-                allocator,
-            ),
+            .generic_apply => {
+                var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
+                for (self.generic_apply._children.items) |arg| {
+                    switch (arg) {
+                        .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
+                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
+                    }
+                }
+                return create_generic_apply(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
+            },
             .select => {
                 var retval = create_select(
                     self.token(),
@@ -1757,6 +1779,11 @@ pub const AST = union(enum) {
                 self.token(),
                 self.type_param_decl.rigid,
                 Type_AST.clone_types(self.type_param_decl.constraints, substs, allocator),
+                allocator,
+            ),
+            .const_param_decl => return create_const_param_decl(
+                self.token(),
+                self.const_param_decl._type.clone(substs, allocator),
                 allocator,
             ),
             .struct_value => {
@@ -2159,6 +2186,7 @@ pub const AST = union(enum) {
             .module, .trait => prelude_.unit_type,
             .receiver => self.receiver._type.?,
             .context_value_decl => self.context_value_decl.parent,
+            .const_param_decl => self.const_param_decl._type,
             else => std.debug.panic("compiler error: cannot call `.decl_type()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }
@@ -2170,7 +2198,7 @@ pub const AST = union(enum) {
             .method_decl => self.method_decl.init,
             .@"test" => self.@"test".init,
             .module, .trait => self,
-            .struct_decl, .enum_decl, .type_alias, .receiver, .type_param_decl, .context_decl, .context_value => null,
+            .struct_decl, .enum_decl, .type_alias, .receiver, .type_param_decl, .const_param_decl, .context_decl, .context_value => null,
             .context_value_decl => self.context_value_decl.init,
             else => std.debug.panic("compiler error: cannot call `.decl_init()` on the AST `{s}`", .{@tagName(self.*)}),
         };
@@ -2195,6 +2223,7 @@ pub const AST = union(enum) {
             .enum_decl => self.enum_decl._type,
             .type_alias => self.type_alias.init,
             .type_param_decl => null, // No type... yet!
+            .const_param_decl => null,
             .module => null,
             .trait => null, // Traits are not types, callers should check decl kind first
             else => std.debug.panic("compiler error: cannot call `.decl_typedef()` on the AST `{s}`", .{@tagName(self.*)}),
@@ -2440,6 +2469,13 @@ pub const AST = union(enum) {
         // would be annoying to have to wrap these in comptime.
     }
 
+    pub fn is_const_param_ref(self: *AST) bool {
+        return self.* == .identifier and
+            self.symbol() != null and
+            self.symbol().?.decl != null and
+            self.symbol().?.decl.?.* == .const_param_decl;
+    }
+
     pub fn refers_to_type(self: *AST) bool {
         return switch (self.*) {
             else => false,
@@ -2579,7 +2615,10 @@ pub const AST = union(enum) {
             .generic_apply => {
                 try out.print("generic_apply(lhs={f},args=[", .{self.generic_apply._lhs});
                 for (self.generic_apply._children.items, 0..) |item, i| {
-                    try out.print("{f}", .{item});
+                    switch (item) {
+                        .type_arg => |ty| try out.print("{f}", .{ty}),
+                        .const_arg => |v| try out.print("{f}", .{v}),
+                    }
                     if (i < self.generic_apply._children.items.len - 1) {
                         try out.print(",", .{});
                     }
@@ -2619,6 +2658,7 @@ pub const AST = union(enum) {
                 try out.print(")", .{});
             },
             .type_param_decl => try out.print("type_param_decl({s})", .{self.type_param_decl.common._token.data}),
+            .const_param_decl => try out.print("const_param_decl({s})", .{self.const_param_decl.common._token.data}),
             .struct_decl => {
                 try out.print("struct_decl(\n", .{});
                 try out.print("\t.name = {f}\n", .{self.struct_decl.name});

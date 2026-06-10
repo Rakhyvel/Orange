@@ -1,0 +1,10 @@
+// 0
+struct Pair[const n: Int, const m: Int] { a: Int }
+
+fn same_pair(x: Pair[3, 4], y: Pair[3, 4]) -> Int { _ = y; x.a }
+
+fn main() -> Int {
+    let x: Pair[3, 4]
+    let y: Pair[3, 4]
+    same_pair(x, y)
+}

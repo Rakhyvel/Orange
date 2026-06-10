@@ -1,0 +1,16 @@
+// 3
+struct Counter { data: [3]Int }
+
+impl for Counter {
+    fn increment(&mut self) {
+        self.data[0] += 1
+    }
+}
+
+fn main() -> Int {
+    let mut c = Counter([0, 0, 0])
+    c.>increment()
+    c.>increment()
+    c.>increment()
+    c.data[0]
+}

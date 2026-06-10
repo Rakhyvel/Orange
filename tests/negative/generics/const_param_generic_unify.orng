@@ -1,0 +1,14 @@
+// const_param_generic_unify.orng:9:22: error: expected a value of type `Buf[n]`, got a value of type `Buf[3]`
+//     let y: Buf[n] = x
+//                     ^
+// 
+struct Buf[const n: Int] { data: [n]Int }
+
+fn bar[const n: Int]() -> Int {
+    let x = Buf[3]([0, 0, 0])
+    let y: Buf[n] = x
+    _ = y
+    n
+}
+
+fn main() -> Int { bar[3]() }

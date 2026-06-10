@@ -1,0 +1,13 @@
+// const_param_arr_match.orng:6:12: error: cannot match against an array with generic size
+//     let [a, b, c] = x
+//           ^
+// 
+fn pattern[const n: Int](x: [n]Int) -> Int {
+    let [a, b, c] = x
+    a + b + c
+}
+
+fn main() -> Int {
+    let x = [1, 2, 3]
+    pattern[3](x)
+}

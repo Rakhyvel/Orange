@@ -77,13 +77,13 @@
 - [x] Write a python script to look for duplicate code!
 - [x] Error if non-unit/non-void expression in block that isn't the final expression (this must be discarded, discards are unit typed)
 - [x] Figure out how to do lints before GCC does
-- [ ] Deduplication
-- [ ] AST walker struct
+- [x] Deduplication
+- [x] AST walker struct
 - [ ] Go through MISRA when writing reqs
-- [ ] Omitting a `->` in a function defaults to return type to be unit
+- [x] Omitting a `->` in a function defaults to return type to be unit
 - [ ] go through and see if parameters are needed, or if their select-children can be taken instead
 - [ ] go through anywhere `unreachable` is used, and replace with a descriptive panic, prepend message with `compiler error: `
-- [ ] bring back `const` as an introducer, remove it as a pattern
+- [x] bring back `const` as an introducer, remove it as a pattern
 
 ### Testing
 - [x] test.orng should detect which folders are in tests/integration, and create those folders in tests/integration/build, rather than it being hard-coded.
@@ -91,9 +91,9 @@
 - [x] allow more than one command line argument
 - [x] `count` command which just counts the number of .orng files
 - [x] Enable coverage for subdirectories of integration
-- [ ] Give a list of the tests that failed after a run
-- [ ] Print integration test results after the tests are run, so it takes less time
-- [ ] Negative tests should be in folders according to the kind of error, fail if other error than the expected
+- [x] Give a list of the tests that failed after a run
+- [x] Print integration test results after the tests are run, so it takes less time
+- [x] Negative tests should be in folders according to the kind of error, fail if other error than the expected
 - [ ] Log manager, which takes in list of names from cmd line, only emits logs if the filename is in the list
 - [ ] Automate a way to cycle through problems.txt, when it runs into one that crashes, have it automatically create a regressions file
 - [ ] When a test fails, keep track of which test it was and how many times it's failed
@@ -401,8 +401,8 @@
         - [x] iterators & for loops
             - [ ] multi-loops, ranges like zig
         - [x] type methods (Default trait)
-    - [ ] generic traits
-        - [ ] `trait From(const T: Type) { fn from(value: T) -> Self }`
+    - [x] generic traits
+        - [x] `trait From(const T: Type) { fn from(value: T) -> Self }`
     - [x] generic type unification
         > Types can begin with `$ident`, where the type of `ident` will be inferred, and defined as a constant parameter
         - [x] error if an identifier is `$` twice
@@ -410,36 +410,36 @@
     - [ ] generic methods
     - [ ] `impl Tr` stamps out a new monomorphised function for every new impl of `Tr`
         > Even though the type is stamped out, you can only treat it using its trait methods
-    - [ ] allocators
-    - [ ] Eq, Ord, Num, Bits, Convertible in std
+    - [x] allocators
+    - [x] Eq, Ord, Num, Bits, Convertible in std
     - [ ] derive
-    - [ ] `as` method which can do reinterpret casting (maybe different name?)
+    - [x] `as` method which can do reinterpret casting (maybe different name?)
         > trait Convertible(const Other: Type) { fn as(self) -> Other }
 - [ ] build system (built upon compile-time evaluation) 
     > **!IMPORTANT!** Should output .c and .h pair for each .orng file. Track dependencies, and only run CC on modified files and the files that depend* on modified files, to produce .o files which should be linked.
     > Projects are made up of packages are made up of modules. Projects have a `build.orng`.
-    - [ ] compile phase
-        - [ ] locate `build.orng`
-        - [ ] compile `build.orng` file into a module
+    - [x] compile phase
+        - [x] locate `build.orng`
+        - [x] compile `build.orng` file into a module
     - [ ] build phase
-        - [ ] Setup a `Builder` object, which represents a DAG of goals (ie compiling an executable), and steps that achieve those goals
-        - [ ] Pass the Builder (along with cmd line args) to `build()` in `build.orng`, interpret
-        - [ ] `build()` fleshes out the DAG
+        - [x] Setup a `Builder` object, which represents a DAG of goals (ie compiling an executable), and steps that achieve those goals
+        - [x] Pass the Builder (along with cmd line args) to `build()` in `build.orng`, interpret
+        - [x] `build()` fleshes out the DAG
             - [ ] executables have build modes like (debug | release), (executable | static library | dynamic library)
                 - [ ] **IMPORTANT** indexes need to make their lhs lvalues in IR iff debug mode is off
-            - [ ] be able to include C source files
-            - [ ] be able to specify C header directories
-            - [ ] be able to link static libraries
-            - [ ] be able to link dynamic libraries
+            - [x] be able to include C source files
+            - [x] be able to specify C header directories
+            - [x] be able to link static libraries
+            - [x] be able to link dynamic libraries
             - [ ] freestanding programs
-    - [ ] make phase
-        - [ ] Directed by the Builder object, and by the target specified by the cmd line args, execute the steps
+    - [x] make phase
+        - [x] Directed by the Builder object, and by the target specified by the cmd line args, execute the steps
     - [ ] `pub` keyword
     - [ ] `[pub] import qualified-name`, `[pub] using qualified-name` keywords
         > Packages are directories with a `build.orng` file (and likely either a `main.orng` or `root.orng` file)
         > Modules are either `.orng` files, or directories with a `root.orng` file, that conventionally imports/uses other modules in it's directory
         > Importing/Using namespaces begin either locally in the immediate directory, or with the dependencies added in the packages `build.orng`
-        - [ ] `Builder::add_dependency`, which can take either an absolute, relative, or git input
+        - [x] `Builder::add_dependency`, which can take either an absolute, relative, or git input
     - [x] `::` for module access
     - [ ] `@filename()`, `@line()`, `@fn_name()`
     - [x] `test` to do tests
@@ -476,7 +476,7 @@
 - [x] `undefined` (does this break some optimization assumptions?)
 - [ ] Split up validate into separate passes (typecheck, pattern, arg resolution, consteval)
 - [ ] Split up CompilerContext into separate views (Module_Compiler, Package_Resolver, Compilation_Session coords both)
-- [ ] Node IDs for ASTs, Symbols. Lazy passes hold maps from ID to some record answering some query.
+- [ ] Node IDs for ASTs, Symbols. Lazy passes hold maps from ID to some record answering some query. Substitutions should be on symbol ID, not name
 - [ ] Various AST wrappers w/ information (Typed AST, Decorated AST, Lowered AST) and avoid modifying ASTs in-place
 - [ ] `Symbol` shouldn't hold pointer to `CFG`
 - [ ] Counter for how many impls/symbols/etc have been validated, ensure everything is validated before codegen
@@ -484,17 +484,18 @@
 - [ ] Make test script more "TUI"-y, only re-write last line, newlines only for errors
 - [ ] Convert some recursive calls to iteration
 - [ ] Logger
+- [ ] rename files meant to be types to be their true Orange_Case
 
 ### Core Library
 > Mostly trait and type definitions, and really basic stuff. Available for freestanding programs
 - [ ] ASTs
     > All the ASTs, for type reflection and everything
-- [ ] Ops
-    - [ ] `trait Add`
-    - [ ] `trait Sub`
-    - [ ] `trait Mul`
-    - [ ] `trait Div`
-    - [ ] `trait Mod`
+- [x] Ops
+    - [x] `trait Add`
+    - [x] `trait Sub`
+    - [x] `trait Mul`
+    - [x] `trait Div`
+    - [x] `trait Mod`
 - [x] IO
     - [x] `trait Writer`
     - [x] `trait Reader`
@@ -528,21 +529,21 @@
 ### Standard Library
 > Full standard library for user-mode programs
 - [ ] Debug (?)
-    - [ ] `print()`
-    - [ ] `assert()`
+    - [x] `print()`
+    - [x] `assert()`
     - [ ] `dump_currect_stack_trace()`
-- [ ] Testing
-    - [ ] `expect()`
-    - [ ] `expect_equal()`
+- [x] Testing
+    - [x] `expect()`
+    - [x] `expect_equal()`
 - [ ] Process
     - [ ] something like `subprocess.Popen` in Python
 - [ ] Threads
-- [ ] Fmt
-    - [ ] `trait Format`
-    - [ ] `parse_int()`
-    - [ ] `parse_float()`
-- [ ] Rand
-    - [ ] `prng()`
+- [x] Fmt
+    - [x] `trait Format`
+    - [x] `parse_int()`
+    - [x] `parse_float()`
+- [x] Rand
+    - [x] `prng()`
 - [ ] File System
     - [ ] `const max_path_bytes`
     - [ ] `realpath()`
@@ -573,6 +574,8 @@
     - [ ] `///` Comment blocks are documentation
     - [ ] `\<attribute>` to mark attributes
     - [ ] error if attributes aren't documented or if they are but aren't present in the function
+- [ ] Testing
+    - [ ] Can discover and run tests in VSCode
 
 ### Wishlist
 - [ ] Make matches have to be exhaustive over all product types too. Make it UB to not match. Don't return optional value for matches
