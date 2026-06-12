@@ -1258,7 +1258,7 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
                 const Decorate = @import("../ast/decorate.zig");
@@ -1302,12 +1302,31 @@ pub const Type_AST = union(enum) {
                                 .trait_name = trait.name,
                             } };
                         }
+                        const eq_rhs = eq_constraint.rhs();
+                        const resolved_rhs: *Type_AST = rhs_resolved: {
+                            if (outer_type_defs) |tdefs| {
+                                if (eq_rhs.* == .access) {
+                                    if (eq_rhs.lhs().symbol()) |sym| {
+                                        if (sym.decl.?.* == .type_param_decl) {
+                                            const outer_assoc_name = eq_rhs.rhs().token().data;
+                                            for (tdefs) |outer_td| {
+                                                if (std.mem.eql(u8, outer_td.symbol().?.name, outer_assoc_name)) {
+                                                    break :rhs_resolved outer_td.decl_typedef().?;
+                                                }
+                                            }
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            break :rhs_resolved eq_rhs;
+                        };
                         var subst = unification_.Substitutions.init(ctx.allocator());
                         defer subst.deinit();
-                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst, .{}) catch {
+                        unification_.unify(type_def.?.decl_typedef().?, resolved_rhs, &subst, .{}) catch {
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
-                                .expected = eq_constraint.rhs(),
+                                .expected = resolved_rhs,
                                 .associated_type_name = associated_type_name,
                                 .constraint_span = eq_constraint.token().span,
                                 .impl_span = type_def.?.token().span,

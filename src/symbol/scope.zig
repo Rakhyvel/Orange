@@ -244,12 +244,12 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             };
 
             if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-                const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, original_scope, ctx) catch continue;
+                const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, original_scope, ctx) catch continue;
                 if (sat_res != .satisfies) continue;
             }
 
             if (is_type_param) {
-                const sat_res = impl.impl._type.satisfies_all_constraints(constraints, original_scope, ctx) catch continue;
+                const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, original_scope, ctx) catch continue;
                 if (sat_res != .satisfies) continue;
             }
 
@@ -405,12 +405,12 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         };
 
         if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, self, compiler) catch continue;
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, self, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         if (is_type_param) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, compiler) catch continue;
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, self, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
