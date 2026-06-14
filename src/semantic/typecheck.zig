@@ -413,14 +413,26 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
 
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
-                const for_type = ast.lhs().type_access._lhs_type.lhs();
+                const as_trait_node = ast.lhs().type_access._lhs_type;
+                // Auto-deref the receiver type to its base indexable type so that impl lookup, method resolution and receiver borrowing all agree
+                // This lets stuff like `(@typeof(self) as Index)::index(self, i)` work when `self: &[]T`
+                var base = as_trait_node.lhs();
+                while (true) {
+                    const exp = base.expand_identifier();
+                    if (exp.* == .addr_of and !exp.addr_of.multiptr) {
+                        base = exp.child();
+                    } else break;
+                }
+                as_trait_node.as_trait._lhs = base;
+
+                const for_type = as_trait_node.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
                 var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                 defer candidate_method_decls.deinit();
 
                 const method_name = ast.lhs().rhs().token().data;
 
-                try Scope.as_trait_member_lookup(for_type, ast.lhs().type_access._lhs_type.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
+                try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
                     self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait`?
@@ -451,6 +463,17 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const domain = expanded_lhs_type.function.args;
             const codomain = expanded_lhs_type.rhs();
             const variadic = expanded_lhs_type.function.variadic;
+
+            // Normalize receiver argument type for FQS calls
+            if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {
+                const p0 = domain.items[0];
+                if (p0.* == .annotation and p0.annotation.pattern.* == .receiver and
+                    p0.child().* == .addr_of and !p0.child().addr_of.multiptr)
+                {
+                    try self.normalize_addr_receiver(ast.children(), p0.child().addr_of.mut, subst);
+                }
+            }
+
             var args_validator = args_.init(.function, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             args_validator.set_variadic(variadic);
             ast.set_children(try args_validator.fill_default_args());
@@ -459,43 +482,55 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try args_validator.validate_type(subst, self.ctx);
             return codomain;
         },
-        .index => {
-            const lhs_span = ast.lhs().token().span; // Used for error reporting
-            const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
-            if (ast.children().items.len > 1) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "too many indices" } });
+        .child_addr, .child_addr_mut => {
+            const is_mut = ast.* == .child_addr_mut;
+            const lhs_span = ast.lhs().token().span;
+            const ptr_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
+            _ = self.typecheck_AST(ast.rhs(), prelude_.int_type, subst) catch return error.CompileError;
+
+            const expanded = ptr_type.expand_identifier();
+            if (expanded.* != .addr_of) {
+                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
                 return error.CompileError;
             }
-            _ = self.typecheck_AST(ast.children().items[0], prelude_.int_type, subst) catch return error.CompileError;
+            if (is_mut and !expanded.addr_of.mut) {
+                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
+                return error.CompileError;
+            }
 
-            const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
-
-            if (expanded_lhs_type.* == .struct_type) {
-                if (expanded_lhs_type.struct_type.was_slice) {
-                    return expanded_lhs_type.children().items[0].child().child();
-                } else {
-                    self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded_lhs_type } });
-                    return error.CompileError;
-                }
-            } else if (expanded_lhs_type.* == .tuple_type) {
-                // TODO: comptime expand the index
-                try walk_.walk_ast(ast.children().items[0], Const_Eval.new(self.ctx));
-                if (ast.children().items[0].* != .int) {
-                    self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
-                    return error.CompileError;
-                }
-                const pos = ast.children().items[0].int.data;
-                ast.* = ast_.AST.create_select(ast.token(), ast.lhs(), ast.children().items[0], self.ctx.allocator()).*;
-                ast.set_pos(@as(usize, @intCast(pos)));
-                return self.typecheck_AST(ast, expected, subst);
-            } else if (expanded_lhs_type.* == .array_of) {
-                return expanded_lhs_type.child();
-            } else if (expanded_lhs_type.* == .addr_of and expanded_lhs_type.addr_of.multiptr) {
-                return expanded_lhs_type.child();
+            var elem_type: *Type_AST = undefined;
+            if (expanded.addr_of.multiptr) {
+                elem_type = expanded.child();
             } else {
-                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded_lhs_type } });
-                return error.CompileError;
+                const pointee = expanded.child().expand_identifier();
+                if (pointee.* == .array_of) {
+                    elem_type = pointee.child();
+                } else if (pointee.* == .tuple_type) {
+                    try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
+                    if (ast.rhs().* != .int) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
+                        return error.CompileError;
+                    }
+                    const pos = ast.rhs().int.data;
+                    if (pos < 0 or pos >= pointee.children().items.len) {
+                        self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
+                            .span = ast.token().span,
+                            ._type = pointee,
+                            .index = pos,
+                            .length = pointee.children().items.len,
+                        } });
+                        return error.CompileError;
+                    }
+                    elem_type = pointee.children().items[@as(usize, @intCast(pos))];
+                    while (elem_type.* == .annotation) {
+                        elem_type = elem_type.child();
+                    }
+                } else {
+                    self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
+                    return error.CompileError;
+                }
             }
+            return Type_AST.create_addr_of_type(ast.token(), elem_type, is_mut, false, self.ctx.allocator());
         },
         .generic_apply => {
             // look up symbol, that's the type
@@ -1278,11 +1313,9 @@ fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
         .select, .identifier, .array_value, .context_value => {},
 
-        .dereference => if (ast.expr().* != .addr_of) {
+        .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {
             try self.validate_L_Value(ast.expr());
         },
-
-        .index => try self.validate_L_Value(ast.lhs()),
 
         .tuple_value => for (ast.children().items) |term| {
             try self.validate_L_Value(term);
@@ -1293,6 +1326,24 @@ fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         },
     }
+}
+
+/// Rewrites `args[0]` so its type is the address `&base`/`&mut base` an address
+/// receiver expects: dereferences through any non-multiptr address layers to reach
+/// the base value, then borrows it with the requested mutability.
+fn normalize_addr_receiver(
+    self: *Self,
+    args: *std.array_list.Managed(*ast_.AST),
+    want_mut: bool,
+    subst: *unification_.Substitutions,
+) Validate_Error_Enum!void {
+    var arg = args.items[0];
+    var at = (self.typecheck_AST(arg, null, subst) catch return error.CompileError).expand_identifier();
+    while (at.* == .addr_of and !at.addr_of.multiptr) {
+        arg = ast_.AST.create_dereference(arg.token(), arg, self.ctx.allocator());
+        at = at.child().expand_identifier();
+    }
+    args.items[0] = ast_.AST.create_addr_of(arg.token(), arg, want_mut, false, self.ctx.allocator());
 }
 
 fn implicit_dereference(
@@ -1323,17 +1374,6 @@ fn assert_mutable(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
         .dereference => {
             const expr_expanded_type = self.typeof(ast.expr()).expand_identifier();
             try self.assert_mutable_address(expr_expanded_type);
-        },
-
-        .index => {
-            const lhs_type = self.typeof(ast.lhs());
-            if (lhs_type.* == .struct_type and lhs_type.struct_type.was_slice) {
-                try self.assert_mutable_address(lhs_type.children().items[0].child());
-            } else if (lhs_type.* == .addr_of and lhs_type.addr_of.multiptr) {
-                try self.assert_mutable_address(lhs_type);
-            } else {
-                try self.assert_mutable(ast.lhs());
-            }
         },
 
         .tuple_value => for (ast.children().items) |term| {

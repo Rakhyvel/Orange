@@ -819,97 +819,9 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     // FIXME: High Cyclo
     if (self.accept(.not)) |token| {
         return ast_.AST.create_not(token, try self.prefix_expr(), self.allocator);
-    } else if (self.accept(.at_symbol)) |_| {
-        const token = try self.expect(.identifier);
-
-        // TODO: Would be nice to make a table of this, somehow!
-        if (std.mem.eql(u8, token.data, "add")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "sub")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "mul")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_mult(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "div")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_div(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "mod")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "lt")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_lesser(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "gt")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_greater(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "le")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_lesser_equal(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "ge")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_and(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_or(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_xor(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "shl")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "shr")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "default")) {
-            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-            return ast_.AST.create_default(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "sizeof")) {
-            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-            return ast_.AST.create_size_of(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "write")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            const writer = args.items[0];
-            const fmt_str = args.items[1];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_write(token, writer, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "print")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_print(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "println")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            var children = try fmt_string_parser.parse_fmt_string();
-            try children.append(ast_.AST.create_string(token, "\n", self.allocator));
-            return ast_.AST.create_print(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "format")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_format_args(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "variant_tag")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "variant_name")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
-        } else {
-            self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
-            return error.ParseError;
-        }
+    } else if (self.peek_kind(.at_symbol)) {
+        // Builtins are parsed as a base expression so trailing postfix ops apply
+        return self.apply_postfix(try self.builtin_expr());
     } else if (self.accept(.minus)) |token| {
         return ast_.AST.create_negate(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.tilde)) |token| {
@@ -918,31 +830,7 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         const mut = self.accept(.mut);
         return ast_.AST.create_addr_of(token, try self.prefix_expr(), mut != null, false, self.allocator);
     } else if (self.accept(.left_square)) |token| {
-        // TODO: Trait call for index
-        if (self.accept(.mut)) |_| {
-            _ = try self.expect(.right_square);
-            return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
-        } else if (self.accept(.right_square)) |_| {
-            return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
-        }
-
-        // Must be an array literal
-        var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
-        if (self.accept(.comma) == null) {
-            terms.append(try self.bool_expr()) catch unreachable;
-            self.newlines();
-            while (self.accept(.comma)) |_| {
-                self.newlines();
-                if (self.peek_kind(.right_square)) {
-                    // Trailing comma, break out
-                    break;
-                }
-                terms.append(try self.bool_expr()) catch unreachable;
-                self.newlines();
-            }
-        }
-        _ = try self.expect(.right_square);
-        return ast_.AST.create_array_value(token, terms, self.allocator);
+        return self.prefix_left_square(token);
     } else if (self.accept(.@"try")) |token| {
         return ast_.AST.create_try(token, try self.parse_expr(), self.allocator);
     } else {
@@ -950,9 +838,145 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 }
 
+fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    _ = try self.expect(.at_symbol);
+    const token = try self.expect(.identifier);
+
+    // TODO: Would be nice to make a table of this, somehow!
+    if (std.mem.eql(u8, token.data, "add")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "sub")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "mul")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_mult(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "div")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_div(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "mod")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "lt")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_lesser(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "gt")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_greater(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "le")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_lesser_equal(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "ge")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_and")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_and(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_or")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_or(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_xor")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_xor(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_not")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "shl")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "shr")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "default")) {
+        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
+        return ast_.AST.create_default(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "sizeof")) {
+        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
+        return ast_.AST.create_size_of(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "write")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        const writer = args.items[0];
+        const fmt_str = args.items[1];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_write(token, writer, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "print")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_print(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "println")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        var children = try fmt_string_parser.parse_fmt_string();
+        try children.append(ast_.AST.create_string(token, "\n", self.allocator));
+        return ast_.AST.create_print(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "format")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_format_args(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "child_addr")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_child_addr(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "child_addr_mut")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_child_addr_mut(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "variant_tag")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "variant_name")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
+    } else {
+        self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
+        return error.ParseError;
+    }
+}
+
+/// Parses what follows a prefix `[`: either a slice-of (`[]x`, `[mut]x`) or an
+/// array literal (`[a, b, ...]`).
+fn prefix_left_square(self: *Self, token: Token) Parser_Error_Enum!*ast_.AST {
+    // TODO: Trait call for index
+    if (self.accept(.mut)) |_| {
+        _ = try self.expect(.right_square);
+        return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
+    } else if (self.accept(.right_square)) |_| {
+        return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
+    }
+
+    // Must be an array literal
+    var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    if (self.accept(.comma) == null) {
+        terms.append(try self.bool_expr()) catch unreachable;
+        self.newlines();
+        while (self.accept(.comma)) |_| {
+            self.newlines();
+            if (self.peek_kind(.right_square)) {
+                // Trailing comma, break out
+                break;
+            }
+            terms.append(try self.bool_expr()) catch unreachable;
+            self.newlines();
+        }
+    }
+    _ = try self.expect(.right_square);
+    return ast_.AST.create_array_value(token, terms, self.allocator);
+}
+
 fn postfix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const exp = if (self.next_is_control_flow()) try self.control_flow() else try self.factor();
+    return self.apply_postfix(exp);
+}
+
+/// Applies trailing postfix operators to an already-parsed base expression
+fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
     // FIXME: High Cyclo
-    var exp = if (self.next_is_control_flow()) try self.control_flow() else try self.factor();
+    var exp = exp_init;
     while (true) {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
@@ -980,7 +1004,7 @@ fn postfix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
                 while (self.accept(.comma)) |_| {
                     children.append(try self.assignment_expr()) catch unreachable;
                 }
-                exp = ast_.AST.create_index(token, exp, children, self.allocator);
+                exp = ast_.AST.create_bracket(token, exp, children, self.allocator);
             }
             if (self.peek_kind(.right_square)) {
                 _ = self.expect(.right_square) catch {};

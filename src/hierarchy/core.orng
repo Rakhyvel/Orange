@@ -330,6 +330,38 @@ impl Shr for Word32 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 impl Shr for Word16 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 impl Shr for Word8 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 
+trait Index {
+    type Output
+    fn index(&self, i: Int) -> Self::Output
+}
+
+trait Index_Mut: Index {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output
+}
+
+impl[T, const n: Int] Index for [n]T {
+    type Output = T
+    fn index(&self, i: Int) -> Self::Output { @child_addr(self, i)^ }
+}
+
+impl[T, const n: Int] Index_Mut for [n]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self, i) }
+}
+
+impl[T] Index for []T {
+    type Output = T
+    fn index(&self, i: Int) -> Self::Output { @child_addr(self.data, i)^ }
+}
+
+impl[T] Index for [mut]T {
+    type Output = T
+    fn index(&self, i: Int) -> Self::Output { @child_addr(self.data, i)^ }
+}
+
+impl[T] Index_Mut for [mut]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self.data, i) }
+}
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }

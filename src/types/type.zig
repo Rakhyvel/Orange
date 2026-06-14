@@ -531,7 +531,7 @@ pub const Type_AST = union(enum) {
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
-            .index => blk: {
+            .bracket => blk: {
                 const base = from_ast(ast.lhs(), allocator);
                 var args = std.array_list.Managed(GenericArg).init(allocator);
                 for (ast.children().items) |arg| {

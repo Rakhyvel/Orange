@@ -61,6 +61,9 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         .addr_of,
         .identifier,
         .generic_apply,
+        .bracket,
+        .child_addr,
+        .child_addr_mut,
         .print,
         .format_args,
         .write,
@@ -502,9 +505,13 @@ fn create_symbol(
             for (pattern.children().items, 0..) |term, i| {
                 const index = ast_.AST.create_int(pattern.token(), i, allocator);
                 const new_type: *Type_AST = Type_AST.create_index_type(_type.token(), _type, index, allocator);
-                var index_rhs = std.array_list.Managed(*ast_.AST).init(allocator);
-                try index_rhs.append(index);
-                const new_init: ?*ast_.AST = if (init != null) ast_.AST.create_index(init.?.token(), init.?, index_rhs, allocator) else null;
+                // Destructure the i-th element: `init[i]` == `@child_addr(&init, i)^`
+                // TODO: Is this correct for tuples?
+                const new_init: ?*ast_.AST = if (init != null) blk: {
+                    const init_addr = ast_.AST.create_addr_of(init.?.token(), init.?, false, false, allocator);
+                    const child = ast_.AST.create_child_addr(init.?.token(), init_addr, index, allocator);
+                    break :blk ast_.AST.create_dereference(init.?.token(), child, allocator);
+                } else null;
                 try create_symbol(symbols, term, decl, new_type, new_init, scope, errors, allocator);
             }
         },

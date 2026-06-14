@@ -68,6 +68,27 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
     switch (ast.*) {
         else => return self,
 
+        .assign => {
+            // If lhs is a bracket, rewrite it to use Index_Mut FQS, and deref
+            if (ast.lhs().* == .bracket) {
+                const index_mut_call = try self.rewrite_lvalue_bracket(ast.lhs());
+                const deref = ast_.AST.create_dereference(ast.lhs().token(), index_mut_call, self.ctx.allocator());
+                try self.scope_subtree(deref, ast.lhs().scope().?);
+                ast.set_lhs(deref);
+            }
+            return self;
+        },
+
+        .addr_of => {
+            // If taking addr of a bracket, re-write to Index_Mut FQS
+            if (ast.addr_of.mut and ast.expr().* == .bracket) {
+                const index_mut_call = try self.rewrite_lvalue_bracket(ast.expr()); // TODO: Is this rewrite sound? For generic applies?
+                try self.scope_subtree(index_mut_call, ast.expr().scope().?);
+                ast.* = index_mut_call.*;
+            }
+            return self;
+        },
+
         .identifier => {
             if (ast.symbol() != null) {
                 return null;
@@ -185,36 +206,43 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
         },
 
-        .index => {
+        .bracket => {
             var child = ast.lhs();
-            if (child.* != .identifier and child.* != .access) return;
 
-            const sym = child.symbol() orelse return;
-            const decl = sym.decl orelse return;
-
-            // child points to a generic function
-            if (decl.num_generic_params() > 0) {
-                var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
-                const params = decl.generic_params().items;
-                for (ast.children().items, 0..) |arg, i| {
-                    if (i < params.len and params[i].* == .const_param_decl) {
-                        try generic_args.append(.{ .const_arg = arg });
-                    } else {
-                        switch (arg.*) {
-                            .int, .float, .true, .false, .negate => {
-                                self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                    .msg = "expected a type argument, got a value",
-                                    .span = arg.token().span,
-                                } });
-                                return error.CompileError;
-                            },
-                            else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
+            // Rewrite bracket to generic apply if its a generic apply
+            if (child.* == .identifier or child.* == .access) {
+                if (child.symbol()) |sym| if (sym.decl) |decl| {
+                    if (decl.num_generic_params() > 0) {
+                        var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
+                        const params = decl.generic_params().items;
+                        for (ast.children().items, 0..) |arg, i| {
+                            if (i < params.len and params[i].* == .const_param_decl) {
+                                try generic_args.append(.{ .const_arg = arg });
+                            } else {
+                                switch (arg.*) {
+                                    .int, .float, .true, .false, .negate => {
+                                        self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                            .msg = "expected a type argument, got a value",
+                                            .span = arg.token().span,
+                                        } });
+                                        return error.CompileError;
+                                    },
+                                    else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
+                                }
+                            }
                         }
+                        ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
+                        try generic_apply_.instantiate(ast, self.ctx);
+                        return;
                     }
-                }
-                ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
-                try generic_apply_.instantiate(ast, self.ctx);
+                };
             }
+
+            // Rewrite bracket to Index FQS call if its an index
+            const idx = ast.children().items[0];
+            const index_call = try ast_.AST.create_index_call(ast.token(), child, idx, false, self.ctx.allocator());
+            try self.scope_subtree(index_call, ast.scope().?);
+            ast.* = index_call.*;
         },
 
         .select => {
@@ -512,6 +540,30 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
     } else {
         std.debug.panic("compiler error: unsupported access symbol resolution for decl-like AST: {s}", .{@tagName(decl.*)});
     }
+}
+
+/// Assigns scopes to a freshly-built subtree (created mid-Decorate) by replaying the
+/// Symbol_Tree walk over it. Needed so the later Type_Decorate pass and trait-member
+/// lookup (which read `node.scope()`) work on the inserted nodes.
+fn scope_subtree(self: *const Self, subtree: *ast_.AST, scope: *Scope) !void {
+    const st = Symbol_Tree.new(scope, &self.ctx.errors, self.ctx.allocator());
+    try walk_.walk_ast(subtree, st);
+}
+
+/// Recursively desugars an lvalue bracket chain into nested `index_mut` calls.
+/// `a[i][j]` (as an lvalue) becomes `*index_mut(index_mut(&a, i), j)`, where only the
+/// outermost call is dereferenced (by the caller) so inner calls keep returning
+/// `&mut T` to thread through as the next receiver.
+fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
+    const idx = bracket.children().items[0];
+    const inner = bracket.lhs();
+    // Inner bracket yields a `&mut T` (the receiver for the next level)
+    // A base expression is passed raw and normalized to `&mut self` by the FQS call.
+    const receiver = if (inner.* == .bracket)
+        try self.rewrite_lvalue_bracket(inner)
+    else
+        inner;
+    return ast_.AST.create_index_call(bracket.token(), receiver, idx, true, self.ctx.allocator());
 }
 
 fn create_format_all_call(self: *const Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {
