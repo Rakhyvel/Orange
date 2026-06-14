@@ -94,8 +94,10 @@ pub fn init(stderr: ?std.fs.File, alloc: std.mem.Allocator) Error!*Self {
     retval.prelude = try prelude_.get_prelude_scope(retval);
     retval.core = core_.get_core_scope(retval) catch |e| {
         if (stderr == null) return e;
-        var writer = stderr.?.writer(&.{}).interface;
-        retval.errors.print_errors(&writer, .{});
+        // Keep the file writer alive with a named local
+        // copying the interface would leave it pointing to a freed stack
+        var writer_struct = stderr.?.writer(&.{});
+        retval.errors.print_errors(&writer_struct.interface, .{});
         return e;
     };
 
