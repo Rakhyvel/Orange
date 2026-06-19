@@ -75,25 +75,21 @@ pub fn init(
     storage: Storage,
     allocator: std.mem.Allocator,
 ) *Self {
-    var retval = allocator.create(Self) catch unreachable;
-    retval.scope = scope;
-    retval.name = name;
-    retval.decl = decl;
-    retval.aliases = 0;
-    retval.roots = 0;
-    retval.uses = 0;
-    retval.offset = null;
-    retval.kind = kind;
-    retval.storage = storage;
-    retval.monomorphs = Monomorph_Map(*Self).init(allocator);
-    retval.cfg = null;
-    if (kind == .@"fn" or kind == .@"const") {
-        retval.defined = true;
-    } else {
-        retval.defined = false;
-    }
-    retval.validation_state = .unvalidated;
-    retval.init_validation_state = .unvalidated;
+    const retval = allocator.create(Self) catch unreachable;
+    retval.* = .{
+        .scope = scope,
+        .name = name,
+        .decl = decl,
+        .kind = kind,
+        .storage = storage,
+        .monomorphs = Monomorph_Map(*Self).init(allocator),
+        .cfg = null,
+        .defined = kind == .@"fn" or kind == .@"const",
+        .validation_state = .unvalidated,
+        .init_validation_state = .unvalidated,
+        .param = false,
+        .offset = null,
+    };
     return retval;
 }
 

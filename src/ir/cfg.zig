@@ -65,14 +65,8 @@ pub fn init(symbol: *Symbol, allocator: std.mem.Allocator) *Self {
     if (symbol.cfg) |cfg| {
         return cfg;
     }
-    var retval = allocator.create(Self) catch unreachable;
-    retval.block_graph_head = null;
-    retval.basic_blocks = std.array_list.Managed(*Basic_Block).init(allocator);
-    retval.children = std.AutoArrayHashMap(*Self, void).init(allocator);
-    retval.symbvers = std.array_list.Managed(*Symbol_Version).init(allocator);
-    retval.parameters = std.array_list.Managed(*Symbol_Version).init(allocator);
-    retval.symbol = symbol;
-    retval.return_symbol = Symbol.init(
+    const retval = allocator.create(Self) catch unreachable;
+    const return_symbol = Symbol.init(
         symbol.scope,
         "_retval",
         ast_.AST.create_decl(
@@ -86,12 +80,22 @@ pub fn init(symbol: *Symbol, allocator: std.mem.Allocator) *Self {
         .local,
         allocator,
     );
+    retval.* = .{
+        .block_graph_head = null,
+        .basic_blocks = std.array_list.Managed(*Basic_Block).init(allocator),
+        .children = std.AutoArrayHashMap(*Self, void).init(allocator),
+        .symbvers = std.array_list.Managed(*Symbol_Version).init(allocator),
+        .parameters = std.array_list.Managed(*Symbol_Version).init(allocator),
+        .symbol = symbol,
+        .return_symbol = return_symbol,
+        .needed_at_runtime = false,
+        .contains_unsizeds = false,
+        .offset_table = std.array_hash_map.AutoArrayHashMap(u32, Instruction.Index).init(allocator),
+        .locals_size = null,
+        .allocator = allocator,
+    };
     _ = retval.return_symbol.type().expand_identifier();
     _ = symbol.type().expand_identifier();
-    retval.needed_at_runtime = false;
-    retval.offset_table = std.array_hash_map.AutoArrayHashMap(u32, Instruction.Index).init(allocator);
-    retval.locals_size = null;
-    retval.allocator = allocator;
     symbol.cfg = retval;
 
     return retval;
