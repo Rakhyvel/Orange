@@ -4,17 +4,11 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
-    // Sanitizer options, helpful for hunting memory corruption / UB.
-    // `-Dvalgrind` builds with a baseline CPU so valgrind doesn't choke on
-    // native-only instructions (e.g. the vectorized memset in TLS setup), and
-    // enables Zig's valgrind client-request integration. Run the resulting
-    // binary under `valgrind` to catch use-after-free, out-of-bounds, and
-    // uninitialized reads.
     const use_valgrind = b.option(bool, "valgrind", "Build valgrind-compatible (baseline CPU + valgrind support)") orelse false;
     const sanitize_thread = b.option(bool, "sanitize-thread", "Enable ThreadSanitizer") orelse false;
     const sanitize_c = b.option(bool, "sanitize-c", "Enable the C/UB sanitizer (full)") orelse false;
 
-    // valgrind needs a baseline CPU; otherwise build for the native host
+    // valgrind needs a baseline CPU, otherwise build for the native host
     const target = if (use_valgrind)
         b.resolveTargetQuery(.{ .cpu_model = .baseline })
     else
