@@ -1,0 +1,26 @@
+// 432
+trait Get {
+    type Output
+    fn get(&self) -> Self::Output
+}
+
+trait Get_Mut: Get {
+    fn get_mut(&mut self) -> &mut Self::Output
+}
+
+impl[T, const n: Int] Get for [n]T {
+    type Output = T
+    fn get(&self) -> Self::Output { self[0] }
+}
+
+impl[T, const n: Int] Get_Mut for [n]T {
+    fn get_mut(&mut self) -> &mut Self::Output { &mut self[0] }
+}
+
+fn main() -> Int {
+    let mut a: [3]Int = [430, 0, 0]
+    let ap = &mut a
+    let p = ap.>get_mut()
+    p^ = 432
+    ap.>get()
+}

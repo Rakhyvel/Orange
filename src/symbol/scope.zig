@@ -415,9 +415,47 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         }
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
-        if (search_impl(instantiated_impl, name)) |res| try matches.put(res, void{});
+        if (search_impl(instantiated_impl, name)) |res| {
+            // `instantiate_generic_impl` returns the impl un-substituted when the subst maps this impl's params onto other generic params (like a super-trait's associated type from a sibling generic impl)
+            // The found member still references this impl's own param symbols, so remap through the subst
+            const remapped = if (instantiated_impl == impl and subst_renames_params(impl, &subst))
+                remap_associated_type(res, &subst, compiler)
+            else
+                res;
+            try matches.put(remapped, void{});
+        }
         if (short_circuit and matches.keys().len > 0) return;
     }
+}
+
+/// Returns true if `subst` maps any of `impl`'s generic params to a *different* type
+/// param than itself. A self-referential identity mapping (`T` -> the same `T`) returns false.
+fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
+    // Go through all the impls type params, check if there are any that are in the subst map that are generic
+    for (impl.impl._generic_params.items) |param| {
+        if (param.* != .type_param_decl) continue;
+        const mapped = subst.get_type(param.symbol().?.name) orelse continue;
+        if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
+        if (mapped.is_generic()) return true;
+    }
+    return false;
+}
+
+/// Clones an associated type member with `subst` applied
+fn remap_associated_type(res: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) *ast_.AST {
+    if (res.* != .type_alias) return res;
+    const cloned = res.clone(subst, compiler.allocator());
+    const old_symbol = res.symbol().?;
+    const symbol = Symbol.init(
+        old_symbol.scope,
+        old_symbol.name,
+        cloned,
+        .type,
+        old_symbol.storage,
+        compiler.allocator(),
+    );
+    cloned.set_symbol(symbol);
+    return cloned;
 }
 
 fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
