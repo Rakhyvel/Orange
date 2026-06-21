@@ -550,6 +550,34 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try self.ctx.validate_type.validate_type(_type);
             return _type;
         },
+        .positional_select => {
+            const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
+            const rhs_type = self.typecheck_AST(ast.rhs(), null, subst) catch return error.CompileError;
+            const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
+
+            try typing_.type_check_integral(ast.token().span, rhs_type, &self.ctx.errors);
+            try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
+
+            std.debug.assert(ast.rhs().* == .int);
+
+            const evald_pos = ast.rhs().int.data;
+
+            if (evald_pos < 0 or evald_pos >= expanded_lhs_type.children().items.len) {
+                self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
+                    .span = ast.token().span,
+                    ._type = lhs_type,
+                    .index = evald_pos,
+                    .length = expanded_lhs_type.children().items.len,
+                } });
+                return error.CompileError;
+            }
+            ast.set_pos(@intCast(evald_pos));
+            var retval = expanded_lhs_type.children().items[ast.pos().?];
+            while (retval.* == .annotation) {
+                retval = retval.child();
+            }
+            return retval;
+        },
         .select => {
             const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
@@ -558,17 +586,16 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 ast.set_pos(try typing_.find_select_pos(expanded_lhs_type, ast.rhs().token().data, ast.token().span, &self.ctx.errors));
             }
 
-            var select_lhs_type = expanded_lhs_type;
-            if (ast.pos().? < 0 or ast.pos().? >= select_lhs_type.children().items.len) {
+            if (ast.pos().? < 0 or ast.pos().? >= expanded_lhs_type.children().items.len) {
                 self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
                     .span = ast.token().span,
                     ._type = lhs_type,
                     .index = ast.pos().?,
-                    .length = select_lhs_type.children().items.len,
+                    .length = expanded_lhs_type.children().items.len,
                 } });
                 return error.CompileError;
             }
-            var retval = select_lhs_type.children().items[ast.pos().?];
+            var retval = expanded_lhs_type.children().items[ast.pos().?];
             while (retval.* == .annotation) {
                 retval = retval.child();
             }

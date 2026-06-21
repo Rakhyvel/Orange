@@ -153,6 +153,12 @@ pub const AST = union(enum) {
         _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
     },
+    positional_select: struct {
+        common: AST_Common,
+        _lhs: *AST,
+        _rhs: *AST,
+        _pos: ?usize,
+    },
     select: struct {
         common: AST_Common,
         _lhs: *AST,
@@ -890,6 +896,16 @@ pub const AST = union(enum) {
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
             ._children = _children,
+        } }, allocator);
+    }
+
+    pub fn create_positional_select(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+        const _common: AST_Common = .{ ._token = _token };
+        return AST.box(AST{ .positional_select = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
+            ._pos = null,
         } }, allocator);
     }
 
@@ -1726,6 +1742,16 @@ pub const AST = union(enum) {
                     }
                 }
                 return create_generic_apply(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
+            },
+            .positional_select => {
+                var retval = create_positional_select(
+                    self.token(),
+                    self.lhs().clone(substs, allocator),
+                    self.rhs().clone(substs, allocator),
+                    allocator,
+                );
+                retval.positional_select._pos = self.positional_select._pos;
+                return retval;
             },
             .select => {
                 var retval = create_select(
@@ -2677,6 +2703,9 @@ pub const AST = union(enum) {
                     }
                 }
                 try out.print("])", .{});
+            },
+            .positional_select => {
+                try out.print("positional_select({f},{f})", .{ self.lhs(), self.rhs() });
             },
             .select => {
                 try out.print("select({f},{f})", .{ self.lhs(), self.rhs() });

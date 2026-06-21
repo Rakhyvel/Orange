@@ -148,6 +148,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .lesser_equal,
         .@"catch",
         .@"orelse",
+        .positional_select,
         .select,
         .access,
         .left_shift,

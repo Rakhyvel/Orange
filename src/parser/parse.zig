@@ -1013,12 +1013,24 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
                 return error.ParseError;
             }
         } else if (self.accept(.period)) |token| {
-            exp = ast_.AST.create_select(
-                token,
-                exp,
-                ast_.AST.create_field(try self.expect(.identifier), self.allocator),
-                self.allocator,
-            );
+            if (self.accept(.left_square)) |_| {
+                // Must be a positional select
+                exp = ast_.AST.create_positional_select(
+                    token,
+                    exp,
+                    try self.assignment_expr(),
+                    self.allocator,
+                );
+                _ = try self.expect(.right_square);
+            } else {
+                // Must be just a regular select
+                exp = ast_.AST.create_select(
+                    token,
+                    exp,
+                    ast_.AST.create_field(try self.expect(.identifier), self.allocator),
+                    self.allocator,
+                );
+            }
         } else if (self.accept(.double_colon)) |token| {
             exp = ast_.AST.create_access(
                 token,
