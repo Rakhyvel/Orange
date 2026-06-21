@@ -401,11 +401,27 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
     if (stripped_lhs.* == .as_trait) {
+        // Auto-deref the receiver to its base indexable, so a `&mut [n]T` receiver resolves
+        // against `impl ... for [n]T` instead of falling to the abstract trait method
+        var base = stripped_lhs.lhs();
+        while (true) {
+            const exp = base.expand_identifier();
+            if (exp.* == .addr_of and !exp.addr_of.multiptr) base = exp.child() else break;
+        }
+        stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
             const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
-            if (res.ast != null) {
-                const decl = Scope.search_impl(res.ast.?, rhs.data) orelse continue;
+            if (res.ast) |impl_ast| {
+                const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
+                // Decorate the original member first so `Self::Output` etc resolve before any remap
                 try walk_.walk_ast(decl, self);
+                if (res.subst) |*s| {
+                    // Generic impl came back un-substituted, remap the member's signature through
+                    // the subst so its types refer to the querying impl's params
+                    if (Scope.subst_renames_params(impl_ast, s)) {
+                        return Scope.remap_impl_member(decl, s, self.ctx).symbol().?;
+                    }
+                }
                 return decl.symbol().?;
             } else {
                 const decl = try scope.?.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
