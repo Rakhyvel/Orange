@@ -447,8 +447,9 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     try self.memory_check(local_size_bytes);
     self.stack_pointer += local_size_bytes;
 
-    // jump to symbol addr
-    const module_uid = function_symbol.cfg.?.symbol.scope.module.?.uid;
+    // jump to symbol addr, resolving the offset under the executing module since comptime
+    // emplaces all reachable cfgs under the entry module, not each callee's defining module
+    const module_uid = (self.curr_module() catch unreachable).uid;
     self.instruction_pointer = Instruction_Pointer{
         .module_uid = module_uid,
         .inst_idx = function_symbol.cfg.?.offset_table.get(module_uid).?,
