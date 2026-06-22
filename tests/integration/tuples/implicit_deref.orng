@@ -3,6 +3,6 @@
 fn main() -> Int {
     let mut x: (Int, Int) = (11, 11)
     let y = &mut x
-    y[0] = 50
-    y[0] + y[1]
+    y.[0] = 50
+    y.[0] + y.[1]
 }

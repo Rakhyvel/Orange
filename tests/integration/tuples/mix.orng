@@ -5,7 +5,7 @@ fn main() -> Int {
     _ = x
     let z = 64
     let y: (Int, &Int) = (z, &z)
-    y[0]
+    y.[0]
 }
 
 fn get_array(a: Int, b: Int) -> [4]Int {

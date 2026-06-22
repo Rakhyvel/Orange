@@ -5,5 +5,5 @@ fn main() -> Int {
     let x = 30
     let y = 29
     let z: Pair = (&x, &y)
-    z[0]^ + z[1]^
+    z.[0]^ + z.[1]^
 }

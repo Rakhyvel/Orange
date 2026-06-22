@@ -1,5 +1,5 @@
 // 247
 fn main() -> Int {
     let x: (Word32, Int, Float) = ('π', 247, 3.14)
-    x[1]
+    x.[1]
 }

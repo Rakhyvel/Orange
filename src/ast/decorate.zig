@@ -69,22 +69,23 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         else => return self,
 
         .assign => {
-            // If lhs is a bracket, rewrite it to use Index_Mut FQS, and deref
-            if (ast.lhs().* == .bracket) {
-                const index_mut_call = try self.rewrite_lvalue_bracket(ast.lhs());
-                const deref = ast_.AST.create_dereference(ast.lhs().token(), index_mut_call, self.ctx.allocator());
-                try self.scope_subtree(deref, ast.lhs().scope().?);
-                ast.set_lhs(deref);
-            }
+            // Rewrite lvalue brackets to `Index_Mut`, propagating through selects so
+            // `x[i].a = v` mutates the element not a copy
+            try self.rewrite_lvalue(ast.lhs());
             return self;
         },
 
         .addr_of => {
-            // If taking addr of a bracket, re-write to Index_Mut FQS
-            if (ast.addr_of.mut and ast.expr().* == .bracket) {
-                const index_mut_call = try self.rewrite_lvalue_bracket(ast.expr()); // TODO: Is this rewrite sound? For generic applies?
-                try self.scope_subtree(index_mut_call, ast.expr().scope().?);
-                ast.* = index_mut_call.*;
+            if (ast.addr_of.mut) {
+                if (ast.expr().* == .bracket) {
+                    // `&mut x[i]` collapses to the `index_mut` call, which already yields a `&mut`
+                    const index_mut_call = try self.rewrite_lvalue_bracket(ast.expr());
+                    try self.scope_subtree(index_mut_call, ast.expr().scope().?);
+                    ast.* = index_mut_call.*;
+                } else {
+                    // `&mut x[i].a` etc rewrite inner brackets, keep the `addr_of`
+                    try self.rewrite_lvalue(ast.expr());
+                }
             }
             return self;
         },
@@ -580,6 +581,22 @@ fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
     else
         inner;
     return ast_.AST.create_index_call(bracket.token(), receiver, idx, true, self.ctx.allocator());
+}
+
+/// Rewrites brackets in an lvalue into `*index_mut(...)`, propagating the place signal
+/// through selects so `x[i].a = v` mutates the element not a copy, stopping at a deref
+/// whose child is a value not a place
+fn rewrite_lvalue(self: *const Self, node: *ast_.AST) walk_.Error!void {
+    switch (node.*) {
+        .select => try self.rewrite_lvalue(node.lhs()),
+        .bracket => {
+            const index_mut_call = try self.rewrite_lvalue_bracket(node);
+            const deref = ast_.AST.create_dereference(node.token(), index_mut_call, self.ctx.allocator());
+            try self.scope_subtree(deref, node.scope().?);
+            node.* = deref.*;
+        },
+        else => {},
+    }
 }
 
 fn create_format_all_call(self: *const Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {

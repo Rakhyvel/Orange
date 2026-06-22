@@ -436,10 +436,10 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
 
     // Setup next stackframe
     try self.push_int(8, try self.effective_address(retval_place)); // push return-value address
-    try self.push_int(8, old_sp); //                                push old sp
-    try self.push_int(8, self.base_pointer); //                     push bp
-    try self.push(Instruction_Pointer, self.instruction_pointer); //          push return address
-    self.base_pointer = self.stack_pointer - 8; //                        bp := sp -1
+    try self.push_int(8, old_sp); //                                   push old sp
+    try self.push_int(8, self.base_pointer); //                        push bp
+    try self.push(Instruction_Pointer, self.instruction_pointer); //      push return address
+    self.base_pointer = self.stack_pointer - 8; //                               bp := sp -1
 
     // allocate space for locals
     if (function_symbol.cfg.?.contains_unsizeds or function_symbol.cfg.?.locals_size == null) std.debug.panic("un-sized cfg", .{}); // TODO: Is this possible?

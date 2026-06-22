@@ -1,7 +1,7 @@
 // 66
 fn main() -> Int {
     let mut x: (Int, Int, Int, Int) = (1, 2, 3, 4)
-    let y: &mut Int = &mut x[3]
+    let y: &mut Int = &mut x.[3]
     y^ = 66
-    x[3]
+    x.[3]
 }

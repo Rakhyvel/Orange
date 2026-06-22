@@ -1,7 +1,7 @@
 // 81
 fn main() -> Int {
     let mut x: [5]Int = [1, 2, 3, 4, 5]
-    let y: [mut]Int = [mut]x
+    let mut y: [mut]Int = [mut]x
     y[2] = 81
     y[2]
 }

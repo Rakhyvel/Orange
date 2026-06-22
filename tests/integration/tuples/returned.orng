@@ -1,7 +1,7 @@
 // 221
 
 fn main() -> Int {
-    f()[1]
+    f().[1]
 }
 
 fn f() -> (Int, Int) {

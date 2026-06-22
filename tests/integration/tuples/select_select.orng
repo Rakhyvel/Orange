@@ -6,6 +6,6 @@ type Pair2 = (Pair, Pair)
 fn main() -> Int {
     let mut x: Pair2 = ((1, 2), (3, 4))
     
-    x[0][0] = 77
-    x[0][0]
+    x.[0].[0] = 77
+    x.[0].[0]
 }
