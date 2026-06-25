@@ -350,16 +350,25 @@ impl[T, const n: Int] Index_Mut for [n]T {
 
 impl[T] Index for []T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output { @child_addr(self.data, i)^ }
+    fn index(&self, i: Int) -> Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr(self.data, i)^
+    }
 }
 
 impl[T] Index for [mut]T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output { @child_addr(self.data, i)^ }
+    fn index(&self, i: Int) -> Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr(self.data, i)^
+    }
 }
 
 impl[T] Index_Mut for [mut]T {
-    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self.data, i) }
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr_mut(self.data, i)
+    }
 }
 
 impl[T] Index for [*]T {
