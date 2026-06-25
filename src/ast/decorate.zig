@@ -392,7 +392,8 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
 }
 
 fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scope) walk_.Error!*Symbol {
-    const stripped_lhs = if (lhs.* == .addr_of)
+    // Deref a reference receiver for member lookup, but not a multiptr, which is its own indexable type
+    const stripped_lhs = if (lhs.* == .addr_of and !lhs.addr_of.multiptr)
         lhs.child()
     else
         lhs;

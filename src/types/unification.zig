@@ -88,9 +88,17 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         }
     }
 
-    if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
+    const lhs_is_type_param = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl;
+    const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl;
+
+    // Bind a type param to an extern type nominally rather than expanding it to the structural
+    // form, so its C name survives into codegen and matches the array element representation
+    const lhs_is_extern = lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.storage == .@"extern";
+    const rhs_is_extern = rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.storage == .@"extern";
+
+    if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null and !(lhs_is_extern and rhs_is_type_param)) {
         return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
-    } else if (rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.init_typedef() != null) {
+    } else if (rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.init_typedef() != null and !(rhs_is_extern and lhs_is_type_param)) {
         return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
@@ -113,9 +121,6 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
                 return try unify_inner(lhs, assoc_type, subst, visited_map, options);
         }
     }
-
-    const lhs_is_type_param = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl;
-    const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl;
 
     if (lhs_is_type_param) {
         if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {

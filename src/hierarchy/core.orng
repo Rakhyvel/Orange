@@ -362,19 +362,19 @@ impl[T] Index_Mut for [mut]T {
     fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self.data, i) }
 }
 
-// impl[T] Index for [*]T {
-//     type Output = T
-//     fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
-// }
-// 
-// impl[T] Index for [*mut]T {
-//     type Output = T
-//     fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
-// }
-// 
-// impl[T] Index_Mut for [*mut]T {
-//     fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self^, i) }
-// }
+impl[T] Index for [*]T {
+    type Output = T
+    fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
+}
+
+impl[T] Index for [*mut]T {
+    type Output = T
+    fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
+}
+
+impl[T] Index_Mut for [*mut]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self^, i) }
+}
 
 trait Eq {
     fn eq(self, other: Self) -> Bool
