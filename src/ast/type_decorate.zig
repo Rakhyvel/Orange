@@ -52,7 +52,13 @@ pub fn postfix_type(self: Self, _type: *Type_AST) walk_.Error!void {
                     _type.* = child.child().*;
                 } else if (child.* == .tuple_type) {
                     if (_type.index.idx.int.data >= child.children().items.len) {
-                        break;
+                        self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
+                            .span = _type.index.idx.token().span,
+                            ._type = child,
+                            .index = _type.index.idx.int.data,
+                            .length = child.children().items.len,
+                        } });
+                        return error.CompileError;
                     }
                     _type.* = child.children().items[@intCast(_type.index.idx.int.data)].*;
                 } else {

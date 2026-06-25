@@ -590,6 +590,8 @@ fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
 fn rewrite_lvalue(self: *const Self, node: *ast_.AST) walk_.Error!void {
     switch (node.*) {
         .select => try self.rewrite_lvalue(node.lhs()),
+        // Destructuring pattern, each element is its own lvalue
+        .array_value, .tuple_value => for (node.children().items) |child| try self.rewrite_lvalue(child),
         .bracket => {
             const index_mut_call = try self.rewrite_lvalue_bracket(node);
             const deref = ast_.AST.create_dereference(node.token(), index_mut_call, self.ctx.allocator());

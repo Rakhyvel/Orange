@@ -1,6 +1,6 @@
-// tuple_too_few.orng:6:32: error: cannot index the type `(Int, Int)`, which has length 2, with index 2
+// tuple_too_few.orng:6:16: error: cannot index the type `(Int, Int)`, which has length 2, with index 2
 //     let (mut c, d, mut e) = (1, 2)
-//                               ^
+//               ^
 // 
 fn main() -> Int {
     let (mut c, d, mut e) = (1, 2)

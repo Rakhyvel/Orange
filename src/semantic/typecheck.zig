@@ -1336,14 +1336,18 @@ fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Valid
     }
 }
 
+/// Validates that `ast` is a valid lvalue
 fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
-        .select, .identifier, .array_value, .context_value => {},
+        // These are all good
+        .select, .positional_select, .identifier, .array_value, .context_value => {},
 
+        // A dereference is an lvalue IF its a deref of an lval, thats not an address
         .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {
             try self.validate_L_Value(ast.expr());
         },
 
+        // A tuple is a valid lvalue if its made up of lvalues
         .tuple_value => for (ast.children().items) |term| {
             try self.validate_L_Value(term);
         },
