@@ -707,7 +707,9 @@ pub const Type_AST = union(enum) {
         while (true) {
             if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
                 const new = res.symbol().?.init_typedef().?;
-                new.set_unexpanded_type(res);
+                // An access (`X::Output`) contains its own resolved type, so back-linking it as the
+                // unexpanded form would make printing the resolved type cycle
+                if (res.* != .access) new.set_unexpanded_type(res);
                 res = new;
             } else if (res.* == .access and res.lhs().symbol().?.decl.?.* == .type_param_decl) {
                 if (res.associated_type_from_constraint()) |assoc_type| {
@@ -723,6 +725,19 @@ pub const Type_AST = union(enum) {
                 return res;
             }
         }
+    }
+
+    /// True for types whose elements are mutable through a pointer indirection, `[*mut]T` and the
+    /// mutable slice `[mut]T`. Taking `&mut` of such a value mutates the pointee, not the binding,
+    /// so it does not require a `mut` binding, only reassigning the value itself does
+    pub fn is_indirect_mutable(self: *Type_AST) bool {
+        const t = self.expand_identifier();
+        if (t.* == .addr_of and t.addr_of.multiptr and t.addr_of.mut) return true;
+        if (t.* == .struct_type and t.struct_type.was_slice) {
+            const data = t.children().items[0].child();
+            if (data.* == .addr_of and data.addr_of.mut) return true;
+        }
+        return false;
     }
 
     pub fn strip_addrs(self: *Type_AST) *Type_AST {

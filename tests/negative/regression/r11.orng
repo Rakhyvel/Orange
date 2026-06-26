@@ -1,4 +1,4 @@
-// r11.orng:6:28: error: expected a value of type `[*]String`, got a value of type `Int`
+// r11.orng:6:28: error: expected tuple type for tuple pattern, got `[]String`
 //     let (a, b, c): []String
 //                           ^
 // 

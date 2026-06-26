@@ -1,10 +1,10 @@
 // index_product.orng:7:7: error: not a constant integer
-//     x[f()]
+//     x.[f()]
 //      ^
 // 
 fn main() -> Int {
     let x: (Int, Bool, Bool, Int)
-    x[f()]
+    x.[f()]
 }
 
 fn f() -> Int { 3 }

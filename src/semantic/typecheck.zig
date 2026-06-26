@@ -480,6 +480,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             args_validator.implicit_ref();
             try args_validator.validate_arity();
             try args_validator.validate_type(subst, self.ctx);
+            // Resolve an associated-type return (`Self::Output`) when the receiver is concrete
+            if (codomain.* == .access) return codomain.expand_identifier();
             return codomain;
         },
         .child_addr, .child_addr_mut => {
@@ -558,7 +560,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try typing_.type_check_integral(ast.token().span, rhs_type, &self.ctx.errors);
             try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
 
-            std.debug.assert(ast.rhs().* == .int);
+            if (ast.rhs().* != .int) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
+                return error.CompileError;
+            }
 
             const evald_pos = ast.rhs().int.data;
 
@@ -843,7 +848,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
                 // Everythings Ok.
                 const child_type = self.typecheck_AST(ast.expr(), expanded_expected.child(), subst) catch return error.CompileError;
-                if (ast.addr_of.mut) {
+                if (ast.addr_of.mut and !child_type.is_indirect_mutable()) {
                     try self.assert_mutable(ast.expr());
                 }
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
