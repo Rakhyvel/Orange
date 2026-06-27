@@ -464,8 +464,13 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const codomain = expanded_lhs_type.rhs();
             const variadic = expanded_lhs_type.function.variadic;
 
-            // Normalize receiver argument type for FQS calls
-            if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {
+            // Borrow the receiver for method-call sugar, whose FQS is `<typeof(x) as Trait>` (an
+            // `as_trait` lhs). The borrow is type-directed (the receiver may already be an address,
+            // like `self` or a nested `x[i]`), so it can't live in the desugar. An explicit
+            // `Trait::method(x)` FQS is left alone, so a bare-value receiver mismatches `&self`
+            if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait and
+                domain.items.len > 0 and ast.children().items.len > 0)
+            {
                 const p0 = domain.items[0];
                 if (p0.* == .annotation and p0.annotation.pattern.* == .receiver and
                     p0.child().* == .addr_of and !p0.child().addr_of.multiptr)

@@ -84,7 +84,7 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
         .size_of => {
             const _type = ast.size_of._type;
             if (!_type.is_generic()) {
-                if (self.ctx.validate_type.detect_cycle(ast.size_of._type, null)) {
+                if (self.ctx.validate_type.detect_cycle(ast.size_of._type, null)) |_| {
                     self.ctx.errors.add_error(errs_.Error{ .basic = .{
                         .msg = "cyclic type detected",
                         .span = ast.token().span,
