@@ -13,6 +13,7 @@ const module_ = @import("../hierarchy/module.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const alignment_ = @import("../util/alignment.zig");
 const Token = @import("../lexer/token.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
@@ -129,7 +130,7 @@ pub fn run(self: *Self) error{CompileError}!void {
             std.debug.print("\n", .{});
             self.print_registers();
             self.print_stack();
-            std.debug.print("\n\n\n\n// {s}\n{}=> ", .{ instr.span.line_text, instr });
+            std.debug.print("\n\n\n\n// {s}\n{f}=> ", .{ instr.span.line_text, instr });
         }
         const time_now = std.time.milliTimestamp();
         if (debugger == .off and time_now - self.start_time > timeout_ms) {
@@ -508,7 +509,9 @@ pub fn extract_ast(self: *Self, address: i64, _type: *Type_AST, span: Span) Erro
             return error.CompileError;
         },
         .annotation => return try self.extract_ast(address, _type.child(), span),
-        else => std.debug.panic("interpreter error: unimplemented extract_ast() for: AST.{s}\n", .{@tagName(_type.*)}),
+        else => {
+            std.debug.panic("interpreter error: unimplemented extract_ast() for: AST.{s}\n", .{@tagName(_type.*)});
+        },
     }
 }
 
@@ -751,7 +754,12 @@ fn effective_address(self: *Self, lval: *lval_.L_Value) error{CompileError}!i64 
         },
         .dereference => return self.memory.load(i64, try self.effective_address(lval.dereference.expr)),
         .index => {
-            const base = try self.effective_address(lval.index.lhs);
+            const base = if (lval.index.lhs.get_expanded_type().* == .addr_of)
+                // A multiptr base holds the pointer as its value, load it
+                self.memory.load(i64, try self.effective_address(lval.index.lhs))
+            else
+                // An array/slice aggregate base is a place, use its address directly
+                try self.effective_address(lval.index.lhs);
             const index = self.memory.load(i64, try self.effective_address(lval.index.rhs));
             // TODO: Check that index isn't greater than lval.index.length
             return base + index * lval.expanded_type_sizeof().?;

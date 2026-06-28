@@ -428,7 +428,7 @@ fn index_of_basic_block(self: *Self, bb: *Basic_Block) usize {
 /// instructions for the CFG start.
 ///
 /// Returns the index in the cfg in the cfgs list.
-pub fn emplace_cfg(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*Self), instructions_list: *std.array_list.Managed(*Instruction)) i64 {
+pub fn emplace(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*Self), instructions_list: *std.array_list.Managed(*Instruction)) i64 {
     const len = @as(i64, @intCast(cfgs.items.len));
     if (self.offset_table.contains(module_uid)) {
         // Already visited, do nothing
@@ -446,7 +446,7 @@ pub fn emplace_cfg(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*
             // TODO: The cfgs list should be a struct that wraps the list, and likely has entries that abstract the cfg's and bb's offset
             if (child.symbol.decl.?.num_generic_params() > 0) continue;
             if (child.symbol.decl.?.* == .method_decl and child.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
-            _ = child.emplace_cfg(module_uid, cfgs, instructions_list);
+            _ = child.emplace(module_uid, cfgs, instructions_list);
         }
     }
     self.locals_size = self.calculate_offsets();

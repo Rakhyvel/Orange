@@ -123,7 +123,7 @@ fn interpret_comptime_expr(
     const cfg = try self.ctx.cfg_store.get_cfg(symbol, intered_strings);
     defer cfg.deinit(); // Remove the cfg so that it isn't output
 
-    const idx = cfg.emplace_cfg(module.uid, &module.cfgs, &module.instructions);
+    const idx = cfg.emplace(module.uid, &module.cfgs, &module.instructions);
     defer module.pop_cfg(idx); // Remove the cfg so that it isn't output
 
     // Create a context and interpret
@@ -134,5 +134,5 @@ fn interpret_comptime_expr(
     try context.run();
 
     // Extract the retval
-    return try context.extract_ast(0, ret_type, ast.token().span);
+    return try context.extract_ast(0, ret_type.expand_identifier(), ast.token().span);
 }

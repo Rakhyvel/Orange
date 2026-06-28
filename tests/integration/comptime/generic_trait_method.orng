@@ -1,0 +1,19 @@
+// 496
+trait Get_First {
+    type Output
+    fn first(&self) -> Self::Output
+}
+
+impl[T] Get_First for []T {
+    type Output = T
+    fn first(&self) -> Self::Output {
+        self[0]
+    }
+}
+
+fn main() -> Int {
+    comptime {
+        let xs: []Int = [][496, 396, 296]
+        xs.>first()
+    }
+}
