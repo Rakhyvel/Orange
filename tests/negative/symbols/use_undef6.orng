@@ -1,6 +1,6 @@
-// use_undef6.orng:10:6: error: symbol `x` is never defined
+// use_undef6.orng:10:7: error: symbol `x` is never defined
 //     x[2]
-//     ^
+//      ^
 // use_undef6.orng:9:10: note: declared here
 //     let x: [4]Int = undefined
 //         ^

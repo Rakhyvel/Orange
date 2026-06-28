@@ -332,7 +332,7 @@ impl Shr for Word8 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 
 trait Index {
     type Output
-    fn index(&self, i: Int) -> Self::Output
+    fn index(&self, i: Int) -> &Self::Output
 }
 
 trait Index_Mut: Index {
@@ -341,7 +341,7 @@ trait Index_Mut: Index {
 
 impl[T, const n: Int] Index for [n]T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output { @child_addr(self, i)^ }
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self, i) }
 }
 
 impl[T, const n: Int] Index_Mut for [n]T {
@@ -350,17 +350,17 @@ impl[T, const n: Int] Index_Mut for [n]T {
 
 impl[T] Index for []T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output {
+    fn index(&self, i: Int) -> &Self::Output {
         if i < 0 or i >= self.length { unreachable }
-        @child_addr(self.data, i)^
+        @child_addr(self.data, i)
     }
 }
 
 impl[T] Index for [mut]T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output {
+    fn index(&self, i: Int) -> &Self::Output {
         if i < 0 or i >= self.length { unreachable }
-        @child_addr(self.data, i)^
+        @child_addr(self.data, i)
     }
 }
 
@@ -373,12 +373,12 @@ impl[T] Index_Mut for [mut]T {
 
 impl[T] Index for [*]T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self^, i) }
 }
 
 impl[T] Index for [*mut]T {
     type Output = T
-    fn index(&self, i: Int) -> Self::Output { @child_addr(self^, i)^ }
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self^, i) }
 }
 
 impl[T] Index_Mut for [*mut]T {

@@ -2494,7 +2494,7 @@ pub const AST = union(enum) {
         return AST.create_call(_token, method, args, allocator);
     }
 
-    /// Converts `receiver[index]` into an FQS call to `(@typeof(receiver) as core::Index)::index(receiver, index)`
+    /// Converts `receiver[index]` into an FQS call to `(@typeof(receiver) as core::Index)::index(&receiver, index)^`
     pub fn create_index_call(_token: Token, receiver: *AST, index: *AST, is_mut: bool, allocator: std.mem.Allocator) !*AST {
         const trait_name: []const u8 = if (is_mut) "Index_Mut" else "Index";
         const method_name: []const u8 = if (is_mut) "index_mut" else "index";
@@ -2510,9 +2510,10 @@ pub const AST = union(enum) {
         const method = AST.create_type_access(_token, trait_as, method_field, allocator);
 
         var args = std.array_list.Managed(*AST).init(allocator);
-        try args.append(receiver);
+        try args.append(AST.create_addr_of(_token, receiver, is_mut, false, allocator));
         try args.append(index);
-        return AST.create_call(_token, method, args, allocator);
+        const call = AST.create_call(_token, method, args, allocator);
+        return AST.create_dereference(_token, call, allocator);
     }
 
     pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) !*AST {

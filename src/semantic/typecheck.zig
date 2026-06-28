@@ -414,7 +414,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const as_trait_node = ast.lhs().type_access._lhs_type;
-                // Auto-deref the receiver type to its base indexable type so that impl lookup, method resolution and receiver borrowing all agree
+                // Auto-deref the receiver type to its base type
                 // This lets stuff like `(@typeof(self) as Index)::index(self, i)` work when `self: &[]T`
                 var base = as_trait_node.lhs();
                 while (true) {
@@ -464,18 +464,13 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const codomain = expanded_lhs_type.rhs();
             const variadic = expanded_lhs_type.function.variadic;
 
-            // Borrow the receiver for method-call sugar, whose FQS is `<typeof(x) as Trait>` (an
-            // `as_trait` lhs). The borrow is type-directed (the receiver may already be an address,
-            // like `self` or a nested `x[i]`), so it can't live in the desugar. An explicit
-            // `Trait::method(x)` FQS is left alone, so a bare-value receiver mismatches `&self`
-            if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait and
-                domain.items.len > 0 and ast.children().items.len > 0)
-            {
+            // Peel any extra addrof off an FQS receiver
+            if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {
                 const p0 = domain.items[0];
                 if (p0.* == .annotation and p0.annotation.pattern.* == .receiver and
                     p0.child().* == .addr_of and !p0.child().addr_of.multiptr)
                 {
-                    try self.normalize_addr_receiver(ast.children(), p0.child().addr_of.mut, subst);
+                    try self.normalize_addr_receiver(ast.children(), subst);
                 }
             }
 
@@ -485,8 +480,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             args_validator.implicit_ref();
             try args_validator.validate_arity();
             try args_validator.validate_type(subst, self.ctx);
-            // Resolve an associated-type return (`Self::Output`) when the receiver is concrete
+            // Resolve an associated-type return (`Self::Output` or `&Self::Output`) to the concrete type when the receiver is concrete, so the result isn't an unresolvable access
             if (codomain.* == .access) return codomain.expand_identifier();
+            if (codomain.* == .addr_of and codomain.child().* == .access)
+                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_identifier(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
             return codomain;
         },
         .child_addr, .child_addr_mut => {
@@ -1350,7 +1347,7 @@ fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Valid
 fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
         // These are all good
-        .select, .positional_select, .identifier, .array_value, .context_value => {},
+        .select, .positional_select, .identifier, .array_value, .context_value, .string => {},
 
         // A dereference is an lvalue IF its a deref of an lval, thats not an address
         .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {
@@ -1371,20 +1368,23 @@ fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
 
 /// Rewrites `args[0]` so its type is the address `&base`/`&mut base` an address
 /// receiver expects: dereferences through any non-multiptr address layers to reach
-/// the base value, then borrows it with the requested mutability.
+/// the base value, then takes its address it with the requested mutability.
 fn normalize_addr_receiver(
     self: *Self,
     args: *std.array_list.Managed(*ast_.AST),
-    want_mut: bool,
     subst: *unification_.Substitutions,
 ) Validate_Error_Enum!void {
     var arg = args.items[0];
-    var at = (self.typecheck_AST(arg, null, subst) catch return error.CompileError).expand_identifier();
-    while (at.* == .addr_of and !at.addr_of.multiptr) {
-        arg = ast_.AST.create_dereference(arg.token(), arg, self.ctx.allocator());
-        at = at.child().expand_identifier();
+    // Peel an addrof chain until we get `&self`
+    while (true) {
+        const at = (self.typecheck_AST(arg, null, subst) catch return error.CompileError).expand_identifier();
+        if (at.* != .addr_of or at.addr_of.multiptr) break;
+        const inner = at.child().expand_identifier();
+        if (inner.* != .addr_of or inner.addr_of.multiptr) break;
+        // Unwrap a literal `&x` to `x` so codegen doesn't emit `&` of a non-lvalue cast
+        arg = if (arg.* == .addr_of) arg.expr() else ast_.AST.create_dereference(arg.token(), arg, self.ctx.allocator());
     }
-    args.items[0] = ast_.AST.create_addr_of(arg.token(), arg, want_mut, false, self.ctx.allocator());
+    args.items[0] = arg;
 }
 
 fn implicit_dereference(

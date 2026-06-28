@@ -1,6 +1,6 @@
-// immutable_index.orng:8:6: error: cannot modify non-mutable symbol `y`
+// immutable_index.orng:8:7: error: expected a value of type `&mut [mut]Int`, got a value of type `&mut []Int`
 //     y[0] = 4
-//     ^
+//      ^
 // 
 fn main() -> Int {
     let x: [4]Int = [1, 2, 3, 4]
