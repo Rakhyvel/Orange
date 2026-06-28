@@ -167,9 +167,18 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_ast(ast.rhs(), new_context);
             try walk_asts(ast.children(), new_context);
         },
-        .call, .bracket => {
+        .call => {
             try walk_ast(ast.lhs(), new_context);
             try walk_asts(ast.children(), new_context);
+        },
+        .bracket => {
+            try walk_ast(ast.lhs(), new_context);
+            for (ast.children().items) |arg| {
+                switch (arg) {
+                    .type_arg => |ty| try walk_type(ty, new_context),
+                    .const_arg => |v| try walk_ast(v, new_context),
+                }
+            }
         },
         .generic_apply => {
             try walk_ast(ast.lhs(), new_context);

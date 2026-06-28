@@ -7,6 +7,7 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const generic_apply_ = @import("generic_apply.zig");
 const Scope = @import("../symbol/scope.zig");
+const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Symbol_Tree = @import("symbol-tree.zig");
 const Token = @import("../lexer/token.zig");
@@ -157,6 +158,13 @@ fn decorate_prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
     }
 }
 
+/// A whole-arg type appeared where a value was required, a const argument or an index subscript,
+/// and could not be reinterpreted as one
+fn value_expected(self: Self, span: Span) walk_.Error {
+    self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "expected a value, got a type", .span = span } });
+    return error.CompileError;
+}
+
 fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     switch (ast.*) {
         else => {},
@@ -201,7 +209,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
 
         .bracket => {
-            var child = ast.lhs();
+            const child = ast.lhs();
 
             // Rewrite bracket to generic apply if its a generic apply
             if (child.* == .identifier or child.* == .access) {
@@ -210,18 +218,24 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                         var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
                         const params = decl.generic_params().items;
                         for (ast.children().items, 0..) |arg, i| {
-                            if (i < params.len and params[i].* == .const_param_decl) {
-                                try generic_args.append(.{ .const_arg = arg });
+                            const wants_const = i < params.len and params[i].* == .const_param_decl;
+                            if (wants_const) {
+                                // Const param wants a value, a whole-arg type that names a const is allowed
+                                switch (arg) {
+                                    .const_arg => |v| try generic_args.append(.{ .const_arg = v }),
+                                    .type_arg => |ty| try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) }),
+                                }
                             } else {
-                                switch (arg.*) {
-                                    .int, .float, .true, .false, .negate => {
+                                // Type param wants a type, a value expression is an error
+                                switch (arg) {
+                                    .type_arg => |ty| try generic_args.append(.{ .type_arg = ty }),
+                                    .const_arg => |v| {
                                         self.ctx.errors.add_error(errs_.Error{ .basic = .{
                                             .msg = "expected a type argument, got a value",
-                                            .span = arg.token().span,
+                                            .span = v.token().span,
                                         } });
                                         return error.CompileError;
                                     },
-                                    else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
                                 }
                             }
                         }
@@ -233,7 +247,10 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
 
             // Rewrite bracket to Index FQS call if its an index
-            const idx = ast.children().items[0];
+            const idx = switch (ast.children().items[0]) {
+                .const_arg => |v| v,
+                .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
+            };
             const index_call = try ast_.AST.create_index_call(ast.token(), child, idx, false, self.ctx.allocator());
             try self.scope_subtree(index_call, ast.scope().?);
             ast.* = index_call.*;
@@ -563,7 +580,10 @@ fn scope_subtree(self: *const Self, subtree: *ast_.AST, scope: *Scope) !void {
 
 /// Recursively desugars an lvalue bracket chain into nested `index_mut` addresses
 fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
-    const idx = bracket.children().items[0];
+    const idx = switch (bracket.children().items[0]) {
+        .const_arg => |v| v,
+        .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
+    };
     const inner = bracket.lhs();
     // Inner bracket yields a `index_mut(...)^`, the receiver for the next level
     const receiver = if (inner.* == .bracket)

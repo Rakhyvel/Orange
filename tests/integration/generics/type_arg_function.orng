@@ -1,0 +1,15 @@
+// 9
+// A function type `S -> T` as a generic type argument
+fn id[T](x: T) -> T {
+    x
+}
+
+fn dbl(x: Int) -> Int {
+    x * 2
+}
+
+fn main() -> Int {
+    let f: Int -> Int = dbl
+    let g = id[Int -> Int](f)
+    g(4) + 1
+}

@@ -1,0 +1,8 @@
+// index_type_arg.orng:7:11: error: expected a value, got a type
+//     a[?Int]
+//          ^
+// 
+fn main() -> Int {
+    let a: [3]Int = [1, 2, 3]
+    a[?Int]
+}

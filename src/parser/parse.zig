@@ -981,30 +981,35 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
         } else if (self.accept(.left_square)) |token| {
-            var first: ?*ast_.AST = null;
-            if (self.next_is_expr()) {
-                first = try self.assignment_expr();
-            }
+            // A sub-slice `[a..b]` whose bounds are value expressions, or a bracket `[args]`, whose args are parsed type-first
             if (self.accept(.double_period)) |_| {
+                // `[..]` or `[..b]`
                 var second: ?*ast_.AST = null;
                 if (self.next_is_expr()) {
                     second = try self.assignment_expr();
                 }
-                exp = ast_.AST.create_sub_slice(token, exp, first, second, self.allocator);
+                exp = ast_.AST.create_sub_slice(token, exp, null, second, self.allocator);
             } else {
-                // Simple index
-                var children = std.array_list.Managed(*ast_.AST).init(self.allocator);
-                children.append(first orelse {
-                    self.errors.add_error(errs_.Error{ .expected_basic_token = .{
-                        .expected = "an expression here",
-                        .got = self.peek(),
-                    } });
-                    return Parser_Error_Enum.ParseError;
-                }) catch unreachable;
-                while (self.accept(.comma)) |_| {
-                    children.append(try self.assignment_expr()) catch unreachable;
+                const first = try self.bracket_arg();
+                if (self.accept(.double_period)) |_| {
+                    // `[a..]` or `[a..b]`, the lower bound is always a value expression
+                    var second: ?*ast_.AST = null;
+                    if (self.next_is_expr()) {
+                        second = try self.assignment_expr();
+                    }
+                    exp = ast_.AST.create_sub_slice(token, exp, self.generic_arg_as_expr(first), second, self.allocator);
+                } else {
+                    // Simple index or generic apply, resolved in decorate
+                    var args = std.array_list.Managed(GenericArg).init(self.allocator);
+                    args.append(first) catch unreachable;
+                    while (self.accept(.comma)) |_| {
+                        if (self.peek_kind(.right_square)) {
+                            break;
+                        }
+                        args.append(try self.bracket_arg()) catch unreachable;
+                    }
+                    exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
                 }
-                exp = ast_.AST.create_bracket(token, exp, children, self.allocator);
             }
             if (self.peek_kind(.right_square)) {
                 _ = self.expect(.right_square) catch {};
@@ -1084,12 +1089,16 @@ fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(GenericAr
     return retval;
 }
 
-fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
-    const is_value = self.peek_kind(.dec_int) or self.peek_kind(.hex_int) or
+/// A leading value token means the argument can only be a const argument, never a type
+fn peek_is_value_token(self: *Self) bool {
+    return self.peek_kind(.dec_int) or self.peek_kind(.hex_int) or
         self.peek_kind(.oct_int) or self.peek_kind(.bin_int) or
         self.peek_kind(.float) or self.peek_kind(.true) or self.peek_kind(.false) or
         self.peek_kind(.minus);
-    if (is_value) {
+}
+
+fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
+    if (self.peek_is_value_token()) {
         return .{ .const_arg = try self.bool_expr() };
     }
     var ty = try self.type_expr();
@@ -1097,6 +1106,35 @@ fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
         ty = Type_AST.create_eq_constraint(token, ty, try self.type_expr(), self.allocator);
     }
     return .{ .type_arg = ty };
+}
+
+/// Parses a single argument inside an expression-position `Foo[...]`, where it is not yet known whether `Foo` is a generic or an indexable value.
+/// Parses type-first, backtracks for values.
+fn bracket_arg(self: *Self) Parser_Error_Enum!GenericArg {
+    if (self.peek_is_value_token()) {
+        return .{ .const_arg = try self.bool_expr() };
+    }
+    const start = self.cursor;
+    const saved_record = self.errors.record_errors;
+    self.errors.record_errors = false;
+    if (self.type_expr()) |ty| {
+        if (self.peek_kind(.comma) or self.peek_kind(.right_square)) {
+            self.errors.record_errors = saved_record;
+            return .{ .type_arg = ty };
+        }
+    } else |_| {}
+    // Not a whole-arg type: backtrack and parse it as an expression
+    self.cursor = start;
+    self.errors.record_errors = saved_record;
+    return .{ .const_arg = try self.assignment_expr() };
+}
+
+/// Reads a bracket argument as a value expression, for a sub-slice bound. A `..` always breaks the whole-arg commit, so the lower bound parses as a const argument in practice
+fn generic_arg_as_expr(self: *Self, arg: GenericArg) ?*ast_.AST {
+    return switch (arg) {
+        .const_arg => |v| v,
+        .type_arg => |ty| ty.to_value_expr(self.allocator),
+    };
 }
 
 fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {

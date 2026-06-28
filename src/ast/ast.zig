@@ -142,7 +142,7 @@ pub const AST = union(enum) {
     bit_not: struct { common: AST_Common, _expr: *AST },
     left_shift: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     right_shift: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    bracket: struct { common: AST_Common, _lhs: *AST, _children: std.array_list.Managed(*AST), _scope: ?*Scope = null },
+    bracket: struct { common: AST_Common, _lhs: *AST, _args: std.array_list.Managed(GenericArg), _scope: ?*Scope = null },
     child_addr: struct { common: AST_Common, _lhs: *AST, _rhs: *AST, _scope: ?*Scope = null },
     child_addr_mut: struct { common: AST_Common, _lhs: *AST, _rhs: *AST, _scope: ?*Scope = null },
     generic_apply: struct {
@@ -867,11 +867,11 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_bracket(_token: Token, _lhs: *AST, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
+    pub fn create_bracket(_token: Token, _lhs: *AST, _args: std.array_list.Managed(GenericArg), allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .bracket = .{
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
-            ._children = _children,
+            ._args = _args,
         } }, allocator);
     }
 
@@ -1715,12 +1715,16 @@ pub const AST = union(enum) {
             .bit_not => return create_bit_not(self.token(), self.expr().clone(substs, allocator), allocator),
             .left_shift => return create_left_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .right_shift => return create_right_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
-            .bracket => return create_bracket(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                clone_children(self.children().*, substs, allocator),
-                allocator,
-            ),
+            .bracket => {
+                var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
+                for (self.bracket._args.items) |arg| {
+                    switch (arg) {
+                        .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
+                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
+                    }
+                }
+                return create_bracket(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
+            },
             .child_addr => return create_child_addr(
                 self.token(),
                 self.lhs().clone(substs, allocator),
@@ -2190,7 +2194,7 @@ pub const AST = union(enum) {
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
         return switch (self.*) {
             .call => &self.call._args,
-            .bracket => &self.bracket._children,
+            .bracket => &self.bracket._args,
             .context_value => &self.context_value._terms,
             .struct_value => &self.struct_value._terms,
             .tuple_value => &self.tuple_value._terms,
@@ -2682,9 +2686,12 @@ pub const AST = union(enum) {
             .right_shift => try out.print("right_shift({f}, {f})", .{ self.lhs(), self.rhs() }),
             .bracket => {
                 try out.print("bracket(lhs={f},args=[", .{self.bracket._lhs});
-                for (self.bracket._children.items, 0..) |item, i| {
-                    try out.print("{f}", .{item});
-                    if (i < self.bracket._children.items.len - 1) {
+                for (self.bracket._args.items, 0..) |item, i| {
+                    switch (item) {
+                        .type_arg => |ty| try out.print("{f}", .{ty}),
+                        .const_arg => |v| try out.print("{f}", .{v}),
+                    }
+                    if (i < self.bracket._args.items.len - 1) {
                         try out.print(",", .{});
                     }
                 }

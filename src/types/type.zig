@@ -535,7 +535,7 @@ pub const Type_AST = union(enum) {
                 const base = from_ast(ast.lhs(), allocator);
                 var args = std.array_list.Managed(GenericArg).init(allocator);
                 for (ast.children().items) |arg| {
-                    args.append(.{ .type_arg = from_ast(arg, allocator) }) catch unreachable;
+                    args.append(arg) catch unreachable;
                 }
                 break :blk Type_AST.create_generic_apply_type(ast.token(), base, args, allocator);
             },
@@ -555,6 +555,17 @@ pub const Type_AST = union(enum) {
                 const id = Type_AST.create_addr_of_type(ast.token(), typed_expr, ast.addr_of.mut, ast.addr_of.multiptr, allocator);
                 break :blk id;
             },
+            .slice_of => blk: {
+                const of = from_ast(ast.expr(), allocator);
+                break :blk Type_AST.create_slice_type(of, ast.slice_of.mut, allocator);
+            },
+            .tuple_value => blk: {
+                var terms = std.array_list.Managed(*Type_AST).init(allocator);
+                for (ast.children().items) |term| {
+                    terms.append(from_ast(term, allocator)) catch unreachable;
+                }
+                break :blk Type_AST.create_tuple_type(ast.token(), terms, allocator);
+            },
             .unit_value => Type_AST.create_unit_type(ast.token(), allocator),
             .as => blk: {
                 const as_trait_lhs = from_ast(ast.expr(), allocator);
@@ -565,6 +576,30 @@ pub const Type_AST = union(enum) {
             },
             else => std.debug.panic("unable to construct type from {t}", .{ast.*}),
         };
+    }
+
+    /// Inverse of `from_ast` for the cases that can stand as a value expression. A whole-arg type
+    /// parsed in bracket position may turn out to be an index subscript or a const argument once
+    /// the bracket's lhs is resolved. Only a bare identifier or a path can be reinterpreted as a
+    /// value, returns null otherwise so the caller can report a value-expected error
+    pub fn to_value_expr(self: *Type_AST, allocator: std.mem.Allocator) ?*AST {
+        switch (self.*) {
+            .identifier => {
+                const id = AST.create_identifier(self.token(), allocator);
+                id.set_scope(self.scope());
+                id.set_symbol(self.symbol());
+                return id;
+            },
+            .access => {
+                const lhs_expr = self.lhs().to_value_expr(allocator) orelse return null;
+                const rhs_field = AST.create_field(self.rhs().token(), allocator);
+                const id = AST.create_access(self.token(), lhs_expr, rhs_field, allocator);
+                id.set_scope(self.scope());
+                id.set_symbol(self.symbol());
+                return id;
+            },
+            else => return null,
+        }
     }
 
     pub fn common(self: *const Type_AST) *const Type_AST_Common {

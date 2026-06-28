@@ -1,0 +1,24 @@
+// 42
+// A trait object `&dyn Trait` as a generic type argument
+trait Give_Num {
+    virtual fn give(&self) -> Int
+}
+
+struct Holder {
+    n: Int
+}
+
+impl Give_Num for Holder {
+    virtual fn give(&self) -> Int { self.n }
+}
+
+fn id[T](x: T) -> T {
+    x
+}
+
+fn main() -> Int {
+    let h = Holder(42)
+    let d: &dyn Give_Num = &h
+    let e = id[&dyn Give_Num](d)
+    e.>give()
+}
