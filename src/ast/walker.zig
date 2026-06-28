@@ -173,7 +173,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
         .bracket => {
             try walk_ast(ast.lhs(), new_context);
-            for (ast.children().items) |arg| {
+            for (ast.bracket._args.items) |arg| {
                 switch (arg) {
                     .type_arg => |ty| try walk_type(ty, new_context),
                     .const_arg => |v| try walk_ast(v, new_context),

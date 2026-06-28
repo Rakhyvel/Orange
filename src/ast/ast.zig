@@ -2194,7 +2194,6 @@ pub const AST = union(enum) {
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
         return switch (self.*) {
             .call => &self.call._args,
-            .bracket => &self.bracket._args,
             .context_value => &self.context_value._terms,
             .struct_value => &self.struct_value._terms,
             .tuple_value => &self.tuple_value._terms,

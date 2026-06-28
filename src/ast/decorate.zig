@@ -217,7 +217,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                     if (decl.num_generic_params() > 0) {
                         var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
                         const params = decl.generic_params().items;
-                        for (ast.children().items, 0..) |arg, i| {
+                        for (ast.bracket._args.items, 0..) |arg, i| {
                             const wants_const = i < params.len and params[i].* == .const_param_decl;
                             if (wants_const) {
                                 // Const param wants a value, a whole-arg type that names a const is allowed
@@ -247,7 +247,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
 
             // Rewrite bracket to Index FQS call if its an index
-            const idx = switch (ast.children().items[0]) {
+            const idx = switch (ast.bracket._args.items[0]) {
                 .const_arg => |v| v,
                 .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
             };
@@ -580,7 +580,7 @@ fn scope_subtree(self: *const Self, subtree: *ast_.AST, scope: *Scope) !void {
 
 /// Recursively desugars an lvalue bracket chain into nested `index_mut` addresses
 fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
-    const idx = switch (bracket.children().items[0]) {
+    const idx = switch (bracket.bracket._args.items[0]) {
         .const_arg => |v| v,
         .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
     };

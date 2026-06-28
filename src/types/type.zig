@@ -534,7 +534,7 @@ pub const Type_AST = union(enum) {
             .bracket => blk: {
                 const base = from_ast(ast.lhs(), allocator);
                 var args = std.array_list.Managed(GenericArg).init(allocator);
-                for (ast.children().items) |arg| {
+                for (ast.bracket._args.items) |arg| {
                     args.append(arg) catch unreachable;
                 }
                 break :blk Type_AST.create_generic_apply_type(ast.token(), base, args, allocator);
