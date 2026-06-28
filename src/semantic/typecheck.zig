@@ -94,7 +94,7 @@ pub fn typecheck_AST(
 
     var expected_type = expected;
 
-    // std.debug.print("{}: {?}\n", .{ ast, expected_type });
+    // std.debug.print("{f}: {?}\n", .{ ast, expected_type });
     ast.common().validation_state = .validating;
 
     if (expected_type != null and expected_type.?.* == .poison) {
@@ -1192,6 +1192,12 @@ fn select_method(
 
     switch (viable.items.len) {
         0 => {
+            // Type check for any genuine compile errors in the args that might've made it seem like there were no viable methods
+            for (ast.children().items) |arg| {
+                _ = self.typecheck_AST(arg, null, subst) catch return error.CompileError;
+            }
+
+            // Good args + no viable methods = BAD (genuinely no viable methods)
             const saved_rejection_reasons = try rejection_reasons.clone();
             self.ctx.errors.add_error(errs_.Error{
                 .type_not_impl_method = .{
@@ -1204,6 +1210,7 @@ fn select_method(
             return error.CompileError;
         },
         1 => {
+            // One viable method = GOOD :)
             rejection_reasons.deinit();
             const choice = viable.items[0];
             ast.invoke.method_decl = choice.method;
@@ -1213,6 +1220,7 @@ fn select_method(
             }
         },
         else => {
+            // >1 viable methods = BAD! (ambiguous)
             var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
             for (viable.items) |candidate| {
                 try saved_viable.append(candidate.method);
