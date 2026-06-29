@@ -1,0 +1,11 @@
+// 6
+// An array `[N]T` as a generic type argument
+fn id[T](x: T) -> T {
+    x
+}
+
+fn main() -> Int {
+    let v: [3]Int = [1, 2, 3]
+    let w = id[[3]Int](v)
+    w[0] + w[1] + w[2]
+}

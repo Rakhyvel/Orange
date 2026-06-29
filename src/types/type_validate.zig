@@ -113,8 +113,12 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
     }
 }
 
-pub fn detect_cycle(self: *Self, ty: *Type_AST, append_me: ?*Symbol) bool {
-    _ = append_me;
+/// Returns the offending type-alias symbol forming a cycle, or null if the type is acyclic.
+/// The returned symbol lets callers point the error at the user's type, not wherever the cycle
+/// was first reached (like a core impl's `Self` that transitively references the cyclic alias).
+/// `append_me` is the symbol whose typedef is `ty`, seeded onto the path so the cycle closes
+/// at it when it is itself part of the cycle (so we report the validated type, not its successor)
+pub fn detect_cycle(self: *Self, ty: *Type_AST, append_me: ?*Symbol) ?*Symbol {
     var visiting = std.AutoArrayHashMap(*Type_AST, bool).init(self.ctx.allocator());
     defer visiting.deinit();
 
@@ -123,6 +127,8 @@ pub fn detect_cycle(self: *Self, ty: *Type_AST, append_me: ?*Symbol) bool {
 
     var path = std.AutoArrayHashMap(*Symbol, bool).init(self.ctx.allocator());
     defer path.deinit();
+
+    if (append_me) |sym| path.put(sym, true) catch unreachable;
 
     return dfs(ty, &visiting, &path, &visited, false);
 }
@@ -133,40 +139,42 @@ fn dfs(
     path: *std.AutoArrayHashMap(*Symbol, bool),
     visited: *std.AutoArrayHashMap(*Type_AST, bool),
     has_indirection: bool,
-) bool {
-    if (visited.contains(ty)) return false;
+) ?*Symbol {
+    if (visited.contains(ty)) return null;
 
-    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply) and ty.symbol().?.decl.?.* == .type_alias) return true; // unsafe cycle detected
-    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply)) return !has_indirection; // unsafe cycle detected
+    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply) and ty.symbol().?.decl.?.* == .type_alias) return ty.symbol(); // unsafe alias cycle
+    if (visiting.contains(ty) and (ty.* == .identifier or ty.* == .access or ty.* == .generic_apply)) return if (has_indirection) null else ty.symbol(); // indirection makes it safe
 
     visiting.put(ty, true) catch unreachable;
 
     switch (ty.*) {
         .identifier, .access, .generic_apply => if (ty.symbol()) |sym| {
             if (path.contains(sym)) {
-                if (sym.decl.?.* == .type_alias) {
-                    return true; // invalid alias cycle
+                // An alias cycle is always invalid (infinite expansion), a value cycle only when
+                // there is no pointer indirection to break the infinite size
+                if (sym.decl.?.* == .type_alias or !has_indirection) {
+                    return sym;
                 }
             } else {
                 path.put(sym, true) catch unreachable;
                 if (ty.symbol().?.init_typedef()) |inner| {
-                    if (dfs(inner, visiting, path, visited, has_indirection)) return true;
+                    if (dfs(inner, visiting, path, visited, has_indirection)) |off| return off;
                 }
                 _ = path.swapRemove(sym);
             }
         },
         .struct_type, .tuple_type, .enum_type => {
             for (ty.children().items) |child| {
-                if (dfs(child, visiting, path, visited, has_indirection)) return true;
+                if (dfs(child, visiting, path, visited, has_indirection)) |off| return off;
             }
         },
         .array_of, .index, .addr_of, .annotation => {
-            if (dfs(ty.child(), visiting, path, visited, has_indirection or ty.* == .addr_of)) return true;
+            if (dfs(ty.child(), visiting, path, visited, has_indirection or ty.* == .addr_of)) |off| return off;
         },
         else => {},
     }
 
     _ = visiting.swapRemove(ty);
     visited.put(ty, true) catch unreachable;
-    return false;
+    return null;
 }

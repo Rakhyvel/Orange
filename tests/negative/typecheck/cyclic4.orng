@@ -1,5 +1,5 @@
-// cyclic4.orng:5:7: error: cyclic type detected
-// type A = ( ?&B, Int )
+// cyclic4.orng:6:7: error: cyclic type detected
+// type B = ( ?&A, Int )
 //      ^
 // 
 type A = ( ?&B, Int )

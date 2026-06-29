@@ -819,97 +819,9 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     // FIXME: High Cyclo
     if (self.accept(.not)) |token| {
         return ast_.AST.create_not(token, try self.prefix_expr(), self.allocator);
-    } else if (self.accept(.at_symbol)) |_| {
-        const token = try self.expect(.identifier);
-
-        // TODO: Would be nice to make a table of this, somehow!
-        if (std.mem.eql(u8, token.data, "add")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "sub")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "mul")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_mult(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "div")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_div(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "mod")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "lt")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_lesser(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "gt")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_greater(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "le")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_lesser_equal(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "ge")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_and")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_and(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_or")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_or(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_xor")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_bit_xor(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "bit_not")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "shl")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "shr")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "default")) {
-            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-            return ast_.AST.create_default(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "sizeof")) {
-            const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-            return ast_.AST.create_size_of(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "write")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
-            const writer = args.items[0];
-            const fmt_str = args.items[1];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_write(token, writer, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "print")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_print(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "println")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            var children = try fmt_string_parser.parse_fmt_string();
-            try children.append(ast_.AST.create_string(token, "\n", self.allocator));
-            return ast_.AST.create_print(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "format")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            const fmt_str = args.items[0];
-            var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
-            const children = try fmt_string_parser.parse_fmt_string();
-            return ast_.AST.create_format_args(token, children, self.allocator);
-        } else if (std.mem.eql(u8, token.data, "variant_tag")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
-        } else if (std.mem.eql(u8, token.data, "variant_name")) {
-            const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
-            return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
-        } else {
-            self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
-            return error.ParseError;
-        }
+    } else if (self.peek_kind(.at_symbol)) {
+        // Builtins are parsed as a base expression so trailing postfix ops apply
+        return self.apply_postfix(try self.builtin_expr());
     } else if (self.accept(.minus)) |token| {
         return ast_.AST.create_negate(token, try self.prefix_expr(), self.allocator);
     } else if (self.accept(.tilde)) |token| {
@@ -918,31 +830,7 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         const mut = self.accept(.mut);
         return ast_.AST.create_addr_of(token, try self.prefix_expr(), mut != null, false, self.allocator);
     } else if (self.accept(.left_square)) |token| {
-        // TODO: Trait call for index
-        if (self.accept(.mut)) |_| {
-            _ = try self.expect(.right_square);
-            return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
-        } else if (self.accept(.right_square)) |_| {
-            return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
-        }
-
-        // Must be an array literal
-        var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
-        if (self.accept(.comma) == null) {
-            terms.append(try self.bool_expr()) catch unreachable;
-            self.newlines();
-            while (self.accept(.comma)) |_| {
-                self.newlines();
-                if (self.peek_kind(.right_square)) {
-                    // Trailing comma, break out
-                    break;
-                }
-                terms.append(try self.bool_expr()) catch unreachable;
-                self.newlines();
-            }
-        }
-        _ = try self.expect(.right_square);
-        return ast_.AST.create_array_value(token, terms, self.allocator);
+        return self.prefix_left_square(token);
     } else if (self.accept(.@"try")) |token| {
         return ast_.AST.create_try(token, try self.parse_expr(), self.allocator);
     } else {
@@ -950,37 +838,178 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 }
 
+fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    _ = try self.expect(.at_symbol);
+    const token = try self.expect(.identifier);
+
+    // TODO: Would be nice to make a table of this, somehow!
+    if (std.mem.eql(u8, token.data, "add")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_add(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "sub")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_sub(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "mul")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_mult(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "div")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_div(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "mod")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_mod(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "lt")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_lesser(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "gt")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_greater(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "le")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_lesser_equal(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "ge")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_greater_equal(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_and")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_and(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_or")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_or(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_xor")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_bit_xor(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "bit_not")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_bit_not(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "shl")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_left_shift(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "shr")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "default")) {
+        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
+        return ast_.AST.create_default(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "sizeof")) {
+        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
+        return ast_.AST.create_size_of(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "write")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        const writer = args.items[0];
+        const fmt_str = args.items[1];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_write(token, writer, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "print")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_print(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "println")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        var children = try fmt_string_parser.parse_fmt_string();
+        try children.append(ast_.AST.create_string(token, "\n", self.allocator));
+        return ast_.AST.create_print(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "format")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        const fmt_str = args.items[0];
+        var fmt_string_parser = Fmt_String.init(fmt_str, self.errors, self.allocator);
+        const children = try fmt_string_parser.parse_fmt_string();
+        return ast_.AST.create_format_args(token, children, self.allocator);
+    } else if (std.mem.eql(u8, token.data, "child_addr")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_child_addr(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "child_addr_mut")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
+        return ast_.AST.create_child_addr_mut(token, args.items[0], args.items[1], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "variant_tag")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_variant_tag(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "variant_name")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
+    } else {
+        self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
+        return error.ParseError;
+    }
+}
+
+/// Parses what follows a prefix `[`: either a slice-of (`[]x`, `[mut]x`) or an
+/// array literal (`[a, b, ...]`).
+fn prefix_left_square(self: *Self, token: Token) Parser_Error_Enum!*ast_.AST {
+    // TODO: Trait call for index
+    if (self.accept(.mut)) |_| {
+        _ = try self.expect(.right_square);
+        return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
+    } else if (self.accept(.right_square)) |_| {
+        return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
+    }
+
+    // Must be an array literal
+    var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    if (self.accept(.comma) == null) {
+        terms.append(try self.bool_expr()) catch unreachable;
+        self.newlines();
+        while (self.accept(.comma)) |_| {
+            self.newlines();
+            if (self.peek_kind(.right_square)) {
+                // Trailing comma, break out
+                break;
+            }
+            terms.append(try self.bool_expr()) catch unreachable;
+            self.newlines();
+        }
+    }
+    _ = try self.expect(.right_square);
+    return ast_.AST.create_array_value(token, terms, self.allocator);
+}
+
 fn postfix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const exp = if (self.next_is_control_flow()) try self.control_flow() else try self.factor();
+    return self.apply_postfix(exp);
+}
+
+/// Applies trailing postfix operators to an already-parsed base expression
+fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
     // FIXME: High Cyclo
-    var exp = if (self.next_is_control_flow()) try self.control_flow() else try self.factor();
+    var exp = exp_init;
     while (true) {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
         } else if (self.accept(.left_square)) |token| {
-            var first: ?*ast_.AST = null;
-            if (self.next_is_expr()) {
-                first = try self.assignment_expr();
-            }
+            // A sub-slice `[a..b]` whose bounds are value expressions, or a bracket `[args]`, whose args are parsed type-first
             if (self.accept(.double_period)) |_| {
+                // `[..]` or `[..b]`
                 var second: ?*ast_.AST = null;
                 if (self.next_is_expr()) {
                     second = try self.assignment_expr();
                 }
-                exp = ast_.AST.create_sub_slice(token, exp, first, second, self.allocator);
+                exp = ast_.AST.create_sub_slice(token, exp, null, second, self.allocator);
             } else {
-                // Simple index
-                var children = std.array_list.Managed(*ast_.AST).init(self.allocator);
-                children.append(first orelse {
-                    self.errors.add_error(errs_.Error{ .expected_basic_token = .{
-                        .expected = "an expression here",
-                        .got = self.peek(),
-                    } });
-                    return Parser_Error_Enum.ParseError;
-                }) catch unreachable;
-                while (self.accept(.comma)) |_| {
-                    children.append(try self.assignment_expr()) catch unreachable;
+                const first = try self.bracket_arg();
+                if (self.accept(.double_period)) |_| {
+                    // `[a..]` or `[a..b]`, the lower bound is always a value expression
+                    var second: ?*ast_.AST = null;
+                    if (self.next_is_expr()) {
+                        second = try self.assignment_expr();
+                    }
+                    exp = ast_.AST.create_sub_slice(token, exp, self.generic_arg_as_expr(first), second, self.allocator);
+                } else {
+                    // Simple index or generic apply, resolved in decorate
+                    var args = std.array_list.Managed(GenericArg).init(self.allocator);
+                    args.append(first) catch unreachable;
+                    while (self.accept(.comma)) |_| {
+                        if (self.peek_kind(.right_square)) {
+                            break;
+                        }
+                        args.append(try self.bracket_arg()) catch unreachable;
+                    }
+                    exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
                 }
-                exp = ast_.AST.create_index(token, exp, children, self.allocator);
             }
             if (self.peek_kind(.right_square)) {
                 _ = self.expect(.right_square) catch {};
@@ -989,12 +1018,24 @@ fn postfix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
                 return error.ParseError;
             }
         } else if (self.accept(.period)) |token| {
-            exp = ast_.AST.create_select(
-                token,
-                exp,
-                ast_.AST.create_field(try self.expect(.identifier), self.allocator),
-                self.allocator,
-            );
+            if (self.accept(.left_square)) |_| {
+                // Must be a positional select
+                exp = ast_.AST.create_positional_select(
+                    token,
+                    exp,
+                    try self.assignment_expr(),
+                    self.allocator,
+                );
+                _ = try self.expect(.right_square);
+            } else {
+                // Must be just a regular select
+                exp = ast_.AST.create_select(
+                    token,
+                    exp,
+                    ast_.AST.create_field(try self.expect(.identifier), self.allocator),
+                    self.allocator,
+                );
+            }
         } else if (self.accept(.double_colon)) |token| {
             exp = ast_.AST.create_access(
                 token,
@@ -1048,12 +1089,16 @@ fn generics_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(GenericAr
     return retval;
 }
 
-fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
-    const is_value = self.peek_kind(.dec_int) or self.peek_kind(.hex_int) or
+/// A leading value token means the argument can only be a const argument, never a type
+fn peek_is_value_token(self: *Self) bool {
+    return self.peek_kind(.dec_int) or self.peek_kind(.hex_int) or
         self.peek_kind(.oct_int) or self.peek_kind(.bin_int) or
         self.peek_kind(.float) or self.peek_kind(.true) or self.peek_kind(.false) or
         self.peek_kind(.minus);
-    if (is_value) {
+}
+
+fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
+    if (self.peek_is_value_token()) {
         return .{ .const_arg = try self.bool_expr() };
     }
     var ty = try self.type_expr();
@@ -1061,6 +1106,35 @@ fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
         ty = Type_AST.create_eq_constraint(token, ty, try self.type_expr(), self.allocator);
     }
     return .{ .type_arg = ty };
+}
+
+/// Parses a single argument inside an expression-position `Foo[...]`, where it is not yet known whether `Foo` is a generic or an indexable value.
+/// Parses type-first, backtracks for values.
+fn bracket_arg(self: *Self) Parser_Error_Enum!GenericArg {
+    if (self.peek_is_value_token()) {
+        return .{ .const_arg = try self.bool_expr() };
+    }
+    const start = self.cursor;
+    const saved_record = self.errors.record_errors;
+    self.errors.record_errors = false;
+    if (self.type_expr()) |ty| {
+        if (self.peek_kind(.comma) or self.peek_kind(.right_square)) {
+            self.errors.record_errors = saved_record;
+            return .{ .type_arg = ty };
+        }
+    } else |_| {}
+    // Not a whole-arg type: backtrack and parse it as an expression
+    self.cursor = start;
+    self.errors.record_errors = saved_record;
+    return .{ .const_arg = try self.assignment_expr() };
+}
+
+/// Reads a bracket argument as a value expression, for a sub-slice bound. A `..` always breaks the whole-arg commit, so the lower bound parses as a const argument in practice
+fn generic_arg_as_expr(self: *Self, arg: GenericArg) ?*ast_.AST {
+    return switch (arg) {
+        .const_arg => |v| v,
+        .type_arg => |ty| ty.to_value_expr(self.allocator),
+    };
 }
 
 fn call_type_args(self: *Self) Parser_Error_Enum!std.array_list.Managed(*Type_AST) {

@@ -2,6 +2,6 @@
 
 fn main() -> Int {
     let mut x: (Int, Int) = {(50, 5)}
-    x[1] = 6
-    x[0] + x[1]
+    x.[1] = 6
+    x.[0] + x.[1]
 }

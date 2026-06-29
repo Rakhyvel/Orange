@@ -13,6 +13,7 @@ const module_ = @import("../hierarchy/module.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const alignment_ = @import("../util/alignment.zig");
 const Token = @import("../lexer/token.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
@@ -129,7 +130,7 @@ pub fn run(self: *Self) error{CompileError}!void {
             std.debug.print("\n", .{});
             self.print_registers();
             self.print_stack();
-            std.debug.print("\n\n\n\n// {s}\n{}=> ", .{ instr.span.line_text, instr });
+            std.debug.print("\n\n\n\n// {s}\n{f}=> ", .{ instr.span.line_text, instr });
         }
         const time_now = std.time.milliTimestamp();
         if (debugger == .off and time_now - self.start_time > timeout_ms) {
@@ -436,10 +437,10 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
 
     // Setup next stackframe
     try self.push_int(8, try self.effective_address(retval_place)); // push return-value address
-    try self.push_int(8, old_sp); //                                push old sp
-    try self.push_int(8, self.base_pointer); //                     push bp
-    try self.push(Instruction_Pointer, self.instruction_pointer); //          push return address
-    self.base_pointer = self.stack_pointer - 8; //                        bp := sp -1
+    try self.push_int(8, old_sp); //                                   push old sp
+    try self.push_int(8, self.base_pointer); //                        push bp
+    try self.push(Instruction_Pointer, self.instruction_pointer); //      push return address
+    self.base_pointer = self.stack_pointer - 8; //                               bp := sp -1
 
     // allocate space for locals
     if (function_symbol.cfg.?.contains_unsizeds or function_symbol.cfg.?.locals_size == null) std.debug.panic("un-sized cfg", .{}); // TODO: Is this possible?
@@ -447,8 +448,15 @@ pub fn call(self: *Self, function_symbol: *Symbol, retval_place: *lval_.L_Value,
     try self.memory_check(local_size_bytes);
     self.stack_pointer += local_size_bytes;
 
-    // jump to symbol addr
-    const module_uid = function_symbol.cfg.?.symbol.scope.module.?.uid;
+    // Resolve the callee's offset under the module-space we're executing in, since comptime
+    // emplaces all reachable cfgs under the entry module rather than each callee's defining
+    // module. A separately-compiled package `build()` is emplaced only under its own module, so
+    // fall back to that when the callee isn't present in the current space (a cross-package call)
+    const curr_uid = (self.curr_module() catch unreachable).uid;
+    const module_uid = if (function_symbol.cfg.?.offset_table.contains(curr_uid))
+        curr_uid
+    else
+        function_symbol.cfg.?.symbol.scope.module.?.uid;
     self.instruction_pointer = Instruction_Pointer{
         .module_uid = module_uid,
         .inst_idx = function_symbol.cfg.?.offset_table.get(module_uid).?,
@@ -507,7 +515,9 @@ pub fn extract_ast(self: *Self, address: i64, _type: *Type_AST, span: Span) Erro
             return error.CompileError;
         },
         .annotation => return try self.extract_ast(address, _type.child(), span),
-        else => std.debug.panic("interpreter error: unimplemented extract_ast() for: AST.{s}\n", .{@tagName(_type.*)}),
+        else => {
+            std.debug.panic("interpreter error: unimplemented extract_ast() for: AST.{s}\n", .{@tagName(_type.*)});
+        },
     }
 }
 
@@ -750,7 +760,12 @@ fn effective_address(self: *Self, lval: *lval_.L_Value) error{CompileError}!i64 
         },
         .dereference => return self.memory.load(i64, try self.effective_address(lval.dereference.expr)),
         .index => {
-            const base = try self.effective_address(lval.index.lhs);
+            const base = if (lval.index.lhs.get_expanded_type().* == .addr_of)
+                // A multiptr base holds the pointer as its value, load it
+                self.memory.load(i64, try self.effective_address(lval.index.lhs))
+            else
+                // An array/slice aggregate base is a place, use its address directly
+                try self.effective_address(lval.index.lhs);
             const index = self.memory.load(i64, try self.effective_address(lval.index.rhs));
             // TODO: Check that index isn't greater than lval.index.length
             return base + index * lval.expanded_type_sizeof().?;

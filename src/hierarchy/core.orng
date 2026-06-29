@@ -330,6 +330,61 @@ impl Shr for Word32 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 impl Shr for Word16 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 impl Shr for Word8 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
 
+trait Index {
+    type Output
+    fn index(&self, i: Int) -> &Self::Output
+}
+
+trait Index_Mut: Index {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output
+}
+
+impl[T, const n: Int] Index for [n]T {
+    type Output = T
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self, i) }
+}
+
+impl[T, const n: Int] Index_Mut for [n]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self, i) }
+}
+
+impl[T] Index for []T {
+    type Output = T
+    fn index(&self, i: Int) -> &Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr(self.data, i)
+    }
+}
+
+impl[T] Index for [mut]T {
+    type Output = T
+    fn index(&self, i: Int) -> &Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr(self.data, i)
+    }
+}
+
+impl[T] Index_Mut for [mut]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output {
+        if i < 0 or i >= self.length { unreachable }
+        @child_addr_mut(self.data, i)
+    }
+}
+
+impl[T] Index for [*]T {
+    type Output = T
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self^, i) }
+}
+
+impl[T] Index for [*mut]T {
+    type Output = T
+    fn index(&self, i: Int) -> &Self::Output { @child_addr(self^, i) }
+}
+
+impl[T] Index_Mut for [*mut]T {
+    fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self^, i) }
+}
+
 trait Eq {
     fn eq(self, other: Self) -> Bool
 }
@@ -346,8 +401,8 @@ impl Eq for Float { fn eq(self, other: Self) -> Bool { match self { {other} => t
 impl Eq for Float32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
 impl[T] Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
 impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) } }
-impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self[0].>eq(other[0]) and self[1].>eq(other[1]) and self[2].>eq(other[2]) } }
+impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) } }
+impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) and self.[2].>eq(other.[2]) } }
 
 impl Eq for String {
     fn eq(self, other: Self) -> Bool {
@@ -418,6 +473,11 @@ struct Mut_Slice_Iter[T] {
     pos: Int
 }
 
+struct Array_Iter[T, const n: Int] {
+    items: [n]T
+    pos: Int
+}
+
 impl[T] Iterator for Slice_Iter[T] {
     type Item = T
     fn next(&mut self) -> ?Self::Item {
@@ -442,6 +502,18 @@ impl[T] Iterator for Mut_Slice_Iter[T] {
     }
 }
 
+impl[T, const n: Int] Iterator for Array_Iter[T, n] {
+    type Item = T
+    fn next(&mut self) -> ?Self::Item {
+        if self.pos >= n {
+            return .none
+        }
+        let retval = self.items[self.pos]
+        self.pos += 1
+        .some(retval)
+    }
+}
+
 impl[I] Into_Iterator for []I {
     type Item = I
     type Iter = Slice_Iter[I]
@@ -454,6 +526,15 @@ impl[I] Into_Iterator for []I {
 impl[I] Into_Iterator for [mut]I {
     type Item = &mut I
     type Iter = Mut_Slice_Iter[I]
+
+    fn into_iter(self) -> Self::Iter {
+        Self::Iter(.items = self, .pos = 0)
+    }
+}
+
+impl[I, const n: Int] Into_Iterator for [n]I {
+    type Item = I
+    type Iter = Array_Iter[I, n]
 
     fn into_iter(self) -> Self::Iter {
         Self::Iter(.items = self, .pos = 0)

@@ -1,0 +1,10 @@
+// type_param_value_arg.orng:7:19: error: expected a type argument, got a value
+//     let r = id[1 + 2](5)
+//                  ^
+// 
+fn id[T](x: T) -> T { x }
+fn main() -> Int {
+    let r = id[1 + 2](5)
+    _ = r
+    0
+}

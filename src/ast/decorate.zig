@@ -7,6 +7,7 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const generic_apply_ = @import("generic_apply.zig");
 const Scope = @import("../symbol/scope.zig");
+const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Symbol_Tree = @import("symbol-tree.zig");
 const Token = @import("../lexer/token.zig");
@@ -67,6 +68,21 @@ pub fn postfix_type(self: Self, _type: *Type_AST) walk_.Error!void {
 fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
     switch (ast.*) {
         else => return self,
+
+        .assign => {
+            // Rewrite lvalue brackets to `Index_Mut`, propagating through selects so
+            // `x[i].a = v` mutates the element not a copy
+            try self.rewrite_lvalue(ast.lhs());
+            return self;
+        },
+
+        .addr_of => {
+            // `&mut x[i]` rewrites the bracket to its `index_mut(...)^` lval, keeping the `addr_of`
+            if (ast.addr_of.mut) {
+                try self.rewrite_lvalue(ast.expr());
+            }
+            return self;
+        },
 
         .identifier => {
             if (ast.symbol() != null) {
@@ -142,6 +158,13 @@ fn decorate_prefix_type(self: Self, _type: *Type_AST) walk_.Error!?Self {
     }
 }
 
+/// A whole-arg type appeared where a value was required, a const argument or an index subscript,
+/// and could not be reinterpreted as one
+fn value_expected(self: Self, span: Span) walk_.Error {
+    self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "expected a value, got a type", .span = span } });
+    return error.CompileError;
+}
+
 fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
     switch (ast.*) {
         else => {},
@@ -185,36 +208,52 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             }
         },
 
-        .index => {
-            var child = ast.lhs();
-            if (child.* != .identifier and child.* != .access) return;
+        .bracket => {
+            const child = ast.lhs();
 
-            const sym = child.symbol() orelse return;
-            const decl = sym.decl orelse return;
-
-            // child points to a generic function
-            if (decl.num_generic_params() > 0) {
-                var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
-                const params = decl.generic_params().items;
-                for (ast.children().items, 0..) |arg, i| {
-                    if (i < params.len and params[i].* == .const_param_decl) {
-                        try generic_args.append(.{ .const_arg = arg });
-                    } else {
-                        switch (arg.*) {
-                            .int, .float, .true, .false, .negate => {
-                                self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                    .msg = "expected a type argument, got a value",
-                                    .span = arg.token().span,
-                                } });
-                                return error.CompileError;
-                            },
-                            else => try generic_args.append(.{ .type_arg = Type_AST.from_ast(arg, self.ctx.allocator()) }),
+            // Rewrite bracket to generic apply if its a generic apply
+            if (child.* == .identifier or child.* == .access) {
+                if (child.symbol()) |sym| if (sym.decl) |decl| {
+                    if (decl.num_generic_params() > 0) {
+                        var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
+                        const params = decl.generic_params().items;
+                        for (ast.bracket._args.items, 0..) |arg, i| {
+                            const wants_const = i < params.len and params[i].* == .const_param_decl;
+                            if (wants_const) {
+                                // Const param wants a value, a whole-arg type that names a const is allowed
+                                switch (arg) {
+                                    .const_arg => |v| try generic_args.append(.{ .const_arg = v }),
+                                    .type_arg => |ty| try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) }),
+                                }
+                            } else {
+                                // Type param wants a type, a value expression is an error
+                                switch (arg) {
+                                    .type_arg => |ty| try generic_args.append(.{ .type_arg = ty }),
+                                    .const_arg => |v| {
+                                        self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                            .msg = "expected a type argument, got a value",
+                                            .span = v.token().span,
+                                        } });
+                                        return error.CompileError;
+                                    },
+                                }
+                            }
                         }
+                        ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
+                        try generic_apply_.instantiate(ast, self.ctx);
+                        return;
                     }
-                }
-                ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
-                try generic_apply_.instantiate(ast, self.ctx);
+                };
             }
+
+            // Rewrite bracket to Index FQS call if its an index
+            const idx = switch (ast.bracket._args.items[0]) {
+                .const_arg => |v| v,
+                .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
+            };
+            const index_call = try ast_.AST.create_index_call(ast.token(), child, idx, false, self.ctx.allocator());
+            try self.scope_subtree(index_call, ast.scope().?);
+            ast.* = index_call.*;
         },
 
         .select => {
@@ -363,7 +402,8 @@ fn resolve_access_type(self: Self, ast: *Type_AST) walk_.Error!*Symbol {
 }
 
 fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scope) walk_.Error!*Symbol {
-    const stripped_lhs = if (lhs.* == .addr_of)
+    // Deref a reference receiver for member lookup, but not a multiptr, which is its own indexable type
+    const stripped_lhs = if (lhs.* == .addr_of and !lhs.addr_of.multiptr)
         lhs.child()
     else
         lhs;
@@ -373,11 +413,27 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         try generic_apply_.instantiate(stripped_lhs, self.ctx);
     }
     if (stripped_lhs.* == .as_trait) {
+        // Auto-deref the receiver to its base indexable, so a `&mut [n]T` receiver resolves
+        // against `impl ... for [n]T` instead of falling to the abstract trait method
+        var base = stripped_lhs.lhs();
+        while (true) {
+            const exp = base.expand_identifier();
+            if (exp.* == .addr_of and !exp.addr_of.multiptr) base = exp.child() else break;
+        }
+        stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
             const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
-            if (res.ast != null) {
-                const decl = Scope.search_impl(res.ast.?, rhs.data) orelse continue;
+            if (res.ast) |impl_ast| {
+                const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
+                // Decorate the original member first so `Self::Output` etc resolve before any remap
                 try walk_.walk_ast(decl, self);
+                if (res.subst) |*s| {
+                    // Generic impl came back un-substituted, remap the member's signature through
+                    // the subst so its types refer to the querying impl's params
+                    if (Scope.subst_renames_params(impl_ast, s)) {
+                        return Scope.remap_impl_member(decl, s, self.ctx).symbol().?;
+                    }
+                }
                 return decl.symbol().?;
             } else {
                 const decl = try scope.?.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
@@ -511,6 +567,44 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
         return decl.symbol().?;
     } else {
         std.debug.panic("compiler error: unsupported access symbol resolution for decl-like AST: {s}", .{@tagName(decl.*)});
+    }
+}
+
+/// Assigns scopes to a freshly-built subtree (created mid-Decorate) by replaying the
+/// Symbol_Tree walk over it. Needed so the later Type_Decorate pass and trait-member
+/// lookup (which read `node.scope()`) work on the inserted nodes.
+fn scope_subtree(self: *const Self, subtree: *ast_.AST, scope: *Scope) !void {
+    const st = Symbol_Tree.new(scope, &self.ctx.errors, self.ctx.allocator());
+    try walk_.walk_ast(subtree, st);
+}
+
+/// Recursively desugars an lvalue bracket chain into nested `index_mut` addresses
+fn rewrite_lvalue_bracket(self: *const Self, bracket: *ast_.AST) !*ast_.AST {
+    const idx = switch (bracket.bracket._args.items[0]) {
+        .const_arg => |v| v,
+        .type_arg => |ty| ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span),
+    };
+    const inner = bracket.lhs();
+    // Inner bracket yields a `index_mut(...)^`, the receiver for the next level
+    const receiver = if (inner.* == .bracket)
+        try self.rewrite_lvalue_bracket(inner)
+    else
+        inner;
+    return ast_.AST.create_index_call(bracket.token(), receiver, idx, true, self.ctx.allocator());
+}
+
+/// Rewrites brackets in an lvalue into `index_mut(...)^`
+fn rewrite_lvalue(self: *const Self, node: *ast_.AST) walk_.Error!void {
+    switch (node.*) {
+        .select => try self.rewrite_lvalue(node.lhs()),
+        // Destructuring pattern, each element is its own lvalue
+        .array_value, .tuple_value => for (node.children().items) |child| try self.rewrite_lvalue(child),
+        .bracket => {
+            const place = try self.rewrite_lvalue_bracket(node);
+            try self.scope_subtree(place, node.scope().?);
+            node.* = place.*;
+        },
+        else => {},
     }
 }
 

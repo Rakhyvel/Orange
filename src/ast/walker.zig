@@ -148,6 +148,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .lesser_equal,
         .@"catch",
         .@"orelse",
+        .positional_select,
         .select,
         .access,
         .left_shift,
@@ -155,6 +156,8 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .bit_and,
         .bit_or,
         .bit_xor,
+        .child_addr,
+        .child_addr_mut,
         => {
             try walk_ast(ast.lhs(), new_context);
             try walk_ast(ast.rhs(), new_context);
@@ -164,9 +167,18 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
             try walk_ast(ast.rhs(), new_context);
             try walk_asts(ast.children(), new_context);
         },
-        .call, .index => {
+        .call => {
             try walk_ast(ast.lhs(), new_context);
             try walk_asts(ast.children(), new_context);
+        },
+        .bracket => {
+            try walk_ast(ast.lhs(), new_context);
+            for (ast.bracket._args.items) |arg| {
+                switch (arg) {
+                    .type_arg => |ty| try walk_type(ty, new_context),
+                    .const_arg => |v| try walk_ast(v, new_context),
+                }
+            }
         },
         .generic_apply => {
             try walk_ast(ast.lhs(), new_context);

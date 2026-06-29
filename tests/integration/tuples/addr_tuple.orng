@@ -3,5 +3,5 @@
 fn main() -> Int {
     let x: (Int, Int) = (19, 58 - 19)
     let y = &x
-    y^[0] + y^[1]
+    y.[0] + y.[1]
 }

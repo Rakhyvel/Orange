@@ -233,8 +233,14 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             }
             if (!traits_match) continue;
 
+            // Decorate the impl type on-demand, since it may be looked up before its own decl is
+            // decorated, leaving inner params (the `T` in `[]T`) unsymbolized and breaking unify.
+            // An earlier fn indexing a `[]T` before the `impl Index for []T` decl triggers this.
+            // Composite types are walked so their inner params resolve, not just identifiers
             if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {
                 _ = try Decorate.symbol(impl.impl._type, ctx);
+            } else if (impl.impl._type.* != .identifier) {
+                try walker_.walk_type(impl.impl._type, Decorate.new(ctx));
             }
 
             var subst = unification_.Substitutions.init(std.heap.page_allocator);
@@ -244,12 +250,12 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             };
 
             if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-                const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, original_scope, ctx) catch continue;
+                const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, original_scope, ctx) catch continue;
                 if (sat_res != .satisfies) continue;
             }
 
             if (is_type_param) {
-                const sat_res = impl.impl._type.satisfies_all_constraints(constraints, original_scope, ctx) catch continue;
+                const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, original_scope, ctx) catch continue;
                 if (sat_res != .satisfies) continue;
             }
 
@@ -405,12 +411,12 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         };
 
         if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, self, compiler) catch continue;
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, self, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         if (is_type_param) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, self, compiler) catch continue;
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, self, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
@@ -419,7 +425,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
             // `instantiate_generic_impl` returns the impl un-substituted when the subst maps this impl's params onto other generic params (like a super-trait's associated type from a sibling generic impl)
             // The found member still references this impl's own param symbols, so remap through the subst
             const remapped = if (instantiated_impl == impl and subst_renames_params(impl, &subst))
-                remap_associated_type(res, &subst, compiler)
+                remap_impl_member(res, &subst, compiler)
             else
                 res;
             try matches.put(remapped, void{});
@@ -428,10 +434,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
     }
 }
 
-/// Returns true if `subst` maps any of `impl`'s generic params to a *different* type
-/// param than itself. A self-referential identity mapping (`T` -> the same `T`) returns false.
-fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
-    // Go through all the impls type params, check if there are any that are in the subst map that are generic
+/// True if `subst` maps any of `impl`'s generic params to a different generic param
+/// `T` -> the same `T` (identity) returns false
+pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
     for (impl.impl._generic_params.items) |param| {
         if (param.* != .type_param_decl) continue;
         const mapped = subst.get_type(param.symbol().?.name) orelse continue;
@@ -441,16 +446,27 @@ fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitution
     return false;
 }
 
-/// Clones an associated type member with `subst` applied
-fn remap_associated_type(res: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) *ast_.AST {
-    if (res.* != .type_alias) return res;
+/// Clones an impl member (associated `type` or `method`) with `subst` applied, so it refers
+/// to the querying impl's params instead of the sibling impl's. Needed when
+/// `instantiate_generic_impl` returns the impl un-substituted (subst maps onto generic params)
+/// For methods only the signature (`_decl_type`) is remapped, the body is checked at validate_impl
+pub fn remap_impl_member(res: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) *ast_.AST {
+    if (res.* != .type_alias and res.* != .method_decl) return res;
     const cloned = res.clone(subst, compiler.allocator());
     const old_symbol = res.symbol().?;
+    if (res.* == .method_decl) {
+        // The cloned signature can contain access-types like `[]T::Output` whose scope is lost
+        // by cloning. Re-scope just the function type so the access can re-resolve
+        if (cloned.method_decl._decl_type) |decl_type| {
+            const new_scope = init(old_symbol.scope, old_symbol.scope.uid_gen, compiler.allocator());
+            walker_.walk_type(decl_type, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator())) catch {};
+        }
+    }
     const symbol = Symbol.init(
         old_symbol.scope,
         old_symbol.name,
         cloned,
-        .type,
+        old_symbol.kind,
         old_symbol.storage,
         compiler.allocator(),
     );

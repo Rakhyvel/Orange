@@ -94,7 +94,7 @@ pub fn typecheck_AST(
 
     var expected_type = expected;
 
-    // std.debug.print("{}: {?}\n", .{ ast, expected_type });
+    // std.debug.print("{f}: {?}\n", .{ ast, expected_type });
     ast.common().validation_state = .validating;
 
     if (expected_type != null and expected_type.?.* == .poison) {
@@ -413,14 +413,26 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
 
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
-                const for_type = ast.lhs().type_access._lhs_type.lhs();
+                const as_trait_node = ast.lhs().type_access._lhs_type;
+                // Auto-deref the receiver type to its base type
+                // This lets stuff like `(@typeof(self) as Index)::index(self, i)` work when `self: &[]T`
+                var base = as_trait_node.lhs();
+                while (true) {
+                    const exp = base.expand_identifier();
+                    if (exp.* == .addr_of and !exp.addr_of.multiptr) {
+                        base = exp.child();
+                    } else break;
+                }
+                as_trait_node.as_trait._lhs = base;
+
+                const for_type = as_trait_node.lhs();
                 try self.ctx.validate_type.validate_type(for_type);
                 var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                 defer candidate_method_decls.deinit();
 
                 const method_name = ast.lhs().rhs().token().data;
 
-                try Scope.as_trait_member_lookup(for_type, ast.lhs().type_access._lhs_type.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
+                try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
                     self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait`?
@@ -451,51 +463,78 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const domain = expanded_lhs_type.function.args;
             const codomain = expanded_lhs_type.rhs();
             const variadic = expanded_lhs_type.function.variadic;
+
+            // Peel any extra addrof off an FQS receiver
+            if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {
+                const p0 = domain.items[0];
+                if (p0.* == .annotation and p0.annotation.pattern.* == .receiver and
+                    p0.child().* == .addr_of and !p0.child().addr_of.multiptr)
+                {
+                    try self.normalize_addr_receiver(ast.children(), subst);
+                }
+            }
+
             var args_validator = args_.init(.function, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             args_validator.set_variadic(variadic);
             ast.set_children(try args_validator.fill_default_args());
             args_validator.implicit_ref();
             try args_validator.validate_arity();
             try args_validator.validate_type(subst, self.ctx);
+            // Resolve an associated-type return (`Self::Output` or `&Self::Output`) to the concrete type when the receiver is concrete, so the result isn't an unresolvable access
+            if (codomain.* == .access) return codomain.expand_identifier();
+            if (codomain.* == .addr_of and codomain.child().* == .access)
+                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_identifier(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
             return codomain;
         },
-        .index => {
-            const lhs_span = ast.lhs().token().span; // Used for error reporting
-            const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
-            if (ast.children().items.len > 1) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "too many indices" } });
+        .child_addr, .child_addr_mut => {
+            const is_mut = ast.* == .child_addr_mut;
+            const lhs_span = ast.lhs().token().span;
+            const ptr_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
+            _ = self.typecheck_AST(ast.rhs(), prelude_.int_type, subst) catch return error.CompileError;
+
+            const expanded = ptr_type.expand_identifier();
+            if (expanded.* != .addr_of) {
+                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
                 return error.CompileError;
             }
-            _ = self.typecheck_AST(ast.children().items[0], prelude_.int_type, subst) catch return error.CompileError;
+            if (is_mut and !expanded.addr_of.mut) {
+                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
+                return error.CompileError;
+            }
 
-            const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
-
-            if (expanded_lhs_type.* == .struct_type) {
-                if (expanded_lhs_type.struct_type.was_slice) {
-                    return expanded_lhs_type.children().items[0].child().child();
-                } else {
-                    self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded_lhs_type } });
-                    return error.CompileError;
-                }
-            } else if (expanded_lhs_type.* == .tuple_type) {
-                // TODO: comptime expand the index
-                try walk_.walk_ast(ast.children().items[0], Const_Eval.new(self.ctx));
-                if (ast.children().items[0].* != .int) {
-                    self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
-                    return error.CompileError;
-                }
-                const pos = ast.children().items[0].int.data;
-                ast.* = ast_.AST.create_select(ast.token(), ast.lhs(), ast.children().items[0], self.ctx.allocator()).*;
-                ast.set_pos(@as(usize, @intCast(pos)));
-                return self.typecheck_AST(ast, expected, subst);
-            } else if (expanded_lhs_type.* == .array_of) {
-                return expanded_lhs_type.child();
-            } else if (expanded_lhs_type.* == .addr_of and expanded_lhs_type.addr_of.multiptr) {
-                return expanded_lhs_type.child();
+            var elem_type: *Type_AST = undefined;
+            if (expanded.addr_of.multiptr) {
+                elem_type = expanded.child();
             } else {
-                self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded_lhs_type } });
-                return error.CompileError;
+                const pointee = expanded.child().expand_identifier();
+                if (pointee.* == .array_of) {
+                    elem_type = pointee.child();
+                } else if (pointee.* == .tuple_type) {
+                    try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
+                    if (ast.rhs().* != .int) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
+                        return error.CompileError;
+                    }
+                    const pos = ast.rhs().int.data;
+                    if (pos < 0 or pos >= pointee.children().items.len) {
+                        self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
+                            .span = ast.token().span,
+                            ._type = pointee,
+                            .index = pos,
+                            .length = pointee.children().items.len,
+                        } });
+                        return error.CompileError;
+                    }
+                    elem_type = pointee.children().items[@as(usize, @intCast(pos))];
+                    while (elem_type.* == .annotation) {
+                        elem_type = elem_type.child();
+                    }
+                } else {
+                    self.ctx.errors.add_error(errs_.Error{ .not_indexable = .{ .span = lhs_span, ._type = expanded } });
+                    return error.CompileError;
+                }
             }
+            return Type_AST.create_addr_of_type(ast.token(), elem_type, is_mut, false, self.ctx.allocator());
         },
         .generic_apply => {
             // look up symbol, that's the type
@@ -515,6 +554,37 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try self.ctx.validate_type.validate_type(_type);
             return _type;
         },
+        .positional_select => {
+            const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
+            const rhs_type = self.typecheck_AST(ast.rhs(), null, subst) catch return error.CompileError;
+            const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
+
+            try typing_.type_check_integral(ast.token().span, rhs_type, &self.ctx.errors);
+            try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
+
+            if (ast.rhs().* != .int) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
+                return error.CompileError;
+            }
+
+            const evald_pos = ast.rhs().int.data;
+
+            if (evald_pos < 0 or evald_pos >= expanded_lhs_type.children().items.len) {
+                self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
+                    .span = ast.token().span,
+                    ._type = lhs_type,
+                    .index = evald_pos,
+                    .length = expanded_lhs_type.children().items.len,
+                } });
+                return error.CompileError;
+            }
+            ast.set_pos(@intCast(evald_pos));
+            var retval = expanded_lhs_type.children().items[ast.pos().?];
+            while (retval.* == .annotation) {
+                retval = retval.child();
+            }
+            return retval;
+        },
         .select => {
             const lhs_type = self.typecheck_AST(ast.lhs(), null, subst) catch return error.CompileError;
             const expanded_lhs_type = try self.implicit_dereference(ast, lhs_type.expand_identifier(), subst);
@@ -523,17 +593,16 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 ast.set_pos(try typing_.find_select_pos(expanded_lhs_type, ast.rhs().token().data, ast.token().span, &self.ctx.errors));
             }
 
-            var select_lhs_type = expanded_lhs_type;
-            if (ast.pos().? < 0 or ast.pos().? >= select_lhs_type.children().items.len) {
+            if (ast.pos().? < 0 or ast.pos().? >= expanded_lhs_type.children().items.len) {
                 self.ctx.errors.add_error(errs_.Error{ .bad_index = .{
                     .span = ast.token().span,
                     ._type = lhs_type,
                     .index = ast.pos().?,
-                    .length = select_lhs_type.children().items.len,
+                    .length = expanded_lhs_type.children().items.len,
                 } });
                 return error.CompileError;
             }
-            var retval = select_lhs_type.children().items[ast.pos().?];
+            var retval = expanded_lhs_type.children().items[ast.pos().?];
             while (retval.* == .annotation) {
                 retval = retval.child();
             }
@@ -781,7 +850,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
                 // Everythings Ok.
                 const child_type = self.typecheck_AST(ast.expr(), expanded_expected.child(), subst) catch return error.CompileError;
-                if (ast.addr_of.mut) {
+                if (ast.addr_of.mut and !child_type.is_indirect_mutable()) {
                     try self.assert_mutable(ast.expr());
                 }
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
@@ -1123,6 +1192,12 @@ fn select_method(
 
     switch (viable.items.len) {
         0 => {
+            // Type check for any genuine compile errors in the args that might've made it seem like there were no viable methods
+            for (ast.children().items) |arg| {
+                _ = self.typecheck_AST(arg, null, subst) catch return error.CompileError;
+            }
+
+            // Good args + no viable methods = BAD (genuinely no viable methods)
             const saved_rejection_reasons = try rejection_reasons.clone();
             self.ctx.errors.add_error(errs_.Error{
                 .type_not_impl_method = .{
@@ -1135,6 +1210,7 @@ fn select_method(
             return error.CompileError;
         },
         1 => {
+            // One viable method = GOOD :)
             rejection_reasons.deinit();
             const choice = viable.items[0];
             ast.invoke.method_decl = choice.method;
@@ -1144,6 +1220,7 @@ fn select_method(
             }
         },
         else => {
+            // >1 viable methods = BAD! (ambiguous)
             var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
             for (viable.items) |candidate| {
                 try saved_viable.append(candidate.method);
@@ -1274,16 +1351,18 @@ fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Valid
     }
 }
 
+/// Validates that `ast` is a valid lvalue
 fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
-        .select, .identifier, .array_value, .context_value => {},
+        // These are all good
+        .select, .positional_select, .identifier, .array_value, .context_value, .string => {},
 
-        .dereference => if (ast.expr().* != .addr_of) {
+        // A dereference is an lvalue IF its a deref of an lval, thats not an address
+        .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {
             try self.validate_L_Value(ast.expr());
         },
 
-        .index => try self.validate_L_Value(ast.lhs()),
-
+        // A tuple is a valid lvalue if its made up of lvalues
         .tuple_value => for (ast.children().items) |term| {
             try self.validate_L_Value(term);
         },
@@ -1293,6 +1372,27 @@ fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         },
     }
+}
+
+/// Rewrites `args[0]` so its type is the address `&base`/`&mut base` an address
+/// receiver expects: dereferences through any non-multiptr address layers to reach
+/// the base value, then takes its address it with the requested mutability.
+fn normalize_addr_receiver(
+    self: *Self,
+    args: *std.array_list.Managed(*ast_.AST),
+    subst: *unification_.Substitutions,
+) Validate_Error_Enum!void {
+    var arg = args.items[0];
+    // Peel an addrof chain until we get `&self`
+    while (true) {
+        const at = (self.typecheck_AST(arg, null, subst) catch return error.CompileError).expand_identifier();
+        if (at.* != .addr_of or at.addr_of.multiptr) break;
+        const inner = at.child().expand_identifier();
+        if (inner.* != .addr_of or inner.addr_of.multiptr) break;
+        // Unwrap a literal `&x` to `x` so codegen doesn't emit `&` of a non-lvalue cast
+        arg = if (arg.* == .addr_of) arg.expr() else ast_.AST.create_dereference(arg.token(), arg, self.ctx.allocator());
+    }
+    args.items[0] = arg;
 }
 
 fn implicit_dereference(
@@ -1323,17 +1423,6 @@ fn assert_mutable(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
         .dereference => {
             const expr_expanded_type = self.typeof(ast.expr()).expand_identifier();
             try self.assert_mutable_address(expr_expanded_type);
-        },
-
-        .index => {
-            const lhs_type = self.typeof(ast.lhs());
-            if (lhs_type.* == .struct_type and lhs_type.struct_type.was_slice) {
-                try self.assert_mutable_address(lhs_type.children().items[0].child());
-            } else if (lhs_type.* == .addr_of and lhs_type.addr_of.multiptr) {
-                try self.assert_mutable_address(lhs_type);
-            } else {
-                try self.assert_mutable(ast.lhs());
-            }
         },
 
         .tuple_value => for (ast.children().items) |term| {

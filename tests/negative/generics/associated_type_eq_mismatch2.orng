@@ -1,0 +1,35 @@
+// associated_type_eq_mismatch2.orng:31:14: error: error: expected `Bool` for associated type `Item`, got `Int`
+//     type Iter = My_Iter
+//             ^
+// associated_type_eq_mismatch2.orng:18:34: note: associated type equality constraint here:
+//     type Iter: My_Iterator[Item = Self::Item]
+//                                 ^
+// associated_type_eq_mismatch2.orng:24:14: note: associated type definition here:
+//     type Item = Int
+//             ^
+// 
+trait My_Iterator {
+    type Item
+    fn next(&mut self) -> ?Self::Item
+}
+
+trait Into_Iter {
+    type Item
+    type Iter: My_Iterator[Item = Self::Item]
+    fn into_iter(self) -> Self::Iter
+}
+
+struct My_Iter { pos: Int }
+impl My_Iterator for My_Iter {
+    type Item = Int
+    fn next(&mut self) -> ?Self::Item { _ = self; .none }
+}
+
+struct Coll {}
+impl Into_Iter for Coll {
+    type Item = Bool
+    type Iter = My_Iter
+    fn into_iter(self) -> Self::Iter { _ = self; My_Iter(.pos = 0) }
+}
+
+fn main() -> Int { 0 }

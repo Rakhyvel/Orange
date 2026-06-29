@@ -1,0 +1,8 @@
+// 56
+import cross_module_offsets_helper
+
+fn main() -> Int {
+    comptime {
+        cross_module_offsets_helper::compute(5)
+    }
+}

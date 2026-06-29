@@ -1,4 +1,4 @@
-// index_slice.orng:8:7: error: expected a value of type `Int`, got a value of type `Bool`
+// index_slice.orng:8:7: error: expected a value of type `&Int`, got a value of type `&Bool`
 //     y[1]
 //      ^
 // 

@@ -1,6 +1,6 @@
-// immutable_misc.orng:6:6: error: not an l-value
+// immutable_misc.orng:6:7: error: the type `Int` does not contain the member `index_mut`
 //     0[0] = 4
-//     ^
+//      ^
 // 
 fn main() -> Int {
     0[0] = 4

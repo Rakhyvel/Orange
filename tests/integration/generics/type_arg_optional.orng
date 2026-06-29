@@ -1,0 +1,14 @@
+// 7
+// An optional `?T` as a generic type argument
+fn id[T](x: T) -> T {
+    x
+}
+
+fn main() -> Int {
+    let v: ?Int = .some(7)
+    let w = id[?Int](v)
+    match w {
+        .some(n) => n
+        .none => 0
+    }
+}

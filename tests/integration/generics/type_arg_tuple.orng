@@ -1,0 +1,11 @@
+// 7
+// Instantiate a generic with a tuple type argument
+fn id[T](x: T) -> T {
+    x
+}
+
+fn main() -> Int {
+    let p: (Int, Int) = (3, 4)
+    let q = id[(Int, Int)](p)
+    q.[0] + q.[1]
+}

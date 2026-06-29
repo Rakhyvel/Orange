@@ -45,7 +45,9 @@ pub fn init(ctx: *Compiler_Context, cfg: *CFG, interned_strings: *Interned_Strin
 }
 
 pub fn lower_AST_into_cfg(self: *Self) Lower_Errors!void {
-    const eval: ?*lval_.L_Value = try self.lower_AST(self.cfg.symbol.init_value().?, Labels.null_labels);
+    const fn_def = self.cfg.symbol.init_value();
+    std.debug.assert(fn_def != null); // If this fails, it likely means we fell back to using an abstract trait method, which can't be lowered
+    const eval: ?*lval_.L_Value = try self.lower_AST(fn_def.?, Labels.null_labels);
     if (self.cfg.symbol.decl.?.* == .fn_decl or self.cfg.symbol.decl.?.* == .method_decl) {
         // `_comptime` symbols don't have parameters anyway
         const param_symbols = self.cfg.symbol.decl.?.param_symbols();
@@ -285,28 +287,32 @@ fn lower_AST_inner(
             self.instructions.append(Instruction.init_dyn(temp, expr, ast.dyn_value.mut, ast.dyn_value.impl.?, ast.token().span, self.ctx.allocator())) catch unreachable;
             return temp;
         },
-        .index => {
-            const lhs = (try self.lower_AST(ast.lhs(), labels)) orelse return null;
-            const rhs = (try self.lower_AST(ast.children().items[0], labels)) orelse return null;
-            var new_lhs = lhs;
+        .child_addr, .child_addr_mut => {
+            const ptr_lval = (try self.lower_AST(ast.lhs(), labels)) orelse return null;
+            const rhs = (try self.lower_AST(ast.rhs(), labels)) orelse return null;
 
-            // Get the type of the index ast. This will determine if this is an array index or a slice index
-            const ast_expanded_type = self.ctx.typecheck.typeof(ast.lhs()).expand_identifier();
-            const _type = self.ctx.typecheck.typeof(ast);
-            if (ast_expanded_type.* == .addr_of) {
-                // Indexing a multi-ptr, don't change lhs
-                std.debug.assert(ast_expanded_type.addr_of.multiptr);
-            } else if (ast_expanded_type.* == .struct_type and ast_expanded_type.struct_type.was_slice) {
-                // Indexing a slice; index_val := lhs._0^[rhs]
-                new_lhs = new_lhs.create_select_lval(0, 0, _type.expand_identifier(), null, self.ctx.allocator());
-                new_lhs = new_lhs.create_dereference_lval(_type.expand_identifier(), self.ctx.allocator());
+            const ptr_type = self.ctx.typecheck.typeof(ast.lhs()).expand_identifier();
+            const result_type = self.ctx.typecheck.typeof(ast); // `&T` / `&mut T`
+            const elem_type = result_type.expand_identifier().child().expand_identifier();
+
+            var base = ptr_lval;
+            var indexable_type = ptr_type;
+            if (!ptr_type.addr_of.multiptr) {
+                // If address of an array/tuple, dereference to reach the aggregate before indexing
+                indexable_type = ptr_type.child().expand_identifier();
+                base = base.create_dereference_lval(indexable_type, self.ctx.allocator());
             }
 
-            // Surround with L_Value node
-            const length: ?*lval_.L_Value = self.generate_indexable_length(lhs, ast_expanded_type, ast.token().span);
-            return new_lhs.create_index_lval(rhs, length, _type.expand_identifier(), self.ctx.allocator());
+            const length: ?*lval_.L_Value = self.generate_indexable_length(base, indexable_type, ast.token().span);
+            const elem_lval = base.create_index_lval(rhs, length, elem_type, self.ctx.allocator());
+
+            // Take the address of the element
+            const temp = self.create_temp_lvalue(result_type);
+            const kind: Instruction.Kind = if (ast.* == .child_addr_mut) .mut_addr_of else .addr_of;
+            self.instructions.append(Instruction.init(kind, temp, elem_lval, null, ast.token().span, self.ctx.allocator())) catch unreachable;
+            return temp;
         },
-        .select => {
+        .select, .positional_select => {
             // Recursively get select's ast L_Value node
             const ast_lval = try self.lower_AST(ast.lhs(), labels); // cannot be unreachable, since unreachable isn't selectable
 

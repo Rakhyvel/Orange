@@ -1,9 +1,9 @@
 // tuple_bad_index.orng:8:8: error: cannot index the type `(Int, Int)`, which has length 2, with index 2
-//     y^[2]
+//     y^.[2]
 //       ^
 // 
 fn main () -> Int { 
     let mut x: (Int, Int) = (19, 58 - 19)
     let y = &mut x
-    y^[2]
+    y^.[2]
 }

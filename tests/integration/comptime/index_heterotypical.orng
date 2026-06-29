@@ -1,7 +1,7 @@
 // 248
 fn main() -> Int {
     let x: (Word32, Int, Float) = ('π', 248, 3.14)
-    x[comptime { add(-10, 11) }]
+    x.[comptime { add(-10, 11) }]
 }
 
 fn add(a: Int, b: Int) -> Int { a + b }

@@ -142,7 +142,9 @@ pub const AST = union(enum) {
     bit_not: struct { common: AST_Common, _expr: *AST },
     left_shift: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     right_shift: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    index: struct { common: AST_Common, _lhs: *AST, _children: std.array_list.Managed(*AST) },
+    bracket: struct { common: AST_Common, _lhs: *AST, _args: std.array_list.Managed(GenericArg), _scope: ?*Scope = null },
+    child_addr: struct { common: AST_Common, _lhs: *AST, _rhs: *AST, _scope: ?*Scope = null },
+    child_addr_mut: struct { common: AST_Common, _lhs: *AST, _rhs: *AST, _scope: ?*Scope = null },
     generic_apply: struct {
         common: AST_Common,
         _lhs: *AST,
@@ -150,6 +152,12 @@ pub const AST = union(enum) {
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null,
         state: process_state_.Process_State = .unprocessed,
+    },
+    positional_select: struct {
+        common: AST_Common,
+        _lhs: *AST,
+        _rhs: *AST,
+        _pos: ?usize,
     },
     select: struct {
         common: AST_Common,
@@ -859,11 +867,27 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_index(_token: Token, _lhs: *AST, _children: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
-        return AST.box(AST{ .index = .{
+    pub fn create_bracket(_token: Token, _lhs: *AST, _args: std.array_list.Managed(GenericArg), allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .bracket = .{
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
-            ._children = _children,
+            ._args = _args,
+        } }, allocator);
+    }
+
+    pub fn create_child_addr(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .child_addr = .{
+            .common = AST_Common{ ._token = _token },
+            ._lhs = _lhs,
+            ._rhs = _rhs,
+        } }, allocator);
+    }
+
+    pub fn create_child_addr_mut(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .child_addr_mut = .{
+            .common = AST_Common{ ._token = _token },
+            ._lhs = _lhs,
+            ._rhs = _rhs,
         } }, allocator);
     }
 
@@ -872,6 +896,16 @@ pub const AST = union(enum) {
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
             ._children = _children,
+        } }, allocator);
+    }
+
+    pub fn create_positional_select(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
+        const _common: AST_Common = .{ ._token = _token };
+        return AST.box(AST{ .positional_select = .{
+            .common = _common,
+            ._lhs = _lhs,
+            ._rhs = _rhs,
+            ._pos = null,
         } }, allocator);
     }
 
@@ -1681,10 +1715,26 @@ pub const AST = union(enum) {
             .bit_not => return create_bit_not(self.token(), self.expr().clone(substs, allocator), allocator),
             .left_shift => return create_left_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .right_shift => return create_right_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
-            .index => return create_index(
+            .bracket => {
+                var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
+                for (self.bracket._args.items) |arg| {
+                    switch (arg) {
+                        .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
+                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
+                    }
+                }
+                return create_bracket(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
+            },
+            .child_addr => return create_child_addr(
                 self.token(),
                 self.lhs().clone(substs, allocator),
-                clone_children(self.children().*, substs, allocator),
+                self.rhs().clone(substs, allocator),
+                allocator,
+            ),
+            .child_addr_mut => return create_child_addr_mut(
+                self.token(),
+                self.lhs().clone(substs, allocator),
+                self.rhs().clone(substs, allocator),
                 allocator,
             ),
             .generic_apply => {
@@ -1696,6 +1746,16 @@ pub const AST = union(enum) {
                     }
                 }
                 return create_generic_apply(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
+            },
+            .positional_select => {
+                var retval = create_positional_select(
+                    self.token(),
+                    self.lhs().clone(substs, allocator),
+                    self.rhs().clone(substs, allocator),
+                    allocator,
+                );
+                retval.positional_select._pos = self.positional_select._pos;
+                return retval;
             },
             .select => {
                 var retval = create_select(
@@ -2134,7 +2194,6 @@ pub const AST = union(enum) {
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
         return switch (self.*) {
             .call => &self.call._args,
-            .index => &self.index._children,
             .context_value => &self.context_value._terms,
             .struct_value => &self.struct_value._terms,
             .tuple_value => &self.tuple_value._terms,
@@ -2362,17 +2421,17 @@ pub const AST = union(enum) {
     pub fn create_slice_value(_expr: *AST, _mut: bool, expr_type: *Type_AST, allocator: std.mem.Allocator) *AST {
         var new_terms = std.array_list.Managed(*AST).init(allocator);
         const zero = (AST.create_int(_expr.token(), 0, allocator));
-        var index_rhs = std.array_list.Managed(*AST).init(allocator);
-        index_rhs.append(zero) catch unreachable;
-        const index = (AST.create_index(
-            _expr.token(),
-            _expr,
-            index_rhs,
-            allocator,
-        ));
+        // Take address of the array
+        const arr_addr = (AST.create_addr_of(_expr.token(), _expr, _mut, false, allocator));
+        // Create the child_addr based on if its mut or not
+        const elem_addr = if (_mut)
+            AST.create_child_addr_mut(_expr.token(), arr_addr, zero, allocator)
+        else
+            AST.create_child_addr(_expr.token(), arr_addr, zero, allocator);
+        const elem = (AST.create_dereference(_expr.token(), elem_addr, allocator));
         const addr = (AST.create_addr_of(
             _expr.token(),
-            index,
+            elem,
             _mut,
             true,
             allocator,
@@ -2438,6 +2497,28 @@ pub const AST = union(enum) {
         return AST.create_call(_token, method, args, allocator);
     }
 
+    /// Converts `receiver[index]` into an FQS call to `(@typeof(receiver) as core::Index)::index(&receiver, index)^`
+    pub fn create_index_call(_token: Token, receiver: *AST, index: *AST, is_mut: bool, allocator: std.mem.Allocator) !*AST {
+        const trait_name: []const u8 = if (is_mut) "Index_Mut" else "Index";
+        const method_name: []const u8 = if (is_mut) "index_mut" else "index";
+
+        const recv_type = Type_AST.create_type_of(_token, receiver, allocator);
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
+        const trait_field = Type_AST.create_field(Token.init_simple(trait_name), allocator);
+        const trait_type = Type_AST.create_type_access(_token, core_ident, trait_field, allocator);
+        var constraints = std.array_list.Managed(*Type_AST).init(allocator);
+        try constraints.append(trait_type);
+        const trait_as = Type_AST.create_as_trait(_token, recv_type, constraints, allocator);
+        const method_field = AST.create_field(Token.init_simple(method_name), allocator);
+        const method = AST.create_type_access(_token, trait_as, method_field, allocator);
+
+        var args = std.array_list.Managed(*AST).init(allocator);
+        try args.append(AST.create_addr_of(_token, receiver, is_mut, false, allocator));
+        try args.append(index);
+        const call = AST.create_call(_token, method, args, allocator);
+        return AST.create_dereference(_token, call, allocator);
+    }
+
     pub fn create_binop(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) !*AST {
         switch (_token.kind) {
             .plus_equals => return create_core_trait_op(_token, _lhs, _rhs, "Add", "add", allocator),
@@ -2482,7 +2563,7 @@ pub const AST = union(enum) {
 
             .identifier, .access, .type_access => if (self.symbol()) |sym| sym.is_type() else false,
 
-            .index => self.lhs().refers_to_type(), // generic type
+            .bracket => self.lhs().refers_to_type(), // generic type
             .generic_apply => self.lhs().refers_to_type(),
         };
     }
@@ -2494,7 +2575,7 @@ pub const AST = union(enum) {
             .identifier, .access, .type_access => if (self.symbol()) |sym| sym.is_trait() else false,
 
             .as => self.expr().refers_to_type(),
-            .index, .generic_apply => self.lhs().refers_to_trait(),
+            .bracket, .generic_apply => self.lhs().refers_to_trait(),
         };
     }
 
@@ -2602,16 +2683,21 @@ pub const AST = union(enum) {
             .bit_not => try out.print("bit_not({f})", .{self.expr()}),
             .left_shift => try out.print("left_shift({f}, {f})", .{ self.lhs(), self.rhs() }),
             .right_shift => try out.print("right_shift({f}, {f})", .{ self.lhs(), self.rhs() }),
-            .index => {
-                try out.print("index(lhs={f},args=[", .{self.index._lhs});
-                for (self.index._children.items, 0..) |item, i| {
-                    try out.print("{f}", .{item});
-                    if (i < self.index._children.items.len - 1) {
+            .bracket => {
+                try out.print("bracket(lhs={f},args=[", .{self.bracket._lhs});
+                for (self.bracket._args.items, 0..) |item, i| {
+                    switch (item) {
+                        .type_arg => |ty| try out.print("{f}", .{ty}),
+                        .const_arg => |v| try out.print("{f}", .{v}),
+                    }
+                    if (i < self.bracket._args.items.len - 1) {
                         try out.print(",", .{});
                     }
                 }
                 try out.print("])", .{});
             },
+            .child_addr => try out.print("child_addr({f}, {f})", .{ self.lhs(), self.rhs() }),
+            .child_addr_mut => try out.print("child_addr_mut({f}, {f})", .{ self.lhs(), self.rhs() }),
             .generic_apply => {
                 try out.print("generic_apply(lhs={f},args=[", .{self.generic_apply._lhs});
                 for (self.generic_apply._children.items, 0..) |item, i| {
@@ -2624,6 +2710,9 @@ pub const AST = union(enum) {
                     }
                 }
                 try out.print("])", .{});
+            },
+            .positional_select => {
+                try out.print("positional_select({f},{f})", .{ self.lhs(), self.rhs() });
             },
             .select => {
                 try out.print("select({f},{f})", .{ self.lhs(), self.rhs() });

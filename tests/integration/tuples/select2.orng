@@ -7,5 +7,5 @@ fn main() -> Int {
 }
 
 fn f(a: Pair) -> Int {
-    a[1]
+    a.[1]
 }

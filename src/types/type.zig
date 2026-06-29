@@ -531,11 +531,11 @@ pub const Type_AST = union(enum) {
                 id.set_symbol(ast.symbol().?);
                 break :blk id;
             },
-            .index => blk: {
+            .bracket => blk: {
                 const base = from_ast(ast.lhs(), allocator);
                 var args = std.array_list.Managed(GenericArg).init(allocator);
-                for (ast.children().items) |arg| {
-                    args.append(.{ .type_arg = from_ast(arg, allocator) }) catch unreachable;
+                for (ast.bracket._args.items) |arg| {
+                    args.append(arg) catch unreachable;
                 }
                 break :blk Type_AST.create_generic_apply_type(ast.token(), base, args, allocator);
             },
@@ -555,6 +555,17 @@ pub const Type_AST = union(enum) {
                 const id = Type_AST.create_addr_of_type(ast.token(), typed_expr, ast.addr_of.mut, ast.addr_of.multiptr, allocator);
                 break :blk id;
             },
+            .slice_of => blk: {
+                const of = from_ast(ast.expr(), allocator);
+                break :blk Type_AST.create_slice_type(of, ast.slice_of.mut, allocator);
+            },
+            .tuple_value => blk: {
+                var terms = std.array_list.Managed(*Type_AST).init(allocator);
+                for (ast.children().items) |term| {
+                    terms.append(from_ast(term, allocator)) catch unreachable;
+                }
+                break :blk Type_AST.create_tuple_type(ast.token(), terms, allocator);
+            },
             .unit_value => Type_AST.create_unit_type(ast.token(), allocator),
             .as => blk: {
                 const as_trait_lhs = from_ast(ast.expr(), allocator);
@@ -565,6 +576,30 @@ pub const Type_AST = union(enum) {
             },
             else => std.debug.panic("unable to construct type from {t}", .{ast.*}),
         };
+    }
+
+    /// Inverse of `from_ast` for the cases that can stand as a value expression. A whole-arg type
+    /// parsed in bracket position may turn out to be an index subscript or a const argument once
+    /// the bracket's lhs is resolved. Only a bare identifier or a path can be reinterpreted as a
+    /// value, returns null otherwise so the caller can report a value-expected error
+    pub fn to_value_expr(self: *Type_AST, allocator: std.mem.Allocator) ?*AST {
+        switch (self.*) {
+            .identifier => {
+                const id = AST.create_identifier(self.token(), allocator);
+                id.set_scope(self.scope());
+                id.set_symbol(self.symbol());
+                return id;
+            },
+            .access => {
+                const lhs_expr = self.lhs().to_value_expr(allocator) orelse return null;
+                const rhs_field = AST.create_field(self.rhs().token(), allocator);
+                const id = AST.create_access(self.token(), lhs_expr, rhs_field, allocator);
+                id.set_scope(self.scope());
+                id.set_symbol(self.symbol());
+                return id;
+            },
+            else => return null,
+        }
     }
 
     pub fn common(self: *const Type_AST) *const Type_AST_Common {
@@ -707,7 +742,9 @@ pub const Type_AST = union(enum) {
         while (true) {
             if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
                 const new = res.symbol().?.init_typedef().?;
-                new.set_unexpanded_type(res);
+                // An access (`X::Output`) contains its own resolved type, so back-linking it as the
+                // unexpanded form would make printing the resolved type cycle
+                if (res.* != .access) new.set_unexpanded_type(res);
                 res = new;
             } else if (res.* == .access and res.lhs().symbol().?.decl.?.* == .type_param_decl) {
                 if (res.associated_type_from_constraint()) |assoc_type| {
@@ -723,6 +760,19 @@ pub const Type_AST = union(enum) {
                 return res;
             }
         }
+    }
+
+    /// True for types whose elements are mutable through a pointer indirection, `[*mut]T` and the
+    /// mutable slice `[mut]T`. Taking `&mut` of such a value mutates the pointee, not the binding,
+    /// so it does not require a `mut` binding, only reassigning the value itself does
+    pub fn is_indirect_mutable(self: *Type_AST) bool {
+        const t = self.expand_identifier();
+        if (t.* == .addr_of and t.addr_of.multiptr and t.addr_of.mut) return true;
+        if (t.* == .struct_type and t.struct_type.was_slice) {
+            const data = t.children().items[0].child();
+            if (data.* == .addr_of and data.addr_of.mut) return true;
+        }
+        return false;
     }
 
     pub fn strip_addrs(self: *Type_AST) *Type_AST {
@@ -1258,7 +1308,7 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         for (constraints) |constraint| {
             if (constraint.base_symbol() != null) {
                 const Decorate = @import("../ast/decorate.zig");
@@ -1302,12 +1352,31 @@ pub const Type_AST = union(enum) {
                                 .trait_name = trait.name,
                             } };
                         }
+                        const eq_rhs = eq_constraint.rhs();
+                        const resolved_rhs: *Type_AST = rhs_resolved: {
+                            if (outer_type_defs) |tdefs| {
+                                if (eq_rhs.* == .access) {
+                                    if (eq_rhs.lhs().symbol()) |sym| {
+                                        if (sym.decl.?.* == .type_param_decl) {
+                                            const outer_assoc_name = eq_rhs.rhs().token().data;
+                                            for (tdefs) |outer_td| {
+                                                if (std.mem.eql(u8, outer_td.symbol().?.name, outer_assoc_name)) {
+                                                    break :rhs_resolved outer_td.decl_typedef().?;
+                                                }
+                                            }
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            break :rhs_resolved eq_rhs;
+                        };
                         var subst = unification_.Substitutions.init(ctx.allocator());
                         defer subst.deinit();
-                        unification_.unify(type_def.?.decl_typedef().?, eq_constraint.rhs(), &subst, .{}) catch {
+                        unification_.unify(type_def.?.decl_typedef().?, resolved_rhs, &subst, .{}) catch {
                             return .{ .not_eq = .{
                                 .got = type_def.?.decl_typedef().?,
-                                .expected = eq_constraint.rhs(),
+                                .expected = resolved_rhs,
                                 .associated_type_name = associated_type_name,
                                 .constraint_span = eq_constraint.token().span,
                                 .impl_span = type_def.?.token().span,

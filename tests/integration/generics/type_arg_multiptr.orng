@@ -1,0 +1,13 @@
+// 1
+// A multi-pointer `[*]T` as a generic type argument
+fn id[T](x: T) -> T {
+    x
+}
+
+fn main() -> Int {
+    let a: [3]Int = [10, 20, 30]
+    let s: []Int = []a
+    let p: [*]Int = s.data
+    let q = id[[*]Int](p)
+    if q == p { 1 } else { 0 }
+}
