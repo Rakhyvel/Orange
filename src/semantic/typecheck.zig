@@ -356,7 +356,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .equal, .not_equal => {
             const lhs_type = try self.binary_operator_open(ast, null, subst);
-            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors); // TODO: Return a constraint type thats T: Eq, and let the top-level-function try and unify it
+            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors);
             return prelude_.bool_type;
         },
         .greater, .lesser, .greater_equal, .lesser_equal => {
@@ -563,7 +563,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
 
             if (expanded_lhs_type.* != .tuple_type and expanded_lhs_type.* != .struct_type) {
-                // TODO: Add negative test for this
                 return typing_.throw_wrong_from("tuple or struct", "positional select", expanded_lhs_type, lhs_type.token().span, &self.ctx.errors);
             }
             if (ast.rhs().* != .int) {
