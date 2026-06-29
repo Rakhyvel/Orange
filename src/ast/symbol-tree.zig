@@ -741,10 +741,18 @@ fn create_trait_symbol(
 }
 
 fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
-    const receiver_base_type: *Type_AST = if (ast.method_decl.impl != null)
-        ast.method_decl.impl.?.impl._type
-    else
-        Type_AST.create_anyptr_type(ast.token(), allocator);
+    const receiver_base_type: *Type_AST = if (ast.method_decl.impl) |impl|
+        impl.impl._type
+    else if (ast.method_decl.init != null and !ast.method_decl.is_virtual) switch (ast.scope().?.lookup("Self", .{})) {
+        // Use trait's Self type parameter
+        .found => |self_symbol| blk: {
+            const self_ident = Type_AST.create_type_identifier(ast.token(), allocator);
+            self_ident.set_symbol(self_symbol);
+            break :blk self_ident;
+        },
+        // Otherwise fallback to anyptr
+        else => Type_AST.create_anyptr_type(ast.token(), allocator),
+    } else Type_AST.create_anyptr_type(ast.token(), allocator);
 
     // Calculate the domain type from the function paramter types
     const args = if (ast.method_decl.receiver) |receiver|
@@ -776,12 +784,16 @@ fn create_method_symbol(
     const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl|
         // use the impls "for" type, if this method is for an impl
         impl.impl._type
-    else switch (ast.scope().?.lookup("Self", .{})) {
-        // Otherwise try to use the Self type parameter from the trait
-        .found => |self_symbol| self_symbol.decl.?.type_param_decl.constraints.items[0],
+    else if (ast.method_decl.init != null and !ast.method_decl.is_virtual) switch (ast.scope().?.lookup("Self", .{})) {
+        // Use trait's Self type parameter
+        .found => |self_symbol| blk: {
+            const self_ident = Type_AST.create_type_identifier(ast.token(), allocator);
+            self_ident.set_symbol(self_symbol);
+            break :blk self_ident;
+        },
         // Fallback to null if neither could be found
         else => null,
-    };
+    } else null;
 
     if (ast.method_decl.receiver != null) {
         if (ast.method_decl.receiver.?.receiver.kind == .value and ast.method_decl.is_virtual) {
