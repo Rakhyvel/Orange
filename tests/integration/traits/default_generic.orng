@@ -1,0 +1,17 @@
+// 499
+trait I_Give_A_Default {
+    fn required(&self) -> Int
+
+    fn provided(&self) -> Int {
+        self.>required()
+    }
+}
+
+impl[const n: Int] I_Give_A_Default for [n]Int {
+    fn required(&self) -> Int { self[0] }
+}
+
+fn main() -> Int {
+    let x = [499, 500, 501]
+    x.>provided()
+}

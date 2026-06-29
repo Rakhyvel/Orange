@@ -562,6 +562,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try typing_.type_check_integral(ast.token().span, rhs_type, &self.ctx.errors);
             try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
 
+            if (expanded_lhs_type.* != .tuple_type and expanded_lhs_type.* != .struct_type) {
+                // TODO: Add negative test for this
+                return typing_.throw_wrong_from("tuple or struct", "positional select", expanded_lhs_type, lhs_type.token().span, &self.ctx.errors);
+            }
             if (ast.rhs().* != .int) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
                 return error.CompileError;
