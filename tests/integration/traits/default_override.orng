@@ -1,0 +1,15 @@
+// 501
+trait Override_Me {
+    fn override_me(&self) -> Int {
+        0
+    }
+}
+
+impl Override_Me for Int {
+    fn override_me(&self) -> Int { self^ }
+}
+
+fn main() -> Int {
+    let x = 501
+    x.>override_me()
+}

@@ -740,16 +740,21 @@ fn create_trait_symbol(
     return retval;
 }
 
+/// Builds a `Self` type identifier bound to `self_symbol`. Gets replaced with the impl type when substd
+fn create_self_identifier(ast: *ast_.AST, self_symbol: *Symbol, allocator: std.mem.Allocator) *Type_AST {
+    const span = ast.token().span;
+    const self_token = Token.init("Self", .identifier, span.filename, span.line_text, span.line_number, span.col);
+    const self_ident = Type_AST.create_type_identifier(self_token, allocator);
+    self_ident.set_symbol(self_symbol);
+    return self_ident;
+}
+
 fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
     const receiver_base_type: *Type_AST = if (ast.method_decl.impl) |impl|
         impl.impl._type
     else if (ast.method_decl.init != null) switch (ast.scope().?.lookup("Self", .{})) {
         // Use trait's Self type parameter for default trait methods decls
-        .found => |self_symbol| blk: {
-            const self_ident = Type_AST.create_type_identifier(ast.token(), allocator);
-            self_ident.set_symbol(self_symbol);
-            break :blk self_ident;
-        },
+        .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
         // Otherwise fallback to anyptr
         else => Type_AST.create_anyptr_type(ast.token(), allocator),
     } else
@@ -788,11 +793,7 @@ fn create_method_symbol(
         impl.impl._type
     else if (ast.method_decl.init != null) switch (ast.scope().?.lookup("Self", .{})) {
         // Use trait's Self type parameter for default trait methods decls
-        .found => |self_symbol| blk: {
-            const self_ident = Type_AST.create_type_identifier(ast.token(), allocator);
-            self_ident.set_symbol(self_symbol);
-            break :blk self_ident;
-        },
+        .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
         // Fallback to null if neither could be found
         else => null,
     }

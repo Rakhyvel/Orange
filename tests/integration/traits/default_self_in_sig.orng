@@ -1,0 +1,15 @@
+// 502
+trait Cloneable {
+    fn make(&self) -> Self
+    fn make_twice(&self) -> (Self, Self) { (self.>make(), self.>make()) }
+}
+
+impl Cloneable for Int {
+    fn make(&self) -> Self { self^ }
+}
+
+fn main() -> Int {
+    let x = 251
+    let (a, b) = x.>make_twice()
+    a + b
+}
