@@ -28,7 +28,6 @@ pub fn package_find(compiler: *Compiler_Context, interpreter: *Interpreter_Conte
     const package_build_absolute_path = std.fs.cwd().realpath(package_build_path, path_buffer) catch return error.CompileError;
 
     // Compile the package's `build.orng` file
-    std.debug.print("gonna compile {s} before calling his build()\n", .{package_build_absolute_path});
     const build_cfg = try compiler.compile_build_file(package_build_absolute_path);
     interpreter.load_module(build_cfg.symbol.scope.module.?);
 

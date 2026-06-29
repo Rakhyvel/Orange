@@ -449,7 +449,10 @@ pub fn emplace(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*Self
             _ = child.emplace(module_uid, cfgs, instructions_list);
         }
     }
-    self.locals_size = self.calculate_offsets();
+    // Only calculate local_size if needed
+    if (self.locals_size == null) {
+        self.locals_size = self.calculate_offsets();
+    }
     return len;
 }
 

@@ -1,0 +1,17 @@
+// 0
+// Helper module for cross_module_offsets. Defines a function with locals that calls another
+// function, so an undersized frame (zeroed locals_size on re-emplace) corrupts the callee frame
+fn bump(x: Int) -> Int {
+    x + 1
+}
+
+fn compute(a: Int) -> Int {
+    let b = a + 10
+    let c = a + 20
+    let d = bump(b)
+    b + c + d
+}
+
+fn main() -> Int {
+    0
+}
