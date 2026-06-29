@@ -2863,9 +2863,10 @@ pub const AST = union(enum) {
             .import => try out.print("import({f})", .{self.import.pattern}),
             .cinclude => try out.print("cinclude({f})", .{self.cinclude._expr}),
             .method_decl => {
-                try out.print("method_decl(.name={f}, .receiver={?f}, . .params=[", .{
+                try out.print("method_decl(.name={f}, .receiver={?f}, has init?={}, .params=[", .{
                     self.method_decl.name,
                     self.method_decl.receiver,
+                    self.method_decl.init != null,
                 });
                 for (self.method_decl._params.items, 0..) |param, i| {
                     try out.print("{f}", .{param});

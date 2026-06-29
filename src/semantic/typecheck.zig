@@ -94,7 +94,7 @@ pub fn typecheck_AST(
 
     var expected_type = expected;
 
-    // std.debug.print("{f}: {?}\n", .{ ast, expected_type });
+    // std.debug.print("{f}: {?f}\n", .{ ast, expected_type });
     ast.common().validation_state = .validating;
 
     if (expected_type != null and expected_type.?.* == .poison) {
@@ -162,7 +162,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         .string => return prelude_.string_type,
 
         .identifier => {
-            // look up symbol, that's the type
+            // look up the symbol, it contains the type
             const symbol = try Decorate.symbol(ast, self.ctx);
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;

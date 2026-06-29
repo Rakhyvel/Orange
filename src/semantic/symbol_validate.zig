@@ -59,6 +59,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     // std.debug.print("validating init for: {s} ({t})\n", .{ symbol.name, symbol.kind });
 
     if (symbol.init_value()) |_init| {
+        // Tree_Writer.print(_init);
         // might be null for parameters
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();

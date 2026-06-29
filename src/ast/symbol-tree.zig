@@ -338,8 +338,6 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         .method_decl => {
             if (ast.symbol() != null) return null;
 
-            // Tree_Writer.print(ast);
-
             var new_self = self.new_scope(ast);
 
             const symbol = try create_method_symbol(ast, self.errors, self.allocator);
@@ -775,7 +773,15 @@ fn create_method_symbol(
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
-    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl| impl.impl._type else null;
+    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl|
+        // use the impls "for" type, if this method is for an impl
+        impl.impl._type
+    else switch (ast.scope().?.lookup("Self", .{})) {
+        // Otherwise try to use the Self type parameter from the trait
+        .found => |self_symbol| self_symbol.decl.?.type_param_decl.constraints.items[0],
+        // Fallback to null if neither could be found
+        else => null,
+    };
 
     if (ast.method_decl.receiver != null) {
         if (ast.method_decl.receiver.?.receiver.kind == .value and ast.method_decl.is_virtual) {
