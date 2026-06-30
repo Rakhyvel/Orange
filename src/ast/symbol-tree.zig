@@ -387,7 +387,10 @@ fn symbol_tree_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         .trait => {
             for (ast.trait.method_decls.items) |method_decl| {
+                // create_method_type resets receiver type, but create_method_symbol already sets the body-facing recv type, so preserve it across c_type computation
+                const saved_recv_type = if (method_decl.method_decl.receiver) |r| r.receiver._type else null;
                 method_decl.method_decl.c_type = try create_method_type(method_decl, self.allocator);
+                if (method_decl.method_decl.receiver) |r| r.receiver._type = saved_recv_type;
             }
         },
 
@@ -750,13 +753,16 @@ fn create_self_identifier(ast: *ast_.AST, self_symbol: *Symbol, allocator: std.m
 }
 
 fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
-    // Virtual functions with addr receivers use anyptr, even for default methods. Value receivers use `Self`
-    const virtual_addr_recv = ast.method_decl.is_virtual and ast.method_decl.receiver != null and
-        (ast.method_decl.receiver.?.receiver.kind == .addr_of or ast.method_decl.receiver.?.receiver.kind == .mut_addr_of);
+    // Virtual functions erase the dispatch receiver to anyptr so a `&dyn` receiver matches, even for default method
+    // create_method_symbol re-types the receiver symbol back to `Self` for the body
+    const virtual_erased_recv = ast.method_decl.is_virtual and ast.method_decl.receiver != null and
+        (ast.method_decl.receiver.?.receiver.kind == .addr_of or
+            ast.method_decl.receiver.?.receiver.kind == .mut_addr_of or
+            ast.method_decl.receiver.?.receiver.kind == .value_virtual);
 
     const receiver_base_type: *Type_AST = if (ast.method_decl.impl) |impl|
         impl.impl._type
-    else if (ast.method_decl.init != null and !virtual_addr_recv) switch (ast.scope().?.lookup("Self", .{})) {
+    else if (ast.method_decl.init != null and !virtual_erased_recv) switch (ast.scope().?.lookup("Self", .{})) {
         // Use trait's Self type parameter for default trait methods decls
         .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
         // Otherwise fallback to anyptr
@@ -820,6 +826,10 @@ fn create_method_symbol(
         if (recv_type.* == .addr_of) {
             recv_type.addr_of.anytptr = true;
             self_type = self_type.child();
+        }
+        // virtual default method needs a `Self` typed receiver, even though it will codegen an anyptr, to be able to typecheck sibling calls
+        if (ast.method_decl.impl == null and ast.method_decl.is_virtual) {
+            ast.method_decl.receiver.?.receiver._type = recv_type;
         }
         // value receiver, prepend a void* self_ptr parameter
         const receiver_symbol = Symbol.init(

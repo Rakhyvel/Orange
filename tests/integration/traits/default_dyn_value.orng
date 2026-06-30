@@ -1,0 +1,21 @@
+// 9
+trait T {
+    virtual fn req(self) -> Int
+
+    virtual fn prov(self) -> Int {
+        self.>req()
+    }
+}
+
+impl T for Int {
+    virtual fn req(self) -> Int { self }
+}
+
+fn call(x: &dyn T) -> Int {
+    x.>prov()
+}
+
+fn main() -> Int {
+    let v = 9
+    call(&v)
+}

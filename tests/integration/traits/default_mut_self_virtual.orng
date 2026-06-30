@@ -1,0 +1,17 @@
+// 42
+trait T {
+    fn get(&self) -> Int
+
+    virtual fn dbl(&mut self) -> Int {
+        self.>get() * 2
+    }
+}
+
+impl T for Int {
+    fn get(&self) -> Int { self^ }
+}
+
+fn main() -> Int {
+    let mut x = 21
+    x.>dbl()
+}
