@@ -750,9 +750,13 @@ fn create_self_identifier(ast: *ast_.AST, self_symbol: *Symbol, allocator: std.m
 }
 
 fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
+    // Virtual functions with addr receivers use anyptr, even for default methods. Value receivers use `Self`
+    const virtual_addr_recv = ast.method_decl.is_virtual and ast.method_decl.receiver != null and
+        (ast.method_decl.receiver.?.receiver.kind == .addr_of or ast.method_decl.receiver.?.receiver.kind == .mut_addr_of);
+
     const receiver_base_type: *Type_AST = if (ast.method_decl.impl) |impl|
         impl.impl._type
-    else if (ast.method_decl.init != null) switch (ast.scope().?.lookup("Self", .{})) {
+    else if (ast.method_decl.init != null and !virtual_addr_recv) switch (ast.scope().?.lookup("Self", .{})) {
         // Use trait's Self type parameter for default trait methods decls
         .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
         // Otherwise fallback to anyptr

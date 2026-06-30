@@ -1,0 +1,24 @@
+// 505
+trait Base {
+    fn required(self) -> Int
+
+    fn provided(self) -> Int {
+        self.>required()
+    }
+}
+
+trait Derived: Base { }
+
+impl Base for Int {
+    fn required(self) -> Int { self }
+}
+
+impl Derived for Int { }
+
+fn use_derived[T: Derived](t: T) -> Int {
+    t.>provided()
+}
+
+fn main() -> Int {
+    use_derived[Int](505)
+}

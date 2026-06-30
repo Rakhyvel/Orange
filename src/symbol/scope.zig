@@ -10,6 +10,7 @@ const module_ = @import("../hierarchy/module.zig");
 const unification_ = @import("../types/unification.zig");
 const UID_Gen = @import("../util/uid_gen.zig");
 const walker_ = @import("../ast/walker.zig");
+const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 
@@ -368,6 +369,21 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
+        if (for_type.* == .identifier and for_type.symbol() != null) {
+            // Named `for_type`, bind `Self` straight to its symbol so a type param keeps its constraints for sibling dispatch, a type_alias would hide that from `is_type_param`
+            new_scope.symbols.put("Self", for_type.symbol().?) catch unreachable;
+        } else {
+            // Structural `for_type` with no symbol, alias `Self` to it instead
+            const self_token = Token.init_simple("Self");
+            const self_type_decl = ast_.AST.create_type_alias(
+                method_decl.token(),
+                ast_.AST.create_pattern_symbol(self_token, .type, .local, "Self", compiler.allocator()),
+                for_type,
+                std.array_list.Managed(*ast_.AST).init(compiler.allocator()),
+                compiler.allocator(),
+            );
+            try walker_.walk_ast(self_type_decl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        }
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;

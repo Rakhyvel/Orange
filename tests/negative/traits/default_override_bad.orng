@@ -1,0 +1,24 @@
+// default_override_bad.orng:16:21: error: trait `I_Give_A_Default` specifies receiver `&self` for method `provided`, got receiver `self`
+//     fn provided(self) -> Int {
+//                    ^
+// 
+trait I_Give_A_Default {
+    fn required(&self) -> Int
+
+    fn provided(&self) -> Int {
+        self.>required() * 2
+    }
+}
+
+impl I_Give_A_Default for Int {
+    fn required(&self) -> Int { self^ }
+
+    fn provided(self) -> Int {
+        4
+    }
+}
+
+fn main() -> Int {
+    let x = 249
+    x.>provided()
+}

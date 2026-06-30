@@ -292,7 +292,11 @@ pub const Module = struct {
         var cfg_dfs_iter = Cfg_Iterator.init(cfg, self.allocator);
         while (cfg_dfs_iter.next()) |next_cfg| {
             if (next_cfg.symbol.decl.?.num_generic_params() > 0) continue;
-            if (next_cfg.symbol.decl.?.* == .method_decl and next_cfg.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
+            if (next_cfg.symbol.decl.?.* == .method_decl) {
+                // Null impl is a trait-level default method template, code comes from per-impl clones
+                const method_impl = next_cfg.symbol.decl.?.method_decl.impl;
+                if (method_impl == null or method_impl.?.num_generic_params() > 0) continue;
+            }
             next_cfg.collect_generated_symbvers();
             _ = next_cfg.emplace(self.uid, &self.cfgs, &self.instructions);
         }
