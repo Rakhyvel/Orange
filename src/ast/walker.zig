@@ -313,9 +313,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
         .method_decl => {
             try walk_asts(&ast.method_decl.context_decls, new_context);
-            if (ast.method_decl.init != null) {
-                try walk_ast(ast.method_decl.init, new_context);
-            }
+            try walk_ast(ast.method_decl.init, new_context);
             try walk_asts(ast.children(), new_context);
             try walk_type(ast.method_decl._decl_type, new_context);
             try walk_type(ast.method_decl.ret_type, new_context);

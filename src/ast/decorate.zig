@@ -121,6 +121,7 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             if (ast.impl.trait == null) return self;
             const trait_symbol = try symbol(ast.impl.trait.?, self.ctx);
             const trait_ast = trait_symbol.decl.?;
+            if (trait_ast.* != .trait) return self; // error, catch it later
             for (trait_ast.trait.method_decls.items) |method_decl| {
                 if (method_decl.method_decl.init == null) continue; // not defaulted, ignore
                 if (impl_provides_method(ast, method_decl.method_decl.name.token().data)) continue; // overridden
