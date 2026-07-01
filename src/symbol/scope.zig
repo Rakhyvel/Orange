@@ -4,6 +4,7 @@ const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
+const generic_apply_ = @import("../ast/generic_apply.zig");
 const Symbol = @import("symbol.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
 const module_ = @import("../hierarchy/module.zig");
@@ -550,7 +551,14 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
 
     // Re-attach the trait symbol after cloning
     if (new_impl.impl.trait != null and !new_impl.impl.impls_anon_trait) {
-        if (impl.impl.trait.?.symbol()) |sym| {
+        if (new_impl.impl.trait.?.* == .generic_apply) {
+            // Generic trait, monomorphize it for these args so the vtable references a concrete trait
+            // The clone dropped the lhs trait-name symbol, so copy it from the template before instantiating
+            if (impl.impl.trait.?.lhs().symbol()) |lhs_sym| {
+                new_impl.impl.trait.?.lhs().set_symbol(lhs_sym);
+            }
+            try generic_apply_.instantiate(new_impl.impl.trait.?, compiler);
+        } else if (impl.impl.trait.?.symbol()) |sym| {
             new_impl.impl.trait.?.set_symbol(sym);
         }
     }

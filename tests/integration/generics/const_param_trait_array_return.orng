@@ -1,0 +1,20 @@
+// 3
+trait Scale[const n: Int] {
+    virtual fn get(&self) -> [n]Int
+}
+
+struct Buf[const n: Int] { data: [n]Int }
+
+impl[const n: Int] Scale[n] for Buf[n] {
+    virtual fn get(&self) -> [n]Int { self.data }
+}
+
+fn getter(x: &dyn Scale[3]) -> [3]Int {
+    x.>get()
+}
+
+fn main() -> Int {
+    let b = Buf[3](.data = [1, 1, 1])
+    let arr = getter(&b)
+    arr[0] + arr[1] + arr[2]
+}
