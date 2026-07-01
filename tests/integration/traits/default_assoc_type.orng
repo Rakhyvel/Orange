@@ -1,0 +1,16 @@
+// 7
+trait Container {
+    type Item
+    fn get(&self) -> Self::Item
+    fn first(&self) -> Self::Item { self.>get() }
+}
+
+impl Container for Int {
+    type Item = Int
+    fn get(&self) -> Self::Item { self^ }
+}
+
+fn main() -> Int {
+    let x = 7
+    x.>first()
+}

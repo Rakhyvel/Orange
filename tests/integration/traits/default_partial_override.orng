@@ -1,0 +1,17 @@
+// 42
+trait Two {
+    fn base(self) -> Int
+
+    fn keep(self) -> Int { self.>base() }
+    fn override_me(self) -> Int { self.>base() * 10 }
+}
+
+impl Two for Int {
+    fn base(self) -> Int { _ = self; 2 }
+    fn override_me(self) -> Int { self.>base() * 20 }
+}
+
+fn main() -> Int {
+    let x = 0
+    x.>keep() + x.>override_me()
+}

@@ -1,0 +1,23 @@
+// 7
+trait I_Give_A_Default {
+    virtual fn required(&self) -> Int
+
+    virtual fn provided(&self) -> Int {
+        self.>required()
+    }
+}
+
+impl I_Give_A_Default for Int {
+    virtual fn required(&self) -> Int { self^ }
+
+    virtual fn provided(&self) -> Int { _ = self; 7 }
+}
+
+fn call_provided(x: &dyn I_Give_A_Default) -> Int {
+    x.>provided()
+}
+
+fn main() -> Int {
+    let v = 100
+    call_provided(&v)
+}

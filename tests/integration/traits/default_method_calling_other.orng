@@ -1,0 +1,21 @@
+// 506
+trait I_Give_A_Default {
+    fn required(&self) -> Int
+
+    fn provided(&self) -> Int {
+        self.>provided2()
+    }
+
+    fn provided2(&self) -> Int {
+        self.>required()
+    }
+}
+
+impl I_Give_A_Default for Int {
+    fn required(&self) -> Int { self^ }
+}
+
+fn main() -> Int {
+    let x = 506
+    x.>provided()
+}

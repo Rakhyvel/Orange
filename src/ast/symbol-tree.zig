@@ -338,8 +338,6 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         .method_decl => {
             if (ast.symbol() != null) return null;
 
-            // Tree_Writer.print(ast);
-
             var new_self = self.new_scope(ast);
 
             const symbol = try create_method_symbol(ast, self.errors, self.allocator);
@@ -389,7 +387,10 @@ fn symbol_tree_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         .trait => {
             for (ast.trait.method_decls.items) |method_decl| {
+                // create_method_type resets receiver type, but create_method_symbol already sets the body-facing recv type, so preserve it across c_type computation
+                const saved_recv_type = if (method_decl.method_decl.receiver) |r| r.receiver._type else null;
                 method_decl.method_decl.c_type = try create_method_type(method_decl, self.allocator);
+                if (method_decl.method_decl.receiver) |r| r.receiver._type = saved_recv_type;
             }
         },
 
@@ -742,10 +743,32 @@ fn create_trait_symbol(
     return retval;
 }
 
+/// Builds a `Self` type identifier bound to `self_symbol`. Gets replaced with the impl type when substd
+fn create_self_identifier(ast: *ast_.AST, self_symbol: *Symbol, allocator: std.mem.Allocator) *Type_AST {
+    const span = ast.token().span;
+    const self_token = Token.init("Self", .identifier, span.filename, span.line_text, span.line_number, span.col);
+    const self_ident = Type_AST.create_type_identifier(self_token, allocator);
+    self_ident.set_symbol(self_symbol);
+    return self_ident;
+}
+
 fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
-    const receiver_base_type: *Type_AST = if (ast.method_decl.impl != null)
-        ast.method_decl.impl.?.impl._type
-    else
+    // Virtual functions erase the dispatch receiver to anyptr so a `&dyn` receiver matches, even for default method
+    // create_method_symbol re-types the receiver symbol back to `Self` for the body
+    const virtual_erased_recv = ast.method_decl.is_virtual and ast.method_decl.receiver != null and
+        (ast.method_decl.receiver.?.receiver.kind == .addr_of or
+            ast.method_decl.receiver.?.receiver.kind == .mut_addr_of or
+            ast.method_decl.receiver.?.receiver.kind == .value_virtual);
+
+    const receiver_base_type: *Type_AST = if (ast.method_decl.impl) |impl|
+        impl.impl._type
+    else if (ast.method_decl.init != null and !virtual_erased_recv) switch (ast.scope().?.lookup("Self", .{})) {
+        // Use trait's Self type parameter for default trait methods decls
+        .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
+        // Otherwise fallback to anyptr
+        else => Type_AST.create_anyptr_type(ast.token(), allocator),
+    } else
+        // Otherwise fallback to anyptr, for non-default trait method decls
         Type_AST.create_anyptr_type(ast.token(), allocator);
 
     // Calculate the domain type from the function paramter types
@@ -775,7 +798,17 @@ fn create_method_symbol(
     errors: *errs_.Errors,
     allocator: std.mem.Allocator,
 ) Error!*Symbol {
-    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl| impl.impl._type else null;
+    const receiver_base_type: ?*Type_AST = if (ast.method_decl.impl) |impl|
+        // use the impls "for" type, if this method is for an impl
+        impl.impl._type
+    else if (ast.method_decl.init != null) switch (ast.scope().?.lookup("Self", .{})) {
+        // Use trait's Self type parameter for default trait methods decls
+        .found => |self_symbol| create_self_identifier(ast, self_symbol, allocator),
+        // Fallback to null if neither could be found
+        else => null,
+    }
+        // Otherwise dont create a symbol for the receiver at all
+        else null;
 
     if (ast.method_decl.receiver != null) {
         if (ast.method_decl.receiver.?.receiver.kind == .value and ast.method_decl.is_virtual) {
@@ -793,6 +826,10 @@ fn create_method_symbol(
         if (recv_type.* == .addr_of) {
             recv_type.addr_of.anytptr = true;
             self_type = self_type.child();
+        }
+        // virtual default method needs a `Self` typed receiver, even though it will codegen an anyptr, to be able to typecheck sibling calls
+        if (ast.method_decl.impl == null and ast.method_decl.is_virtual) {
+            ast.method_decl.receiver.?.receiver._type = recv_type;
         }
         // value receiver, prepend a void* self_ptr parameter
         const receiver_symbol = Symbol.init(

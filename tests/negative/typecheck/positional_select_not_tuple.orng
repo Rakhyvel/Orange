@@ -1,0 +1,8 @@
+// positional_select_not_tuple.orng:7:6: error: expected tuple or struct type for positional select, got `[int(3)]Int`
+//     x.[0]
+//     ^
+// 
+fn main() -> Int {
+    let x = [1, 2, 3]
+    x.[0]
+}

@@ -1,0 +1,21 @@
+// 11
+trait Base {
+    fn base_req(self) -> Int
+}
+
+trait Derived: Base {
+    fn derived_default(self) -> Int {
+        self.>base_req() + 1
+    }
+}
+
+impl Base for Int {
+    fn base_req(self) -> Int { self }
+}
+
+impl Derived for Int { }
+
+fn main() -> Int {
+    let x = 10
+    x.>derived_default()
+}

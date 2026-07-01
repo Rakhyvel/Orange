@@ -64,7 +64,7 @@ fn tree_writer_prefix(self: Self, ast: *ast_.AST) walker_.Error!?Self {
             if (ast.symbol()) |sym| sym.scope.uid else null,
         }),
         .fn_decl => std.debug.print(".name={?f}", .{ast.fn_decl.name}),
-        .method_decl => std.debug.print(".name={f}, .symbol={?*}", .{ ast.method_decl.name, if (ast.symbol()) |sym| sym else null }),
+        .method_decl => std.debug.print(".name={f}, .symbol={?*}, .receiver={?f}", .{ ast.method_decl.name, if (ast.symbol()) |sym| sym else null, ast.method_decl.receiver }),
         .binding => std.debug.print(".pattern={f}, .type={f}, .init={?f}", .{ ast.binding.pattern, ast.binding.type, ast.binding.init }),
         .field => std.debug.print(".data={s}", .{ast.token().data}),
         .receiver => std.debug.print(".kind={t}", .{ast.receiver.kind}),

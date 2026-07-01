@@ -1,0 +1,13 @@
+// 5
+trait T {
+    fn req(self) -> Int
+    fn prov(self) -> Int { self.>req() }
+}
+
+impl T for Int {
+    fn req(self) -> Int { self }
+}
+
+fn main() -> Int {
+    Int::prov(5)
+}

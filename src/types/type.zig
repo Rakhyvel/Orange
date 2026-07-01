@@ -687,7 +687,7 @@ pub const Type_AST = union(enum) {
             .context_type => &self.context_type._terms,
             .struct_type => &self.struct_type._terms,
             .tuple_type => &self.tuple_type._terms,
-            else => std.debug.panic("compiler error: cannot call `.children()` on the Type_AST `{f}`", .{self}),
+            else => std.debug.panic("compiler error: cannot call `.children()` on the Type_AST `{t}`", .{self.*}),
         };
     }
 

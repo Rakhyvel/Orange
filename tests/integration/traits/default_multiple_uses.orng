@@ -1,0 +1,29 @@
+// 503
+struct Wrapper { v: Int }
+
+trait I_Give_A_Default {
+    fn required(self) -> Int
+
+    fn provided(self) -> Int {
+        self.>required()
+    }
+}
+
+impl I_Give_A_Default for Int {
+    fn required(self) -> Int {
+        self
+    }
+}
+
+impl I_Give_A_Default for Wrapper {
+    fn required(self) -> Int {
+        self.v
+    }
+}
+
+fn main() -> Int {
+    let x = 500
+    let w = Wrapper(3)
+
+    x.>provided() + w.>provided()
+}

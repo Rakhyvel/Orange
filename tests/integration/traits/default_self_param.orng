@@ -1,0 +1,18 @@
+// 30
+trait Adder {
+    fn val(self) -> Int
+
+    fn combine(self, other: Self) -> Int {
+        self.>val() + other.>val()
+    }
+}
+
+impl Adder for Int {
+    fn val(self) -> Int { self }
+}
+
+fn main() -> Int {
+    let a = 10
+    let b = 20
+    a.>combine(b)
+}

@@ -94,7 +94,7 @@ pub fn typecheck_AST(
 
     var expected_type = expected;
 
-    // std.debug.print("{f}: {?}\n", .{ ast, expected_type });
+    // std.debug.print("{f}: {?f}\n", .{ ast, expected_type });
     ast.common().validation_state = .validating;
 
     if (expected_type != null and expected_type.?.* == .poison) {
@@ -162,7 +162,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         .string => return prelude_.string_type,
 
         .identifier => {
-            // look up symbol, that's the type
+            // look up the symbol, it contains the type
             const symbol = try Decorate.symbol(ast, self.ctx);
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
@@ -356,7 +356,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .equal, .not_equal => {
             const lhs_type = try self.binary_operator_open(ast, null, subst);
-            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors); // TODO: Return a constraint type thats T: Eq, and let the top-level-function try and unify it
+            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors);
             return prelude_.bool_type;
         },
         .greater, .lesser, .greater_equal, .lesser_equal => {
@@ -562,6 +562,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try typing_.type_check_integral(ast.token().span, rhs_type, &self.ctx.errors);
             try walk_.walk_ast(ast.rhs(), Const_Eval.new(self.ctx));
 
+            if (expanded_lhs_type.* != .tuple_type and expanded_lhs_type.* != .struct_type) {
+                return typing_.throw_wrong_from("tuple or struct", "positional select", expanded_lhs_type, ast.lhs().token().span, &self.ctx.errors);
+            }
             if (ast.rhs().* != .int) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "not a constant integer" } });
                 return error.CompileError;

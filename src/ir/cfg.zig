@@ -445,7 +445,12 @@ pub fn emplace(self: *Self, module_uid: u32, cfgs: *std.array_list.Managed(*Self
         for (self.children.keys()) |child| {
             // TODO: The cfgs list should be a struct that wraps the list, and likely has entries that abstract the cfg's and bb's offset
             if (child.symbol.decl.?.num_generic_params() > 0) continue;
-            if (child.symbol.decl.?.* == .method_decl and child.symbol.decl.?.method_decl.impl.?.num_generic_params() > 0) continue;
+            if (child.symbol.decl.?.* == .method_decl) {
+                // A null impl is a trait-level default method template. Its code is emitted from the
+                // per-impl clones decorate makes, so skip the template, same as a generic impl
+                const method_impl = child.symbol.decl.?.method_decl.impl;
+                if (method_impl == null or method_impl.?.num_generic_params() > 0) continue;
+            }
             _ = child.emplace(module_uid, cfgs, instructions_list);
         }
     }

@@ -1,0 +1,17 @@
+// 12
+trait Scale[const n: Int] {
+    fn base(self) -> Int
+    fn twice(self) -> Int { self.>scaled() + self.>scaled() }
+    fn scaled(self) -> Int { self.>base() * n }
+}
+
+struct Buf[const n: Int] { data: [n]Int }
+
+impl[const n: Int] Scale[n] for Buf[n] {
+    fn base(self) -> Int { _ = self; 2 }
+}
+
+fn main() -> Int {
+    let b: Buf[3]
+    b.>twice()
+}

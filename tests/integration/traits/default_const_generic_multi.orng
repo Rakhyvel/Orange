@@ -1,0 +1,16 @@
+// 14
+trait Scale[const a: Int, const b: Int] {
+    fn base(self) -> Int
+    fn scaled(self) -> Int { self.>base() + a * b }
+}
+
+struct Buf[const a: Int, const b: Int] { data: [a]Int }
+
+impl[const a: Int, const b: Int] Scale[a, b] for Buf[a, b] {
+    fn base(self) -> Int { _ = self; 2 }
+}
+
+fn main() -> Int {
+    let x: Buf[3, 4]
+    x.>scaled()
+}

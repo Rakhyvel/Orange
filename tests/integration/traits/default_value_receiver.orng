@@ -1,0 +1,17 @@
+// 500
+trait I_Give_A_Default {
+    fn required(self) -> Int
+
+    fn provided(self) -> Int {
+        self.>required()
+    }
+}
+
+impl I_Give_A_Default for Int {
+    fn required(self) -> Int { self }
+}
+
+fn main() -> Int {
+    let x = 500
+    x.>provided()
+}

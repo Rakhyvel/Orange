@@ -4,12 +4,14 @@ const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
+const generic_apply_ = @import("../ast/generic_apply.zig");
 const Symbol = @import("symbol.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
 const module_ = @import("../hierarchy/module.zig");
 const unification_ = @import("../types/unification.zig");
 const UID_Gen = @import("../util/uid_gen.zig");
 const walker_ = @import("../ast/walker.zig");
+const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 
@@ -368,6 +370,26 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
+        // new_scope skips the trait scope, so re-bind the trait's generic params so a default body referencing them still resolves
+        // They stay generic and monomorphize per instantiation
+        for (trait_decl.trait._generic_params.items) |param| {
+            if (param.symbol()) |psym| new_scope.symbols.put(param.token().data, psym) catch unreachable;
+        }
+        if (for_type.* == .identifier and for_type.symbol() != null) {
+            // Named `for_type`, bind `Self` straight to its symbol so a type param keeps its constraints for sibling dispatch, a type_alias would hide that from `is_type_param`
+            new_scope.symbols.put("Self", for_type.symbol().?) catch unreachable;
+        } else {
+            // Structural `for_type` with no symbol, alias `Self` to it instead
+            const self_token = Token.init_simple("Self");
+            const self_type_decl = ast_.AST.create_type_alias(
+                method_decl.token(),
+                ast_.AST.create_pattern_symbol(self_token, .type, .local, "Self", compiler.allocator()),
+                for_type,
+                std.array_list.Managed(*ast_.AST).init(compiler.allocator()),
+                compiler.allocator(),
+            );
+            try walker_.walk_ast(self_type_decl, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
+        }
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
@@ -379,7 +401,10 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         defer subst.deinit();
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        // Parent at the const's declaring (module) scope, not the call site, so re-registering the
+        // cloned const does not collide with the same-named const already visible at the call site
+        const const_scope = const_decl.binding.decls.items[0].decl.name.symbol().?.scope;
+        const new_scope = init(const_scope.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;
@@ -514,6 +539,8 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
+    // Pass on the virtual method count onto the monomorph
+    new_impl.impl.num_virtual_methods = impl.impl.num_virtual_methods;
     impl.impl.instantiations.put(generic_arg_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
@@ -524,7 +551,14 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
 
     // Re-attach the trait symbol after cloning
     if (new_impl.impl.trait != null and !new_impl.impl.impls_anon_trait) {
-        if (impl.impl.trait.?.symbol()) |sym| {
+        if (new_impl.impl.trait.?.* == .generic_apply) {
+            // Generic trait, monomorphize it for these args so the vtable references a concrete trait
+            // The clone dropped the lhs trait-name symbol, so copy it from the template before instantiating
+            if (impl.impl.trait.?.lhs().symbol()) |lhs_sym| {
+                new_impl.impl.trait.?.lhs().set_symbol(lhs_sym);
+            }
+            try generic_apply_.instantiate(new_impl.impl.trait.?, compiler);
+        } else if (impl.impl.trait.?.symbol()) |sym| {
             new_impl.impl.trait.?.set_symbol(sym);
         }
     }

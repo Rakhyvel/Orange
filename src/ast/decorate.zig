@@ -15,6 +15,7 @@ const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Decorate = @import("../ast/type_decorate.zig");
 const walk_ = @import("../ast/walker.zig");
+const unification_ = @import("../types/unification.zig");
 
 ctx: *Compiler_Context,
 
@@ -111,6 +112,27 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                     self.ctx.errors.add_error(errs_.Error{ .inner_fn_access_runtime = .{ .identifier = ast.token() } });
                     return error.CompileError;
                 },
+            }
+
+            return self;
+        },
+        .impl => {
+            // Copy defaulted trait methods
+            if (ast.impl.trait == null) return self;
+            const trait_symbol = try symbol(ast.impl.trait.?, self.ctx);
+            const trait_ast = trait_symbol.decl.?;
+            if (trait_ast.* != .trait) return self; // error, catch it later
+            for (trait_ast.trait.method_decls.items) |method_decl| {
+                if (method_decl.method_decl.init == null) continue; // not defaulted, ignore
+                if (impl_provides_method(ast, method_decl.method_decl.name.token().data)) continue; // overridden
+
+                var subst = unification_.Substitutions.init(self.ctx.allocator());
+                defer subst.deinit();
+                try subst.put_type("Self", ast.impl._type);
+                const new_method = method_decl.clone(&subst, self.ctx.allocator());
+                new_method.method_decl.impl = ast; // bind the template to this impl
+                ast.impl.method_defs.append(new_method) catch unreachable;
+                try self.scope_subtree(new_method, ast.scope().?);
             }
 
             return self;
@@ -576,6 +598,14 @@ fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
 fn scope_subtree(self: *const Self, subtree: *ast_.AST, scope: *Scope) !void {
     const st = Symbol_Tree.new(scope, &self.ctx.errors, self.ctx.allocator());
     try walk_.walk_ast(subtree, st);
+}
+
+/// Whether the impl already defines a method with the given name, so a trait default is not copied
+fn impl_provides_method(impl: *ast_.AST, name: []const u8) bool {
+    for (impl.impl.method_defs.items) |method_def| {
+        if (std.mem.eql(u8, method_def.method_decl.name.token().data, name)) return true;
+    }
+    return false;
 }
 
 /// Recursively desugars an lvalue bracket chain into nested `index_mut` addresses

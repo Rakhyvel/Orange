@@ -59,6 +59,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     // std.debug.print("validating init for: {s} ({t})\n", .{ symbol.name, symbol.kind });
 
     if (symbol.init_value()) |_init| {
+        // Tree_Writer.print(_init);
         // might be null for parameters
         var subst = unification_.Substitutions.init(self.ctx.allocator());
         defer subst.deinit();
@@ -218,6 +219,7 @@ fn validate_trait(self: *Self, trait: *Symbol) Validate_Error_Enum!void {
         try self.ctx.validate_type.validate_type(decl.method_decl.c_type.?);
 
         if (decl.method_decl.is_virtual) {
+            // Only check abstract (non-defaulted) virtuals, virtual defaults legit refer to Self
             if (decl.method_decl.c_type.?.refers_to_self()) {
                 self.ctx.errors.add_error(errs_.Error{ .trait_virtual_refers_to_self = .{
                     .span = decl.token().span,

@@ -1,0 +1,9 @@
+// positional_select_not_const.orng:8:7: error: not a constant integer
+//     x.[y]
+//      ^
+// 
+fn main() -> Int {
+    let x = (1, 2, 3)
+    let y = 4
+    x.[y]
+}

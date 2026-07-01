@@ -360,7 +360,22 @@ pub fn substitution_contains_generics(subst: *const Substitutions) bool {
             return true;
         }
     }
+    // A const arg that is not a concrete literal (like an unresolved const param `n`) is still generic
+    for (subst.const_subst.keys()) |key| {
+        if (!const_arg_is_concrete(subst.get_const(key).?)) {
+            return true;
+        }
+    }
     return false;
+}
+
+/// Whether a const arg has been resolved to a concrete comptime literal, as opposed to still being
+/// an unresolved const param reference
+fn const_arg_is_concrete(arg: *ast_.AST) bool {
+    return switch (arg.*) {
+        .int, .float, .true, .false => true,
+        else => false,
+    };
 }
 
 pub fn print_substitutions(subst: *const Substitutions) void {

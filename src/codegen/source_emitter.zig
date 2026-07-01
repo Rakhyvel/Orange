@@ -43,9 +43,9 @@ pub fn init(
 /// Generates C code for the provided Orange module and writes it to the given writer.
 pub fn generate(self: *Self) CodeGen_Error!void {
     try self.output_header_include();
-    try self.output_impls();
     try self.output_variant_names();
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Monomorphed function declarations", output_monomprphed_decl);
+    try self.output_impls();
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Monomorphed function definitions", output_monomprphed_def);
     try self.emitter.forall_functions(self, self.module.cfgs.items, "Function definitions", output_non_monomorphed_def);
 }
@@ -74,6 +74,10 @@ fn output_impls(self: *Self) CodeGen_Error!void {
     }
 
     for (self.module.impls.items) |impl| {
+        if (impl.impl._generic_params.items.len > 0) {
+            // Skip generic impls, their monomorphed versions have the real methods
+            continue;
+        }
         const trait = impl.impl.trait.?;
         const trait_symbol = trait.symbol().?;
         const trait_decl = trait_symbol.decl.?;

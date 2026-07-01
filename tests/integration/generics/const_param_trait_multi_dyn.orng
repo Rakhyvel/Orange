@@ -1,0 +1,20 @@
+// 11
+trait Scale[const n: Int] {
+    virtual fn first(&self) -> Int
+    virtual fn size(&self) -> Int { _ = self; n }
+}
+
+struct Buf[const n: Int] { data: [n]Int }
+
+impl[const n: Int] Scale[n] for Buf[n] {
+    virtual fn first(&self) -> Int { self.data[0] }
+}
+
+fn use3(x: &dyn Scale[3]) -> Int { x.>first() + x.>size() }
+fn use5(x: &dyn Scale[5]) -> Int { x.>first() + x.>size() }
+
+fn main() -> Int {
+    let a = Buf[3](.data = [1, 0, 0])
+    let b = Buf[5](.data = [2, 0, 0, 0, 0])
+    use3(&a) + use5(&b)
+}
