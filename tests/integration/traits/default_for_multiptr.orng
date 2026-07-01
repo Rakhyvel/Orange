@@ -1,0 +1,14 @@
+// 525
+trait My_Trait {
+    fn required(self, other: Self) -> Int
+    fn provided(self, other: Self) -> Int { self.>required(other) }
+}
+
+impl[T] My_Trait for [*]T {
+    fn required(self, other: Self) -> Int { _ = (self, other); 525 }
+}
+
+fn main() -> Int {
+    let s = "Hello, World!"
+    s.data.>provided(s.data)
+}

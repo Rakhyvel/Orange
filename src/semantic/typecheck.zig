@@ -648,8 +648,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 try candidate_method_decls.put(method_decl.?, void{});
             } else {
-                // The receiver is a regular type. STRIP AWAY 1 ADDR only!
-                const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
+                // The receiver is a regular type. STRIP AWAY 1 (non-multiptr) ADDR only!
+                const lhs_type = if (true_lhs_type.* == .addr_of and !true_lhs_type.addr_of.multiptr) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 if (lhs_type.* == .as_trait) {
                     try Scope.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
@@ -1320,7 +1320,7 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
                 // receiver is value, create any dereferences necessary
                 var stripped_expanded_true_lhs_type = expanded_true_lhs_type;
                 var retval = ast.lhs();
-                while (stripped_expanded_true_lhs_type.* == .addr_of) {
+                while (stripped_expanded_true_lhs_type.* == .addr_of and !stripped_expanded_true_lhs_type.addr_of.multiptr) {
                     retval = ast_.AST.create_dereference(ast.lhs().token(), retval, self.ctx.allocator());
                     stripped_expanded_true_lhs_type = stripped_expanded_true_lhs_type.child();
                 }
