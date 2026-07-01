@@ -1,0 +1,17 @@
+// virtual_default_returns_self.orng:7:15: error: virtual method `copy` of trait `T` refers to `Self` type
+//     virtual fn copy(&self) -> Self { self^ }
+//              ^
+// 
+trait T {
+    fn val(&self) -> Int
+    virtual fn copy(&self) -> Self { self^ }
+}
+
+impl T for Int {
+    fn val(&self) -> Int { self^ }
+}
+
+fn main() -> Int {
+    let x = 5
+    x.>copy().>val()
+}

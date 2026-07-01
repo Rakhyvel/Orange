@@ -220,7 +220,7 @@ fn validate_trait(self: *Self, trait: *Symbol) Validate_Error_Enum!void {
 
         if (decl.method_decl.is_virtual) {
             // Only check abstract (non-defaulted) virtuals, virtual defaults legit refer to Self
-            if (decl.method_decl.init == null and decl.method_decl.c_type.?.refers_to_self()) {
+            if (decl.method_decl.c_type.?.refers_to_self()) {
                 self.ctx.errors.add_error(errs_.Error{ .trait_virtual_refers_to_self = .{
                     .span = decl.token().span,
                     .method_name = method_name,

@@ -1,0 +1,17 @@
+// 3
+trait Container[X] {
+    fn get(&self) -> X
+
+    fn first(&self) -> X {
+        self.>get()
+    }
+}
+
+impl Container[Int] for Int {
+    fn get(&self) -> Int { self^ }
+}
+
+fn main() -> Int {
+    let x = 3
+    x.>first()
+}

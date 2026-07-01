@@ -1,0 +1,25 @@
+// 8
+trait A {
+    fn a_req(self) -> Int
+
+    fn a_def(self) -> Int {
+        self.>a_req()
+    }
+}
+
+trait B: A { }
+trait C: A { }
+trait D: B + C { }
+
+impl A for Int { fn a_req(self) -> Int { self } }
+impl B for Int { }
+impl C for Int { }
+impl D for Int { }
+
+fn use_d[T: D](t: T) -> Int {
+    t.>a_def()
+}
+
+fn main() -> Int {
+    use_d[Int](8)
+}
