@@ -1,0 +1,14 @@
+// 532
+fn main() -> Int {
+    let x = [][1, 2, 3]
+    let y = [][1, 2, 3]
+    check(x, y)
+}
+
+fn check(x: []Int, y: []Int) -> Int {
+    if x == y {
+        532
+    } else {
+        235
+    }
+}

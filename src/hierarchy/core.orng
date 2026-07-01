@@ -387,6 +387,7 @@ impl[T] Index_Mut for [*mut]T {
 
 trait Eq {
     fn eq(self, other: Self) -> Bool
+    fn neq(self, other: Self) -> Bool { not self.>eq(other) } 
 }
 
 impl Eq for Int { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
@@ -404,7 +405,7 @@ impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other}
 impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) } }
 impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) and self.[2].>eq(other.[2]) } }
 
-impl Eq for String {
+impl[T: Eq] Eq for []T {
     fn eq(self, other: Self) -> Bool {
         if self.length != other.length {
             return false

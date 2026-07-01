@@ -719,8 +719,8 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         const rhs = try self.range_expr();
         exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "eq", self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "neq", self.allocator);
     } else if (self.accept(.greater)) |token| {
         const rhs = try self.range_expr();
         exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "gt", self.allocator);
