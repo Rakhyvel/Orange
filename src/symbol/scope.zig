@@ -538,6 +538,8 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
 
     // Create a new impl
     const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
+    // Pass on the virtual method count onto the monomorph
+    new_impl.impl.num_virtual_methods = impl.impl.num_virtual_methods;
     impl.impl.instantiations.put(generic_arg_list, new_impl) catch unreachable;
     if (!subst_contains_generics) {
         new_impl.impl._generic_params.clearRetainingCapacity();
