@@ -369,6 +369,11 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
+        // new_scope skips the trait scope, so re-bind the trait's generic params so a default body referencing them still resolves
+        // They stay generic and monomorphize per instantiation
+        for (trait_decl.trait._generic_params.items) |param| {
+            if (param.symbol()) |psym| new_scope.symbols.put(param.token().data, psym) catch unreachable;
+        }
         if (for_type.* == .identifier and for_type.symbol() != null) {
             // Named `for_type`, bind `Self` straight to its symbol so a type param keeps its constraints for sibling dispatch, a type_alias would hide that from `is_type_param`
             new_scope.symbols.put("Self", for_type.symbol().?) catch unreachable;
@@ -395,7 +400,10 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         defer subst.deinit();
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(self.parent.?, self.uid_gen, compiler.allocator());
+        // Parent at the const's declaring (module) scope, not the call site, so re-registering the
+        // cloned const does not collide with the same-named const already visible at the call site
+        const const_scope = const_decl.binding.decls.items[0].decl.name.symbol().?.scope;
+        const new_scope = init(const_scope.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         return cloned;

@@ -1,0 +1,14 @@
+// 8
+trait Sized {
+    const num: Int
+    fn size(self) -> Int { _ = self; Self::num }
+}
+
+impl Sized for Int {
+    const num: Int = 8
+}
+
+fn main() -> Int {
+    let x = 0
+    x.>size()
+}
