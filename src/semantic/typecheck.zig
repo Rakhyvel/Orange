@@ -354,11 +354,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try typing_.type_check_integral(ast.token().span, lhs_type, &self.ctx.errors);
             return lhs_type;
         },
-        .equal, .not_equal => {
-            const lhs_type = try self.binary_operator_open(ast, null, subst);
-            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors);
-            return prelude_.bool_type;
-        },
         .greater, .lesser, .greater_equal, .lesser_equal => {
             const lhs_type = try self.binary_operator_open(ast, null, subst);
             try typing_.type_check_ord(ast.token().span, lhs_type, &self.ctx.errors);

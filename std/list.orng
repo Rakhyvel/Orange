@@ -11,6 +11,7 @@ enum Error {
     out_of_memory
 }
 
+// TODO: retain, truncate, reserve, resize, drain, shrink_to_fit
 impl[T: core::Sized] for List[T] {
     fn init() -> Self with core::Allocating {
         Self(mem::mut_slice_from_parts[T](0 as [*mut]T, 0), 0, core::Allocating.alloc)
@@ -58,6 +59,7 @@ impl[T: core::Sized] for List[T] {
         .ok
     }
 
+    // TODO: Replace with extend(), which takes an iterator
     fn append_slice(&mut self, ts: []T) -> Error!() {
         let idx = self.items.length
         try self.>ensure_length(self.items.length + ts.length)

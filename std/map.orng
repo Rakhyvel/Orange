@@ -1,7 +1,7 @@
 import mem
 import testing
 
-struct Map[K: core::Hash + core::Eq, V] {
+struct Map[K, V] {
     hashes: [mut]Word64
     keys: [mut]K
     values: [mut]V

@@ -122,8 +122,6 @@ pub const AST = union(enum) {
     mult: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     div: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     mod: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    not_equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     greater: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     lesser: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     greater_equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
@@ -703,14 +701,6 @@ pub const AST = union(enum) {
 
     pub fn create_and(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .@"and" = .{
-            .common = AST_Common{ ._token = _token },
-            ._lhs = _lhs,
-            ._rhs = _rhs,
-        } }, allocator);
-    }
-
-    pub fn create_equal(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
-        return AST.box(AST{ .equal = .{
             .common = AST_Common{ ._token = _token },
             ._lhs = _lhs,
             ._rhs = _rhs,
@@ -1653,18 +1643,6 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .mod => return create_mod(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
-            .equal => return create_equal(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
-            .not_equal => return create_not_equal(
                 self.token(),
                 self.lhs().clone(substs, allocator),
                 self.rhs().clone(substs, allocator),
@@ -2630,8 +2608,6 @@ pub const AST = union(enum) {
             .mult => try out.print("mult()", .{}),
             .div => try out.print("div()", .{}),
             .mod => try out.print("mod()", .{}),
-            .equal => try out.print("equal()", .{}),
-            .not_equal => try out.print("not_equal()", .{}),
             .greater => try out.print("greater()", .{}),
             .lesser => try out.print("lesser()", .{}),
             .greater_equal => try out.print("greater_equal()", .{}),

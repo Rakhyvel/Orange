@@ -299,6 +299,83 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         compiler.allocator(),
     );
     try prelude.?.put_symbol(symbol, &compiler.errors);
+
+    // Give the prelude scope a module so synthesized flag-trait impls land in a scanned impls list
+    prelude.?.module = module;
+    try create_primitive_marker_impls(compiler);
+}
+
+// Create traits for builtins, and implement them for primitive types
+fn create_primitive_marker_impls(compiler: *Compiler_Context) !void {
+    const primitive_partial_eq = try create_marker_trait("Primitive_Partial_Eq", compiler.allocator());
+    const primitive_partial_ord = try create_marker_trait("Primitive_Partial_Ord", compiler.allocator());
+    const primitive_num = try create_marker_trait("Primitive_Num", compiler.allocator());
+    const primitive_int = try create_marker_trait("Primitive_Int", compiler.allocator());
+    const primitive_bits = try create_marker_trait("Primitive_Bits", compiler.allocator());
+
+    try create_marker_impl(primitive_partial_eq, &[_]*Type_AST{
+        int_type,    int32_type,   int16_type,  int8_type,
+        word64_type, word32_type,  word16_type, word8_type,
+        float_type,  float32_type, bool_type,
+    }, compiler.allocator());
+    try create_marker_impl(primitive_partial_ord, &[_]*Type_AST{
+        int_type,    int32_type,   int16_type,  int8_type,
+        word64_type, word32_type,  word16_type, word8_type,
+        float_type,  float32_type,
+    }, compiler.allocator());
+    try create_marker_impl(primitive_num, &[_]*Type_AST{
+        int_type,    int32_type,   int16_type,  int8_type,
+        word64_type, word32_type,  word16_type, word8_type,
+        float_type,  float32_type,
+    }, compiler.allocator());
+    try create_marker_impl(primitive_int, &[_]*Type_AST{
+        int_type,    int32_type,  int16_type,  int8_type,
+        word64_type, word32_type, word16_type, word8_type,
+    }, compiler.allocator());
+    try create_marker_impl(primitive_bits, &[_]*Type_AST{
+        word64_type, word32_type, word16_type, word8_type,
+    }, compiler.allocator());
+}
+
+fn create_marker_trait(name: []const u8, allocator: std.mem.Allocator) !*Symbol {
+    const token = Token.init_simple(name);
+    const trait_ast = ast_.AST.create_trait(
+        token,
+        ast_.AST.create_pattern_symbol(token, .trait, .local, name, allocator),
+        std.array_list.Managed(*ast_.AST).init(allocator),
+        std.array_list.Managed(*Type_AST).init(allocator),
+        std.array_list.Managed(*ast_.AST).init(allocator),
+        std.array_list.Managed(*ast_.AST).init(allocator),
+        std.array_list.Managed(*ast_.AST).init(allocator),
+        allocator,
+    );
+    const symbol = Symbol.init(prelude.?, name, trait_ast, .trait, .local, allocator);
+    symbol.defined = true;
+    _ = symbol.assert_symbol_valid();
+    _ = symbol.assert_init_valid();
+    trait_ast.set_symbol(symbol);
+    trait_ast.set_scope(Scope.init(prelude.?, prelude.?.uid_gen, allocator));
+    try prelude.?.symbols.put(name, symbol);
+    return symbol;
+}
+
+fn create_marker_impl(trait_symbol: *Symbol, primitive_types: []const *Type_AST, allocator: std.mem.Allocator) !void {
+    for (primitive_types) |primitive| {
+        const trait_ident = ast_.AST.create_identifier(Token.init_simple(trait_symbol.name), allocator);
+        trait_ident.set_symbol(trait_symbol);
+        const impl = ast_.AST.create_impl(
+            Token.init_simple("impl"),
+            trait_ident,
+            primitive,
+            std.array_list.Managed(*ast_.AST).init(allocator),
+            std.array_list.Managed(*ast_.AST).init(allocator),
+            std.array_list.Managed(*ast_.AST).init(allocator),
+            std.array_list.Managed(*ast_.AST).init(allocator),
+            allocator,
+        );
+        impl.set_scope(Scope.init(prelude.?, prelude.?.uid_gen, allocator));
+        try prelude.?.module.?.impls.append(impl);
+    }
 }
 
 fn create_primitive_identifier(name: []const u8, allocator: std.mem.Allocator) *Type_AST {

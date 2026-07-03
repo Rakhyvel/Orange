@@ -217,8 +217,6 @@ fn lower_AST_inner(
         .lesser_equal,
         => return try self.binop(ast, labels),
 
-        .equal, .not_equal => return try self.tuple_equality_check(ast, labels),
-
         .@"catch", .@"orelse" => return try self.coalesce_op(ast, labels),
 
         .call => {
@@ -838,73 +836,6 @@ fn or_and_op(
 
     self.instructions.append(end_label) catch unreachable;
     return lval_.L_Value.create_unversioned_symbver(or_and_symbol, self.ctx.allocator());
-}
-
-fn tuple_equality_check(
-    self: *Self,
-    ast: *ast_.AST,
-    labels: Labels,
-) Lower_Errors!?*lval_.L_Value {
-    std.debug.assert(ast.* == .equal or ast.* == .not_equal);
-    const lhs = try self.lower_AST(ast.lhs(), labels);
-    const rhs = try self.lower_AST(ast.rhs(), labels);
-    if (lhs == null or rhs == null) {
-        return null;
-    }
-
-    // simple case, simple equality
-    const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
-    const lhs_type = lhs.?.get_expanded_type();
-    if (lhs_type.* != .tuple_type and lhs_type.* != .enum_type) {
-        self.instructions.append(Instruction.init(if (ast.* == .equal) .equal else .not_equal, temp, lhs, rhs, lhs.?.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-        return temp;
-    }
-
-    // Labels used
-    const fail_label = Instruction.init_label("tuple-eq.fail", ast.token().span, self.ctx.allocator());
-    const end_label = Instruction.init_label("tuple-eq.end", ast.token().span, self.ctx.allocator());
-
-    self.tuple_equality_flow(lhs.?, rhs.?, fail_label);
-
-    self.instructions.append(Instruction.init_int(temp, if (ast.* == .equal) 1 else 0, ast.token().span, self.ctx.allocator())) catch unreachable;
-    self.instructions.append(Instruction.init_jump(end_label, ast.token().span, self.ctx.allocator())) catch unreachable;
-
-    self.instructions.append(fail_label) catch unreachable;
-    self.instructions.append(Instruction.init_int(temp, if (ast.* == .equal) 0 else 1, ast.token().span, self.ctx.allocator())) catch unreachable;
-
-    self.instructions.append(end_label) catch unreachable;
-    return temp;
-}
-
-fn tuple_equality_flow(
-    self: *Self,
-    lhs: *lval_.L_Value,
-    rhs: *lval_.L_Value,
-    fail_label: *Instruction,
-) void {
-    const new_lhs = lhs;
-    const new_rhs = rhs;
-    const temp = self.create_temp_lvalue(prelude_.bool_type);
-    var lhs_type = lhs.get_expanded_type();
-    if (lhs_type.* == .tuple_type) {
-        for (0..lhs_type.children().items.len) |field| {
-            const expanded_type = lhs_type.children().items[field].expand_identifier();
-            const offset = lhs_type.tuple_type.get_offset(field);
-            const lhs_select = new_lhs.create_select_lval(field, offset, expanded_type, null, self.ctx.allocator());
-            const rhs_select = new_rhs.create_select_lval(field, offset, expanded_type, null, self.ctx.allocator());
-            self.tuple_equality_flow(lhs_select, rhs_select, fail_label);
-        }
-    } else if (lhs_type.* == .enum_type) {
-        const lhs_tag = self.create_temp_lvalue(prelude_.word64_type);
-        const rhs_tag = self.create_temp_lvalue(prelude_.word64_type);
-        self.instructions.append(Instruction.init_get_tag(lhs_tag, new_lhs, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-        self.instructions.append(Instruction.init_get_tag(rhs_tag, new_rhs, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-        self.instructions.append(Instruction.init(.equal, temp, lhs_tag, rhs_tag, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-        self.instructions.append(Instruction.init_branch(temp, fail_label, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-    } else {
-        self.instructions.append(Instruction.init(.equal, temp, new_lhs, rhs, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-        self.instructions.append(Instruction.init_branch(temp, fail_label, lhs.extract_symbver().symbol.span(), self.ctx.allocator())) catch unreachable;
-    }
 }
 
 fn coalesce_op(

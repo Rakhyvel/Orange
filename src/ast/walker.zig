@@ -140,8 +140,6 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .mult,
         .div,
         .mod,
-        .equal,
-        .not_equal,
         .greater,
         .lesser,
         .greater_equal,

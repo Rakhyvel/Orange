@@ -1309,9 +1309,10 @@ pub const Type_AST = union(enum) {
     };
 
     pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+        const Decorate = @import("../ast/decorate.zig");
         for (constraints) |constraint| {
+            if (constraint.base_symbol() == null) _ = Decorate.symbol(constraint, ctx) catch {}; // Resolve symbols first
             if (constraint.base_symbol() != null) {
-                const Decorate = @import("../ast/decorate.zig");
                 const trait = try Decorate.symbol(constraint, ctx);
                 const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
@@ -1653,56 +1654,48 @@ pub const Type_AST = union(enum) {
         return info.type_kind == .floating_point;
     }
 
-    /// Determines if an AST type has the operators `==` and `!=` defined
-    /// TODO: Replace with trait impl lookup
-    pub fn is_eq_type(self: *Type_AST) bool {
-        const expanded = self.expand_identifier();
-        if (expanded.* == .addr_of) {
-            return true;
-        } else if (expanded.* == .tuple_type) {
-            for (expanded.children().items) |term| {
-                if (!term.is_eq_type()) {
-                    return false;
-                }
-            }
-            return true;
-        } else if (expanded.* == .enum_type) {
-            return true;
+    /// True when `self` is a generic type param whose constraints include the named flag trait.
+    pub fn type_param_bounded_by(self: *Type_AST, trait_name: []const u8) bool {
+        if (self.* != .identifier and self.* != .access) return false;
+        const sym = self.symbol() orelse return false;
+        const decl = sym.decl orelse return false;
+        if (decl.* != .type_param_decl) return false;
+        for (decl.type_param_decl.constraints.items) |constraint| {
+            const base = constraint.base_symbol() orelse continue;
+            if (std.mem.eql(u8, base.name, trait_name)) return true;
         }
-        const info = prelude_.info_from_ast(expanded) orelse return false;
-        return info.type_class == .eq or expanded.is_ord_type();
+        return false;
     }
 
-    /// Determines if an AST type has the operators `<` and `>` defined.
-    /// Ord <: Eq
-    /// TODO: Replace with trait impl lookup
+    /// Determines if an AST type has the builtin operators `@lt`, `@le`, `@gt` and `@ge` defined.
     pub fn is_ord_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
-        const info = prelude_.info_from_ast(expanded) orelse return false;
-        return info.type_class == .ord or expanded.is_num_type();
-    }
-
-    /// Determines if an AST type has the operators `+`, `-`, `/` and `*` defined.
-    /// Num <: Ord
-    /// TODO: Replace with trait impl lookup
-    pub fn is_num_type(self: *Type_AST) bool {
-        const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Partial_Ord")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_class == .num or expanded.is_int_type();
     }
 
-    /// Determines if an AST type has the operator `%` defined.
-    /// Int <: Num
-    /// TODO: Replace with trait impl lookup
+    /// Determines if a type has the builtin operators `@add`, `@sub`, `@div` and `@mul` defined.
+    pub fn is_num_type(self: *Type_AST) bool {
+        const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Num")) return true;
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .num or expanded.is_int_type();
+    }
+
+    /// Determines if a type has the builtin operator `@mod` defined.
     pub fn is_int_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Int")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_class == .int;
     }
 
-    /// TODO: Replace with trait impl lookup
+    /// Determines if a type has the builtin operators `@bit_and`, `@bit_or`, `@bit_xor`, `@bit_not`, `@shl`,
+    /// and `@shr` defined.
     pub fn is_bits_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Bits")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_kind == .unsigned_integer;
     }

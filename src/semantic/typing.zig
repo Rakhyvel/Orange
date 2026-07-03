@@ -66,13 +66,6 @@ pub fn type_check_float(ast: *ast_.AST, expected: ?*Type_AST, errors: *errs_.Err
     return expected orelse prelude_.float_type;
 }
 
-pub fn type_check_eq(span: Span, got: *Type_AST, errors: *errs_.Errors) Validate_Error_Enum!void {
-    if (!got.is_eq_type()) {
-        errors.add_error(errs_.Error{ .expected_builtin_typeclass = .{ .span = span, .expected = "equalable", .got = got } });
-        return error.CompileError;
-    }
-}
-
 pub fn type_check_ord(span: Span, got: *Type_AST, errors: *errs_.Errors) Validate_Error_Enum!void {
     if (!got.is_ord_type()) {
         errors.add_error(errs_.Error{ .expected_builtin_typeclass = .{ .span = span, .expected = "orderable", .got = got } });

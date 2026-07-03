@@ -505,6 +505,8 @@ fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []cons
         if (impl.impl.trait) |trait| {
             if (trait.symbol() == null) continue;
             for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+                // Decorate the super-trait on-demand, since it may be reached before its own decl is decorated
+                if (super_trait.symbol() == null) try walker_.walk_type(super_trait, Decorate.new(compiler));
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
             }
         }

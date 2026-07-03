@@ -178,92 +178,100 @@ trait Add {
     fn add(self, other: Self) -> Self
 }
 
-impl Add for Int { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Int32 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Int16 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Int8 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Word64 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Word32 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Word16 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Word8 { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Float { fn add(self, other: Self) -> Self { @add(self, other) } }
-impl Add for Float32 { fn add(self, other: Self) -> Self { @add(self, other) } }
+impl[T: Primitive_Num] Add for T {
+    fn add(self, other: Self) -> Self { @add(self, other) }
+}
 
 trait Sub {
     fn sub(self, other: Self) -> Self
 }
 
-impl Sub for Int { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Int32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Int16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Int8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Word64 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Word32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Word16 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Word8 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Float { fn sub(self, other: Self) -> Self { @sub(self, other) } }
-impl Sub for Float32 { fn sub(self, other: Self) -> Self { @sub(self, other) } }
+impl[T: Primitive_Num] Sub for T {
+    fn sub(self, other: Self) -> Self { @sub(self, other) }
+}
 
 trait Mul {
     fn mul(self, other: Self) -> Self
 }
 
-impl Mul for Int { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Int32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Int16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Int8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Word64 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Word32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Word16 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Word8 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Float { fn mul(self, other: Self) -> Self { @mul(self, other) } }
-impl Mul for Float32 { fn mul(self, other: Self) -> Self { @mul(self, other) } }
+impl[T: Primitive_Num] Mul for T {
+    fn mul(self, other: Self) -> Self { @mul(self, other) }
+}
 
 trait Div {
     fn div(self, other: Self) -> Self
 }
 
-impl Div for Int { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Int32 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Int16 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Int8 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Word64 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Word32 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Word16 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Word8 { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Float { fn div(self, other: Self) -> Self { @div(self, other) } }
-impl Div for Float32 { fn div(self, other: Self) -> Self { @div(self, other) } }
+impl[T: Primitive_Num] Div for T {
+    fn div(self, other: Self) -> Self { @div(self, other) }
+}
 
 trait Mod {
     fn mod(self, other: Self) -> Self
 }
 
-impl Mod for Int { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Int32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Int16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Int8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Word64 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Word32 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Word16 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-impl Mod for Word8 { fn mod(self, other: Self) -> Self { @mod(self, other) } }
-
-trait Partial_Ord {
-    fn lt(self, other: Self) -> Bool
-    fn gt(self, other: Self) -> Bool
-    fn le(self, other: Self) -> Bool
-    fn ge(self, other: Self) -> Bool
+impl[T: Primitive_Int] Mod for T {
+    fn mod(self, other: Self) -> Self { @mod(self, other) }
 }
 
-impl Partial_Ord for Int { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Int32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Int16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Int8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Word64 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Word32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Word16 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Word8 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Float { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
-impl Partial_Ord for Float32 { fn lt(self, other: Self) -> Bool { @lt(self, other) } fn gt(self, other: Self) -> Bool { @gt(self, other) } fn le(self, other: Self) -> Bool { @le(self, other) } fn ge(self, other: Self) -> Bool { @ge(self, other) } }
+enum Ordering {
+    less,
+    equal,
+    greater
+}
+
+trait Partial_Ord {
+    fn partial_cmp(self, other: Self) -> ?Ordering
+
+    fn lt(self, other: Self) -> Bool {
+        match self.>partial_cmp(other) {
+            .some(.less) => true
+            _ => false
+        }
+    }
+
+    fn gt(self, other: Self) -> Bool {
+        match self.>partial_cmp(other) {
+            .some(.greater) => true
+            _ => false
+        }
+    }
+
+    fn le(self, other: Self) -> Bool {
+        match self.>partial_cmp(other) {
+            .some(.less) => true
+            .some(.equal) => true
+            _ => false
+        }
+    }
+
+    fn ge(self, other: Self) -> Bool {
+        match self.>partial_cmp(other) {
+            .some(.greater) => true
+            .some(.equal) => true
+            _ => false
+        }
+    }
+}
+
+impl[T: Primitive_Partial_Ord] Partial_Ord for T {
+    fn partial_cmp(self, other: Self) -> ?Ordering {
+        if @lt(self, other) {
+            .some(.less)
+        } else if @gt(self, other) {
+            .some(.greater)
+        } else if @le(self, other) {
+            .some(.equal)
+        } else {
+            .none
+        }
+    }
+
+    fn lt(self, other: Self) -> Bool { @lt(self, other) }
+    fn gt(self, other: Self) -> Bool { @gt(self, other) }
+    fn le(self, other: Self) -> Bool { @le(self, other) }
+    fn ge(self, other: Self) -> Bool { @ge(self, other) }
+}
 
 trait Ord: Partial_Ord {}
 
@@ -280,55 +288,49 @@ trait Bit_And {
     fn bit_and(self, other: Self) -> Self
 }
 
-impl Bit_And for Word64 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
-impl Bit_And for Word32 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
-impl Bit_And for Word16 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
-impl Bit_And for Word8 { fn bit_and(self, other: Self) -> Self { @bit_and(self, other) } }
+impl[T: Primitive_Bits] Bit_And for T {
+    fn bit_and(self, other: Self) -> Self { @bit_and(self, other) }
+}
 
 trait Bit_Or {
     fn bit_or(self, other: Self) -> Self
 }
 
-impl Bit_Or for Word64 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
-impl Bit_Or for Word32 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
-impl Bit_Or for Word16 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
-impl Bit_Or for Word8 { fn bit_or(self, other: Self) -> Self { @bit_or(self, other) } }
+impl[T: Primitive_Bits] Bit_Or for T {
+    fn bit_or(self, other: Self) -> Self { @bit_or(self, other) }
+}
 
 trait Bit_Xor {
     fn bit_xor(self, other: Self) -> Self
 }
 
-impl Bit_Xor for Word64 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
-impl Bit_Xor for Word32 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
-impl Bit_Xor for Word16 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
-impl Bit_Xor for Word8 { fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) } }
+impl[T: Primitive_Bits] Bit_Xor for T {
+    fn bit_xor(self, other: Self) -> Self { @bit_xor(self, other) }
+}
 
 trait Bit_Not {
     fn bit_not(self) -> Self
 }
 
-impl Bit_Not for Word64 { fn bit_not(self) -> Self { @bit_not(self) } }
-impl Bit_Not for Word32 { fn bit_not(self) -> Self { @bit_not(self) } }
-impl Bit_Not for Word16 { fn bit_not(self) -> Self { @bit_not(self) } }
-impl Bit_Not for Word8 { fn bit_not(self) -> Self { @bit_not(self) } }
+impl[T: Primitive_Bits] Bit_Not for T {
+    fn bit_not(self) -> Self { @bit_not(self) }
+}
 
 trait Shl {
     fn shl(self, other: Self) -> Self
 }
 
-impl Shl for Word64 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
-impl Shl for Word32 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
-impl Shl for Word16 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
-impl Shl for Word8 { fn shl(self, other: Self) -> Self { @shl(self, other) } }
+impl[T: Primitive_Bits] Shl for T {
+    fn shl(self, other: Self) -> Self { @shl(self, other) }
+}
 
 trait Shr {
     fn shr(self, other: Self) -> Self
 }
 
-impl Shr for Word64 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
-impl Shr for Word32 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
-impl Shr for Word16 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
-impl Shr for Word8 { fn shr(self, other: Self) -> Self { @shr(self, other) } }
+impl[T: Primitive_Bits] Shr for T {
+    fn shr(self, other: Self) -> Self { @shr(self, other) }
+}
 
 trait Index {
     type Output
@@ -390,16 +392,15 @@ trait Eq {
     fn neq(self, other: Self) -> Bool { not self.>eq(other) } 
 }
 
-impl Eq for Int { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Int32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Int16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Int8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Word64 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Word32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Word16 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Word8 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Float { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl Eq for Float32 { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T: Primitive_Partial_Eq] Eq for T {
+    fn eq(self, other: Self) -> Bool {
+        match self {
+            {other} => true
+            _ => false
+        }
+    }
+}
+
 impl[T] Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
 impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
 impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) } }
@@ -464,6 +465,16 @@ impl[T] for []T {
     fn split_at(self, i: Int) -> (Self, Self) {
         (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
     }
+
+    fn is_empty(self) -> Bool { self.length == 0 }
+
+    fn get(self, index: Int) -> ?&T {
+        if index >= 0 and index < self.length {
+            .some(&self[index])
+        } else {
+            .none
+        }
+    }
 }
 
 impl[T] for [mut]T {
@@ -486,23 +497,35 @@ impl[T] for [mut]T {
     fn split_at(self, i: Int) -> (Self, Self) {
         (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
     }
+
+    fn is_empty(self) -> Bool { self.length == 0 }
+
+    fn get(self, index: Int) -> ?&mut T {
+        if index >= 0 and index < self.length {
+            .some(&mut self[index])
+        } else {
+            .none
+        }
+    }
 }
 
-// impl[T: Eq] for []T {
-//     fn strip_prefix(self, prefix: []T) -> ?Self {
-//         unreachable
-//     }
-// 
-//     fn starts_with(self, prefix: []T) -> Bool {
-//         unreachable
-//     }
-// 
-//     fn ends_with(self, suffix: []T) -> Bool {
-//         unreachable
-//     }
-// }
+impl[T: Eq] for []T {
+    // fn strip_prefix(self, prefix: []T) -> ?Self {
+    //     unreachable
+    // }
 
-// Maybe? 
+    // fn starts_with(self, prefix: []T) -> Bool {
+    //     self == self.>subslice(0...prefix.length)
+    // }
+
+    // fn ends_with(self, suffix: []T) -> Bool {
+    //     unreachable
+    // }
+
+    // fn contains(self, x: &T) -> Bool {
+    //     unreachable
+    // }
+}
 
 trait Hash: Eq {
     virtual fn hash(&self) -> Word64
