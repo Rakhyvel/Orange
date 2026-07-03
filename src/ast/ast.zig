@@ -22,6 +22,7 @@ const validation_state_ = @import("../util/validation_state.zig");
 const unification_ = @import("../types/unification.zig");
 const fmt_ = @import("../util/fmt.zig");
 const union_fields_ = @import("../util/union_fields.zig");
+const Tree_Writer = @import("tree_writer.zig");
 
 pub const AST_Validation_State = validation_state_.Validation_State;
 

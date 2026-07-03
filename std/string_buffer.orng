@@ -413,8 +413,8 @@ test "char_at" with core::Allocating {
     let mut str = String_Buffer::init_with_contents("Hello, 🌍!") catch {return .err}
     defer str.>deinit()
 
-    try testing::expect(mem::eql(str.>char_at(2).some, "l"))
-    try testing::expect(mem::eql(str.>char_at(7).some, "🌍"))
+    try testing::expect(str.>char_at(2).some == "l")
+    try testing::expect(str.>char_at(7).some == "🌍")
 
     .ok
 }
@@ -602,9 +602,9 @@ test "split" with core::Allocating {
 
     let mut split_iter = str.>split(',')
 
-    try testing::expect(mem::eql("a", split_iter.>next().some))
-    try testing::expect(mem::eql("b", split_iter.>next().some))
-    try testing::expect(mem::eql("c", split_iter.>next().some))
+    try testing::expect("a" == split_iter.>next().some)
+    try testing::expect("b" == split_iter.>next().some)
+    try testing::expect("c" == split_iter.>next().some)
     try testing::expect(split_iter.>next().>is_none())
 
     .ok
@@ -616,10 +616,10 @@ test "lines" with core::Allocating {
 
     let mut lines_iter = str.>lines()
 
-    try testing::expect(mem::eql("a", lines_iter.>next().some))
-    try testing::expect(mem::eql("b", lines_iter.>next().some))
-    try testing::expect(mem::eql("c", lines_iter.>next().some))
-    try testing::expect(mem::eql("", lines_iter.>next().some))
+    try testing::expect("a" == lines_iter.>next().some)
+    try testing::expect("b" == lines_iter.>next().some)
+    try testing::expect("c" == lines_iter.>next().some)
+    try testing::expect("" == lines_iter.>next().some)
     try testing::expect(lines_iter.>next().>is_none())
 
     .ok
@@ -631,10 +631,10 @@ test "chars" with core::Allocating {
 
     let mut lines_iter = str.>chars()
 
-    try testing::expect(mem::eql("H", lines_iter.>next().some))
-    try testing::expect(mem::eql("i", lines_iter.>next().some))
-    try testing::expect(mem::eql(" ", lines_iter.>next().some))
-    try testing::expect(mem::eql("👋", lines_iter.>next().some))
+    try testing::expect("H" == lines_iter.>next().some)
+    try testing::expect("i" == lines_iter.>next().some)
+    try testing::expect(" " == lines_iter.>next().some)
+    try testing::expect("👋" == lines_iter.>next().some)
     try testing::expect(lines_iter.>next().>is_none())
 
     .ok

@@ -430,15 +430,15 @@ test "into_iter" with core::Allocating {
     let mut iter = map.>into_iter()
 
     let mut item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "a"))
+    try testing::expect(item.some.[0]^ == "a")
     try testing::expect(item.some.[1]^ == 1)
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "b"))
+    try testing::expect(item.some.[0]^ == "b")
     try testing::expect(item.some.[1]^ == 2)
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "c"))
+    try testing::expect(item.some.[0]^ == "c")
     try testing::expect(item.some.[1]^ == 3)
 
     item = iter.>next()
@@ -454,13 +454,13 @@ test "keys" with core::Allocating {
     let mut iter = map.>keys()
 
     let mut item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "a"))
+    try testing::expect(item.some^ == "a")
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "b"))
+    try testing::expect(item.some^ == "b")
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "c"))
+    try testing::expect(item.some^ == "c")
 
     item = iter.>next()
     try testing::expect(item.>is_none())
@@ -509,7 +509,7 @@ test "iter_mut" with core::Allocating {
     defer map.>deinit()
 
     for (k, v) in map.>iter_mut() {
-        if mem::eql(k^, "b") {
+        if k^ == "b" {
             v^ *= 2
         }
     }

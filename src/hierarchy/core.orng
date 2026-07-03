@@ -419,6 +419,80 @@ impl[T: Eq] Eq for []T {
     }
 }
 
+impl[T: Eq] Eq for [mut]T {
+    fn eq(self, other: Self) -> Bool {
+        if self.length != other.length {
+            return false
+        }
+        while let mut i = 0; i < self.length; i += 1 {
+            if self[i] != other[i] {
+                return false
+            }
+        }
+        true
+    }
+}
+
+impl[T] for []T {
+    fn from_parts(data: [*]T, len: Int) -> Self {
+        let mut retval: []T = undefined
+        retval.data = data
+        retval.length = len
+        retval
+    }
+
+    fn subslice(self, range: Range) -> Self {
+        if range.start > range.end { unreachable }
+        if range.start < 0 { unreachable }
+        if range.start >= self.length { unreachable }
+        if range.end > self.length { unreachable }
+
+        Self::from_parts(&self.data[range.start] as [*]T, range.end - range.start)
+    }
+
+    fn split_at(self, i: Int) -> (Self, Self) {
+        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+    }
+}
+
+impl[T] for [mut]T {
+    fn from_parts(data: [*mut]T, len: Int) -> Self {
+        let mut retval: [mut]T = undefined
+        retval.data = data
+        retval.length = len
+        retval
+    }
+
+    fn subslice(self, range: Range) -> Self {
+        if range.start > range.end { unreachable }
+        if range.start < 0 { unreachable }
+        if range.start >= self.length { unreachable }
+        if range.end > self.length { unreachable }
+
+        Self::from_parts(&mut self.data[range.start] as [*mut]T, range.end - range.start)
+    }
+
+    fn split_at(self, i: Int) -> (Self, Self) {
+        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+    }
+}
+
+// impl[T: Eq] for []T {
+//     fn strip_prefix(self, prefix: []T) -> ?Self {
+//         unreachable
+//     }
+// 
+//     fn starts_with(self, prefix: []T) -> Bool {
+//         unreachable
+//     }
+// 
+//     fn ends_with(self, suffix: []T) -> Bool {
+//         unreachable
+//     }
+// }
+
+// Maybe? 
+
 trait Hash: Eq {
     virtual fn hash(&self) -> Word64
 }

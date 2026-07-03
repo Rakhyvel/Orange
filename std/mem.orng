@@ -10,8 +10,9 @@ fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
 }
 
 fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
+    type Slice_Type = [mut]T
     match core::Allocating.alloc.>alloc(T::size * length) {
-        .some(bytes) => .ok(mut_slice_from_parts[T](bytes as [*mut]T, length))
+        .some(bytes) => .ok(Slice_Type::from_parts(bytes as [*mut]T, length))
         .none => .err
     }
 }
@@ -48,7 +49,7 @@ fn starts_with(haystack: []Byte, needle: []Byte) -> Bool {
     if needle.length > haystack.length {
         false
     } else {
-        eql(haystack[..needle.length], needle)
+        haystack[..needle.length] == needle
     }
 }
 
@@ -161,9 +162,9 @@ test "delimiter iterator" {
     let bytes = "a,b,c"
     let mut delim_iter = Delimiter_Iterator(.data = bytes, .delimiter = ',')
 
-    try testing::expect(eql("a", delim_iter.>next().some))
-    try testing::expect(eql("b", delim_iter.>next().some))
-    try testing::expect(eql("c", delim_iter.>next().some))
+    try testing::expect("a" == delim_iter.>next().some)
+    try testing::expect("b" == delim_iter.>next().some)
+    try testing::expect("c" == delim_iter.>next().some)
     try testing::expect(delim_iter.>next().>is_none())
 
     .ok

@@ -270,6 +270,19 @@ pub fn monomorphize(
             }
         }
 
+        // Inline function-local type aliases so references resolve to the monomorph's concrete type, not the shared template alias
+        if (self.decl.?.decl_init()) |body| {
+            if (body.* == .block) {
+                for (body.block._statements.items) |stmt| {
+                    if (stmt.* == .type_alias) {
+                        if (stmt.type_alias.init) |aliased| {
+                            try subst.put_type(stmt.type_alias.name.token().data, aliased.clone(&subst, ctx.allocator()));
+                        }
+                    }
+                }
+            }
+        }
+
         // Clone the decl with the substitution
         const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
@@ -297,7 +310,7 @@ pub fn monomorphize(
         clone.is_monomorphed = true;
         try walker_.walk_ast(decl, decorate_context);
 
-        // std.debug.print("brand new one for ya ({*})\n", .{clone});
+        // std.debug.print("brand new one for ya ({*} aka {s})\n", .{ clone, clone.name });
 
         return clone;
     }
