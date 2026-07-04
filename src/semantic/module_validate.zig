@@ -20,8 +20,7 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_module(self: *Self, module: *module_.Module) Validate_Error_Enum!void {
-    // Index by position: validate_impl may instantiate a generic impl, which appends to
-    // module.impls and can reallocate the backing array, invalidating a captured slice
+    // Iterate by position, since validate_impl might instantiate generic impls, which appends to module.impls
     const num_impls = module.impls.items.len;
     var impl_idx: usize = 0;
     while (impl_idx < num_impls) : (impl_idx += 1) {

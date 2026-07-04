@@ -34,7 +34,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__file_write(void 
     return (struct orange_type_C53265BF4F923210){.tag = 0};
 }
 
-static inline struct orange_type_C53265BF4F923210 orange__core__file_read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_CE26574889E9A595 maybe_limit)
+static inline struct orange_type_C53265BF4F923210 orange__core__file_read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_2D35235D4574A2CD maybe_limit)
 {
     FILE *file = (FILE *)self;
     unsigned char buffer[4096];
@@ -93,7 +93,7 @@ const struct vtable_core__core__0_File orange__core__file_vtable = {
     ._1 = &orange__core__file_reader_vtable,
 };
 
-static inline struct orange_type_F3D431398B6D5D16 orange__core__open(void *self, orange_type_String path, struct orange_type_C53265BF4F923210 mode)
+static inline orange_type_File orange__core__open(void *self, orange_type_String path, struct orange_type_C53265BF4F923210 mode)
 {
     FILE *f;
     (void)self;
@@ -116,11 +116,11 @@ static inline struct orange_type_F3D431398B6D5D16 orange__core__open(void *self,
 
     if (NULL == f)
     {
-        return (struct orange_type_F3D431398B6D5D16){.tag = 1};
+        return (orange_type_File){.tag = 1};
     }
     else
     {
-        return (struct orange_type_F3D431398B6D5D16){.tag = 0, ._0 = (struct orange_type_83D8D70C0300255B){.data_ptr = f, .vtable = &orange__core__file_vtable}};
+        return (orange_type_File){.tag = 0, ._0 = (struct orange_type_83D8D70C0300255B){.data_ptr = f, .vtable = &orange__core__file_vtable}};
     }
 }
 

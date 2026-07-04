@@ -22,6 +22,7 @@ pub var test_result_type: *Type_AST = undefined;
 pub var test_type: *Type_AST = undefined;
 
 // Traits
+pub var file_system_trait: *ast_.AST = undefined;
 pub var into_iterator_trait: *Symbol = undefined;
 pub var iterator_trait: *Symbol = undefined;
 
@@ -116,6 +117,7 @@ fn create_core(compiler: *Compiler_Context) !void {
 
     into_iterator_trait = module_scope.lookup("Into_Iterator", .{}).found;
     iterator_trait = module_scope.lookup("Iterator", .{}).found;
+    file_system_trait = module_scope.lookup("File_System", .{}).found.decl.?;
 
     allocating_context = module_scope.lookup("Allocating", .{}).found.init_typedef().?;
     io_context = module_scope.lookup("IO", .{}).found.init_typedef().?;

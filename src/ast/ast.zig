@@ -1549,8 +1549,7 @@ pub const AST = union(enum) {
             .identifier => {
                 if (self.refers_to_type()) {
                     if (substs.get_type(self.token().data)) |replacement| {
-                        // A composite replacement (like `[]Byte`) cannot be a bare identifier, so
-                        // rebuild its value expr to keep the structure. Falls back to the token for plain types
+                        // A composite replacement type cannot be a bare identifier, so rebuild its value expr to keep the structure. Falls back to the token for plain types
                         if (replacement.* != .identifier) {
                             if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
                         }
