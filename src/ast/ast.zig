@@ -714,15 +714,6 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_not_equal(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .not_equal = .{
-            .common = _common,
-            ._lhs = _lhs,
-            ._rhs = _rhs,
-        } }, allocator);
-    }
-
     pub fn create_greater(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
         return AST.box(AST{ .greater = .{
