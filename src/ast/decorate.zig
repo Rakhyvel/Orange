@@ -677,5 +677,5 @@ fn create_format_args_slice(self: *const Self, ast: *ast_.AST) !*ast_.AST {
         try array_terms.append(dyn_value);
     }
     const args_array = ast_.AST.create_array_value(ast.token(), array_terms, self.ctx.allocator());
-    return ast_.AST.create_slice_of(ast.token(), args_array, false, self.ctx.allocator());
+    return ast_.AST.create_addr_of(ast.token(), args_array, false, false, self.ctx.allocator());
 }

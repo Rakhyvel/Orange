@@ -1,6 +1,6 @@
 // 208
 fn main() -> Int {
-    sum([][200, 0, 8]) // Slice of array literal
+    sum(&[200, 0, 8]) // Slice of array literal
 }
 
 fn sum(xs: []Int) -> Int {

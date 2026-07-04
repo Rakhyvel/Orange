@@ -23,6 +23,6 @@ fn main() -> Int {
     let obj1: &dyn Get_Value = &item1
     let obj2: &dyn Get_Value = &item2
     let arr = [obj0, obj1, obj2]
-    let slice = []arr
+    let slice: []&dyn Get_Value = &arr
     sum(slice)
 }

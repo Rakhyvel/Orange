@@ -293,11 +293,6 @@ pub const AST = union(enum) {
         anytptr: bool = false, // When this is true, the addr_of should output as a void*, and should be cast whenever dereferenced
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
-    slice_of: struct {
-        common: AST_Common,
-        _expr: *AST,
-        mut: bool,
-    },
     sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
     range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
@@ -924,10 +919,6 @@ pub const AST = union(enum) {
 
     pub fn create_access(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
-        if (_lhs.* != .identifier and _rhs.* == .field and std.mem.eql(u8, _rhs.token().data, "from_parts")) {
-            Tree_Writer.print(_lhs);
-            std.debug.panic("making a weird access", .{});
-        }
         return AST.box(AST{ .access = .{
             .common = _common,
             ._lhs = _lhs,
@@ -1082,18 +1073,6 @@ pub const AST = union(enum) {
             ._expr = _expr,
             .mut = _mut,
             .multiptr = multiptr,
-        } }, allocator);
-    }
-
-    pub fn create_slice_of(_token: Token, _expr: *AST, _mut: bool, allocator: std.mem.Allocator) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        if (_expr.* == .identifier and std.mem.eql(u8, _expr.token().data, "(")) {
-            std.debug.panic("here!\n", .{});
-        }
-        return AST.box(AST{ .slice_of = .{
-            .common = _common,
-            ._expr = _expr,
-            .mut = _mut,
         } }, allocator);
     }
 
@@ -1582,7 +1561,6 @@ pub const AST = union(enum) {
                         // A composite replacement (like `[]Byte`) cannot be a bare identifier, so
                         // rebuild its value expr to keep the structure. Falls back to the token for plain types
                         if (replacement.* != .identifier) {
-                            Tree_Writer.print(replacement);
                             if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
                         }
                         return create_identifier(replacement.token(), allocator);
@@ -1772,8 +1750,6 @@ pub const AST = union(enum) {
                 return retval;
             },
             .access => {
-                std.debug.print("access refers to type: {}\n", .{self.lhs().refers_to_type()});
-                Tree_Writer.print(self);
                 return create_access(
                     self.token(),
                     self.lhs().clone(substs, allocator),
@@ -1951,17 +1927,6 @@ pub const AST = union(enum) {
                 self.addr_of.multiptr,
                 allocator,
             ),
-            .slice_of => {
-                unification_.print_substitutions(substs);
-                Tree_Writer.print(self);
-                const retval = create_slice_of(
-                    self.token(),
-                    self.expr().clone(substs, allocator),
-                    self.slice_of.mut,
-                    allocator,
-                );
-                return retval;
-            },
             .sub_slice => return create_sub_slice(
                 self.token(),
                 self.sub_slice.super.clone(substs, allocator),
@@ -2805,7 +2770,6 @@ pub const AST = union(enum) {
 
             .as => try out.print("as({f}, {f})", .{ self.expr(), self.type() }),
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
-            .slice_of => try out.print("slice_of()", .{}),
             .sub_slice => try out.print("sub_slice()", .{}),
             .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),

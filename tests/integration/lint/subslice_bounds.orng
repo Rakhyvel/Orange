@@ -1,7 +1,7 @@
 // 
 fn main() -> Int {
     let x: [4]Int
-    let y = []x
+    let y: []Int = &x
     let z = y[f()..1]
     z[0]
 }

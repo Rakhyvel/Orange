@@ -1,7 +1,7 @@
 // 110
 fn main() -> Int {
     let mut x: [6]Int = [100, 8, 2, 4, 35, 6]
-    let y = [mut]x
+    let y: [mut]Int = &mut x
     let z: [mut]Int = y[..3]
     sum_up(z)
 }

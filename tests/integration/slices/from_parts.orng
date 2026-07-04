@@ -5,5 +5,5 @@ fn get[T](arr: [mut]T) -> Int {
 
 fn main() -> Int {
     let mut a = [1, 2, 3, 4, 5]
-    get[Int]([mut]a)
+    get[Int](&mut a)
 }

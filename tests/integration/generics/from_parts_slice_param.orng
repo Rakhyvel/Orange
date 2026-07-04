@@ -1,6 +1,4 @@
 // 0
-// Regression: monomorphizing a `[mut]K`-receiver associated function when the generic
-// param K is itself a slice type must keep K's slice level, not collapse to its element
 struct Box[K] {
     keys: [mut]K
 }

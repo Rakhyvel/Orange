@@ -1,0 +1,13 @@
+// 1141
+trait Describe {
+    fn describe() -> Int
+}
+
+impl Describe for []Int { fn describe() -> Int { 1 } }
+impl Describe for ?Int { fn describe() -> Int { 10 } }
+impl Describe for [3]Int { fn describe() -> Int { 100 } }
+impl Describe for (Int, Int) { fn describe() -> Int { 1000 } }
+
+fn main() -> Int {
+    ([]Int)::describe() + (?Int)::describe() * 4 + ([3]Int)::describe() + ((Int, Int))::describe()
+}

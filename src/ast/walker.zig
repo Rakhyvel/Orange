@@ -114,7 +114,6 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .@"try",
         .@"comptime",
         .addr_of,
-        .slice_of,
         .dyn_value,
         .bit_not,
         .cinclude,

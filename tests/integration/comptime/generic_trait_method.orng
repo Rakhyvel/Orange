@@ -13,7 +13,7 @@ impl[T] Get_First for []T {
 
 fn main() -> Int {
     comptime {
-        let xs: []Int = [][496, 396, 296]
+        let xs: []Int = &[496, 396, 296]
         xs.>first()
     }
 }

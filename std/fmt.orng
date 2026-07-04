@@ -40,7 +40,7 @@ impl core::Format for Int {
         }
 
         // Write digits in correct order
-        let mut buf_slice = [mut]buf
+        let mut buf_slice: [mut]Byte = &mut buf
         buf_slice.length = i
         mem::reverse(buf_slice)
         writer.>write(buf_slice)
@@ -67,7 +67,7 @@ impl core::Format for Byte {
         }
 
         // Write digits in correct order
-        let mut buf_slice = [mut]buf
+        let mut buf_slice: [mut]Byte = &mut buf
         buf_slice.length = i
         mem::reverse(buf_slice)
         writer.>write(buf_slice)
@@ -94,7 +94,7 @@ impl core::Format for Word32 {
         }
 
         // Write digits in correct order
-        let mut buf_slice = [mut]buf
+        let mut buf_slice: [mut]Byte = &mut buf
         buf_slice.length = i
         mem::reverse(buf_slice)
         writer.>write(buf_slice)
@@ -133,7 +133,7 @@ impl core::Format for Float {
 
         const precision = 6
         let mut buf: [comptime{precision}]Byte
-        let mut buf_slice = [mut]buf
+        let mut buf_slice: [mut]Byte = &mut buf
         buf_slice.length = 0
         let mut scaled = frac_part
         for i in 0...precision {
@@ -181,7 +181,7 @@ impl core::Format for Float32 {
 
         const precision = 6
         let mut buf: [comptime{precision}]Byte
-        let mut buf_slice = [mut]buf
+        let mut buf_slice: [mut]Byte = &mut buf
         buf_slice.length = 0
         let mut scaled = frac_part
         for i in 0...precision {

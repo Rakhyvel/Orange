@@ -299,7 +299,7 @@ impl[K: core::Hash + core::Eq, V] core::Into_Iterator for Map[K, V] {
 }
 
 test "init_from_slice" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     try testing::expect(map.>count() == 3)
@@ -311,7 +311,7 @@ test "init_from_slice" with core::Allocating {
 }
 
 test "clone" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     let mut clone = map.>clone() catch {return .err}
     defer clone.>deinit()
@@ -350,7 +350,7 @@ test "get mut" with core::Allocating {
 }
 
 test "clear" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     map.>clear()
@@ -424,7 +424,7 @@ test "set" with core::Allocating {
 }
 
 test "into_iter" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>into_iter()
@@ -448,7 +448,7 @@ test "into_iter" with core::Allocating {
 }
 
 test "keys" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>keys()
@@ -469,7 +469,7 @@ test "keys" with core::Allocating {
 }
 
 test "values" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>values()
@@ -490,7 +490,7 @@ test "values" with core::Allocating {
 }
 
 test "values_mut" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     for v in map.>values_mut() {
@@ -505,7 +505,7 @@ test "values_mut" with core::Allocating {
 }
 
 test "iter_mut" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     for (k, v) in map.>iter_mut() {

@@ -27,5 +27,5 @@ fn incr[X: Add](t: &mut X, by: X) {
 
 fn main() -> Int {
     let arr = [300, 90, 4]
-    sum[Int]([]arr)
+    sum[Int](&arr)
 }

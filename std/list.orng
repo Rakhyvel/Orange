@@ -155,14 +155,14 @@ impl[T] core::Index_Mut for List[T] {
 }
 
 test "init, deinit" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     .ok
 }
 
 test "init_from_slice" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     try testing::expect(list.items[0] == 1)
@@ -174,7 +174,7 @@ test "init_from_slice" with core::Allocating {
 }
 
 test "clone" with core::Allocating {
-    let list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     let list2 = list.>clone() catch {return .err}
@@ -189,7 +189,7 @@ test "clone" with core::Allocating {
 }
 
 test "to_owned_slice" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     let slice = list.>to_owned_slice() catch {return .err}
@@ -204,7 +204,7 @@ test "to_owned_slice" with core::Allocating {
 }
 
 test "clear" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4, 5]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4, 5]) catch {return .err}
     defer list.>deinit()
 
     list.>clear()
@@ -230,10 +230,10 @@ test "append" with core::Allocating {
 }
 
 test "append_slice" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
-    list.>append_slice([][4, 5, 6]) catch {return .err}
+    list.>append_slice(&[4, 5, 6]) catch {return .err}
 
     try testing::expect(list.items[0] == 1)
     try testing::expect(list.items[1] == 2)
@@ -247,7 +247,7 @@ test "append_slice" with core::Allocating {
 }
 
 test "insert" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 4]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 4]) catch {return .err}
     defer list.>deinit()
 
     list.>insert(3, 2) catch {return .err}
@@ -262,7 +262,7 @@ test "insert" with core::Allocating {
 }
 
 test "swap_remove" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
     defer list.>deinit()
 
     list.>swap_remove(1)
@@ -276,7 +276,7 @@ test "swap_remove" with core::Allocating {
 }
 
 test "ordered_remove" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
     defer list.>deinit()
 
     list.>ordered_remove(1)
@@ -290,7 +290,7 @@ test "ordered_remove" with core::Allocating {
 }
 
 test "remove_range" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4, 5]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4, 5]) catch {return .err}
     defer list.>deinit()
 
     list.>remove_range(1, 3)
@@ -304,7 +304,7 @@ test "remove_range" with core::Allocating {
 }
 
 test "pop" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4, 5]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4, 5]) catch {return .err}
     defer list.>deinit()
 
     let (a, b, c) = (list.>pop(), list.>pop(), list.>pop())
@@ -320,7 +320,7 @@ test "pop" with core::Allocating {
 }
 
 test "last" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3, 4, 5]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4, 5]) catch {return .err}
     defer list.>deinit()
 
     let last = list.>last()
@@ -342,7 +342,7 @@ test "write" with core::Allocating {
 }
 
 test "into_iter" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     let mut iter = list.>into_iter()
@@ -356,7 +356,7 @@ test "into_iter" with core::Allocating {
 }
 
 test "iter_mut" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
 
     for x in list.>iter_mut() {
@@ -374,7 +374,7 @@ test "iter_mut" with core::Allocating {
 }
 
 test "index" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
     
     try testing::expect(list[0] == 1)
@@ -385,7 +385,7 @@ test "index" with core::Allocating {
 }
 
 test "index_mut" with core::Allocating {
-    let mut list = List[Int]::init_from_slice([][1, 2, 3]) catch {return .err}
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
     
     for i in 0...3 {

@@ -20,7 +20,7 @@ fn find[T: Eq](haystack: []T, needle: T) -> ?Int {
 
 fn main() -> Int {
     let items = [1, 2, 3, 4]
-    match find[Int]([]items, 3) {
+    match find[Int](&items, 3) {
         .some(2) => 371
         _ => unreachable
     }

@@ -555,10 +555,6 @@ pub const Type_AST = union(enum) {
                 const id = Type_AST.create_addr_of_type(ast.token(), typed_expr, ast.addr_of.mut, ast.addr_of.multiptr, allocator);
                 break :blk id;
             },
-            .slice_of => blk: {
-                const of = from_ast(ast.expr(), allocator);
-                break :blk Type_AST.create_slice_type(of, ast.slice_of.mut, allocator);
-            },
             .tuple_value => blk: {
                 var terms = std.array_list.Managed(*Type_AST).init(allocator);
                 for (ast.children().items) |term| {
@@ -596,19 +592,6 @@ pub const Type_AST = union(enum) {
                 id.set_scope(self.scope());
                 id.set_symbol(self.symbol());
                 return id;
-            },
-            .addr_of => {
-                std.debug.panic("add_of", .{});
-                const inner = self.child().to_value_expr(allocator) orelse return null;
-                return AST.create_addr_of(self.token(), inner, self.addr_of.mut, self.addr_of.multiptr, allocator);
-            },
-            .struct_type => {
-                std.debug.panic("struct_type", .{});
-                if (!self.struct_type.was_slice) return null;
-                const data_ptr = self.children().items[0].child();
-                const elem = data_ptr.child().to_value_expr(allocator) orelse return null;
-                const retval = AST.create_slice_of(self.token(), elem, data_ptr.addr_of.mut, allocator);
-                return retval;
             },
             else => return null,
         }

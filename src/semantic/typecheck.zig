@@ -844,6 +844,25 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } else if (expanded_expected.* == .anyptr_type) {
                     ast.addr_of.anytptr = true;
                     return expanded_expected;
+                } else if (expanded_expected.* == .struct_type and expanded_expected.struct_type.was_slice) {
+                    const expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+                    // ast.expr() must be array type of expected
+                    if (expr_type.* != .array_of) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                            .span = ast.token().span,
+                            .msg = "attempt to take slice-of something that is not an array",
+                        } });
+                        return error.CompileError;
+                    }
+
+                    if (ast.addr_of.mut) {
+                        try self.assert_mutable(ast.expr());
+                    }
+                    const retval = Type_AST.create_slice_type(expr_type.child(), ast.addr_of.mut, self.ctx.allocator());
+                    ast.* = ast_.AST.create_slice_value(ast.expr(), ast.addr_of.mut, expr_type, self.ctx.allocator()).*;
+                    _ = self.typecheck_AST(ast, null, subst) catch return error.CompileError;
+                    return retval;
                 } else if (expanded_expected.* != .addr_of) {
                     // Didn't expect an address type. Validate expr and report error
                     return typing_.throw_unexpected_type(ast.token().span, expected.?, poison_.poisoned_type, &self.ctx.errors);
@@ -857,26 +876,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
             }
-        },
-        .slice_of => {
-            const expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
-
-            // ast.expr() must be homotypical tuple type of expected
-            if (expr_type.* != .array_of) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                    .span = ast.token().span,
-                    .msg = "attempt to take slice-of something that is not an array",
-                } });
-                return error.CompileError;
-            }
-
-            if (ast.slice_of.mut) {
-                try self.assert_mutable(ast.expr());
-            }
-            const retval = Type_AST.create_slice_type(expr_type.child(), ast.slice_of.mut, self.ctx.allocator());
-            ast.* = ast_.AST.create_slice_value(ast.expr(), ast.slice_of.mut, expr_type, self.ctx.allocator()).*;
-            _ = self.typecheck_AST(ast, null, subst) catch return error.CompileError;
-            return retval;
         },
         .sub_slice => {
             const super_type = self.typecheck_AST(ast.sub_slice.super, null, subst) catch return error.CompileError;

@@ -6,7 +6,7 @@ fn first[K, V](pairs: [](K, V)) -> (K, V) {
 
 fn main() -> Int {
     let inner: [3]Int = [1, 2, 3]
-    let pairs: [1]([]Int, Int) = [([]inner, 10)]
-    let pair = first[[]Int, Int]([]pairs)
+    let pairs: [1]([]Int, Int) = [(&inner, 10)]
+    let pair = first[[]Int, Int](&pairs)
     pair.[0].length + pair.[1]
 }

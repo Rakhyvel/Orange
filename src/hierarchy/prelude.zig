@@ -316,9 +316,18 @@ fn create_primitive_marker_impls(compiler: *Compiler_Context) !void {
     const primitive_bits = try create_marker_trait("Primitive_Bits", compiler.allocator());
 
     try create_marker_impl(primitive_partial_eq, &[_]*Type_AST{
-        int_type,    int32_type,   int16_type,  int8_type,
-        word64_type, word32_type,  word16_type, word8_type,
-        float_type,  float32_type, bool_type,
+        int_type,
+        int32_type,
+        int16_type,
+        int8_type,
+        word64_type,
+        word32_type,
+        word16_type,
+        word8_type,
+        float_type,
+        float32_type,
+        bool_type,
+        unit_type,
     }, compiler.allocator());
     try create_marker_impl(primitive_eq, &[_]*Type_AST{
         int_type,    int32_type,  int16_type,  int8_type,

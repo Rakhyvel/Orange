@@ -1,6 +1,6 @@
 // 448
 fn main() -> Int {
-    let xs = [][400, 40, 8, -10]
+    let xs: []Int = &[400, 40, 8, -10]
     let mut retval = 0
     for x in xs {
         if x < 0 {break}

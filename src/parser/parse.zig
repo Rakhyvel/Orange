@@ -938,16 +938,16 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 }
 
-/// Parses what follows a prefix `[`: either a slice-of (`[]x`, `[mut]x`) or an
+/// Parses what follows a prefix `[`: either a slice-type (`[]T`, `[mut]T`) or an
 /// array literal (`[a, b, ...]`).
 fn prefix_left_square(self: *Self, token: Token) Parser_Error_Enum!*ast_.AST {
     // TODO: Trait call for index
-    if (self.accept(.mut)) |_| {
-        _ = try self.expect(.right_square);
-        return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
-    } else if (self.accept(.right_square)) |_| {
-        return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
-    }
+    // if (self.accept(.mut)) |_| {
+    //     _ = try self.expect(.right_square);
+    //     return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
+    // } else if (self.accept(.right_square)) |_| {
+    //     return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
+    // }
 
     // Must be an array literal
     var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
@@ -1123,7 +1123,7 @@ fn bracket_arg(self: *Self) Parser_Error_Enum!GenericArg {
             return .{ .type_arg = ty };
         }
     } else |_| {}
-    // Not a whole-arg type: backtrack and parse it as an expression
+    // Not a whole-arg type, backtrack and parse it as an expression
     self.cursor = start;
     self.errors.record_errors = saved_record;
     return .{ .const_arg = try self.assignment_expr() };
@@ -1973,8 +1973,40 @@ fn tuple_value(self: *Self, elem: *const fn (*Self) Parser_Error_Enum!*ast_.AST)
     }
 }
 
+/// Whether the parenthesized group at the cursor is closed by a `)` immediately followed by `::`.
+/// Such a group is a type used as an associated-function receiver, like `([]T)::f` or `(?T)::g`,
+/// since `::` is never valid on a value. Any structural type is handled uniformly by `type_expr`
+fn paren_wraps_type(self: *Self) bool {
+    var depth: usize = 1; // the opening `(` is already consumed
+    var i = self.cursor;
+    while (i < self.tokens.items.len) : (i += 1) {
+        switch (self.tokens.items[i].kind) {
+            .left_parenthesis => depth += 1,
+            .right_parenthesis => {
+                depth -= 1;
+                if (depth == 0) {
+                    return i + 1 < self.tokens.items.len and self.tokens.items[i + 1].kind == .double_colon;
+                }
+            },
+            else => {},
+        }
+    }
+    return false;
+}
+
 fn parens(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.left_parenthesis);
+
+    // `(TYPE)::method` calls an associated function on a structural type. The type stays a
+    // `Type_AST` in a `type_access`, so generic substitution handles composite args correctly
+    if (self.paren_wraps_type()) {
+        const ty = try self.type_expr();
+        _ = try self.expect(.right_parenthesis);
+        const colon = try self.expect(.double_colon);
+        const field = ast_.AST.create_field(try self.expect(.identifier), self.allocator);
+        return ast_.AST.create_type_access(colon, ty, field, self.allocator);
+    }
+
     var exp: ?*ast_.AST = null;
     if (self.next_is_expr()) {
         exp = try self.parse_expr();
