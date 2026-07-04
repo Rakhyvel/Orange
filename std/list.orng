@@ -14,7 +14,7 @@ enum Error {
 // TODO: retain, truncate, reserve, resize, drain, shrink_to_fit
 impl[T: core::Sized] for List[T] {
     fn init() -> Self with core::Allocating {
-        Self(mem::mut_slice_from_parts[T](0 as [*mut]T, 0), 0, core::Allocating.alloc)
+        Self(([mut]T)::from_parts(0 as [*mut]T, 0), 0, core::Allocating.alloc)
     }
 
     fn init_from_slice(items: []T) -> Error!Self with core::Allocating {

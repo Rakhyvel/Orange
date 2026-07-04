@@ -19,6 +19,7 @@ const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 const Validate_Error_Enum = error{
     // Returned when there is a type check compile error
@@ -190,8 +191,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return _type;
         },
         .access => {
+            // Structural-type receivers arent values, tolerate their value-typecheck failure
+            const lhs_is_structural = !union_fields_.has_struct_field(ast.lhs().*, "_symbol");
             _ = self.typecheck_AST(ast.lhs(), null, subst) catch |e| switch (e) {
                 error.UnexpectedTypeType => {}, // This is expected
+                error.CompileError => if (!lhs_is_structural) return e,
                 else => return e,
             };
 

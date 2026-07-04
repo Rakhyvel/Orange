@@ -10,9 +10,8 @@ fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
 }
 
 fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
-    type Slice_Type = [mut]T
     match core::Allocating.alloc.>alloc(T::size * length) {
-        .some(bytes) => .ok(Slice_Type::from_parts(bytes as [*mut]T, length))
+        .some(bytes) => .ok(([mut]T)::from_parts(bytes as [*mut]T, length))
         .none => .err
     }
 }

@@ -924,6 +924,10 @@ pub const AST = union(enum) {
 
     pub fn create_access(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
+        if (_lhs.* != .identifier and _rhs.* == .field and std.mem.eql(u8, _rhs.token().data, "from_parts")) {
+            Tree_Writer.print(_lhs);
+            std.debug.panic("making a weird access", .{});
+        }
         return AST.box(AST{ .access = .{
             .common = _common,
             ._lhs = _lhs,
@@ -1083,6 +1087,9 @@ pub const AST = union(enum) {
 
     pub fn create_slice_of(_token: Token, _expr: *AST, _mut: bool, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
+        if (_expr.* == .identifier and std.mem.eql(u8, _expr.token().data, "(")) {
+            std.debug.panic("here!\n", .{});
+        }
         return AST.box(AST{ .slice_of = .{
             .common = _common,
             ._expr = _expr,
@@ -1572,6 +1579,12 @@ pub const AST = union(enum) {
             .identifier => {
                 if (self.refers_to_type()) {
                     if (substs.get_type(self.token().data)) |replacement| {
+                        // A composite replacement (like `[]Byte`) cannot be a bare identifier, so
+                        // rebuild its value expr to keep the structure. Falls back to the token for plain types
+                        if (replacement.* != .identifier) {
+                            Tree_Writer.print(replacement);
+                            if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
+                        }
                         return create_identifier(replacement.token(), allocator);
                     }
                 } else if (self.is_const_param_ref()) {
@@ -1758,12 +1771,16 @@ pub const AST = union(enum) {
                 retval.select._pos = self.select._pos;
                 return retval;
             },
-            .access => return create_access(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
+            .access => {
+                std.debug.print("access refers to type: {}\n", .{self.lhs().refers_to_type()});
+                Tree_Writer.print(self);
+                return create_access(
+                    self.token(),
+                    self.lhs().clone(substs, allocator),
+                    self.rhs().clone(substs, allocator),
+                    allocator,
+                );
+            },
             .type_access => return create_type_access(
                 self.token(),
                 self.type_access._lhs_type.clone(substs, allocator),
@@ -1934,12 +1951,17 @@ pub const AST = union(enum) {
                 self.addr_of.multiptr,
                 allocator,
             ),
-            .slice_of => return create_slice_of(
-                self.token(),
-                self.expr().clone(substs, allocator),
-                self.slice_of.mut,
-                allocator,
-            ),
+            .slice_of => {
+                unification_.print_substitutions(substs);
+                Tree_Writer.print(self);
+                const retval = create_slice_of(
+                    self.token(),
+                    self.expr().clone(substs, allocator),
+                    self.slice_of.mut,
+                    allocator,
+                );
+                return retval;
+            },
             .sub_slice => return create_sub_slice(
                 self.token(),
                 self.sub_slice.super.clone(substs, allocator),

@@ -591,12 +591,24 @@ pub const Type_AST = union(enum) {
                 return id;
             },
             .access => {
-                const lhs_expr = self.lhs().to_value_expr(allocator) orelse return null;
                 const rhs_field = AST.create_field(self.rhs().token(), allocator);
-                const id = AST.create_access(self.token(), lhs_expr, rhs_field, allocator);
+                const id = AST.create_type_access(self.token(), self.lhs(), rhs_field, allocator);
                 id.set_scope(self.scope());
                 id.set_symbol(self.symbol());
                 return id;
+            },
+            .addr_of => {
+                std.debug.panic("add_of", .{});
+                const inner = self.child().to_value_expr(allocator) orelse return null;
+                return AST.create_addr_of(self.token(), inner, self.addr_of.mut, self.addr_of.multiptr, allocator);
+            },
+            .struct_type => {
+                std.debug.panic("struct_type", .{});
+                if (!self.struct_type.was_slice) return null;
+                const data_ptr = self.children().items[0].child();
+                const elem = data_ptr.child().to_value_expr(allocator) orelse return null;
+                const retval = AST.create_slice_of(self.token(), elem, data_ptr.addr_of.mut, allocator);
+                return retval;
             },
             else => return null,
         }
@@ -1565,8 +1577,8 @@ pub const Type_AST = union(enum) {
 
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
-            .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier, .access => _type.symbol().?.decl.?.* == .type_param_decl,
+            .anyptr_type, .unit_type, .dyn_type, .as_trait => false, // I added as_trait, not sure if it should actually do more stuff or just be false
+            .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.* == .type_param_decl,
             .addr_of => _type.child().is_generic(),
             .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
             .annotation => _type.child().is_generic(),

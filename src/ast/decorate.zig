@@ -14,6 +14,7 @@ const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
 
@@ -410,8 +411,14 @@ fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     else
         ast.lhs();
 
-    const sym = stripped_lhs.symbol().?;
     const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
+
+    // A structural type lhs has no symbol, resolve it as a type access
+    if (!union_fields_.has_struct_field(stripped_lhs.*, "_symbol")) {
+        return self.resolve_lhs_type_access(stripped_lhs_type, ast.rhs().token(), ast.scope());
+    }
+
+    const sym = stripped_lhs.symbol().?;
     return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs_type);
 }
 

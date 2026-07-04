@@ -1,0 +1,14 @@
+// 5
+struct Foo[T] {
+    x: T
+}
+
+impl[T] for Foo[T] {
+    fn make(v: T) -> Self { Self(v) }
+    fn wrap(v: T) -> Self { Foo[T]::make(v) }
+}
+
+fn main() -> Int {
+    let f = Foo[Int]::wrap(5)
+    f.x
+}
