@@ -308,7 +308,9 @@ fn create_prelude(compiler: *Compiler_Context) !void {
 // Create traits for builtins, and implement them for primitive types
 fn create_primitive_marker_impls(compiler: *Compiler_Context) !void {
     const primitive_partial_eq = try create_marker_trait("Primitive_Partial_Eq", compiler.allocator());
+    const primitive_eq = try create_marker_trait("Primitive_Eq", compiler.allocator());
     const primitive_partial_ord = try create_marker_trait("Primitive_Partial_Ord", compiler.allocator());
+    const primitive_ord = try create_marker_trait("Primitive_Ord", compiler.allocator());
     const primitive_num = try create_marker_trait("Primitive_Num", compiler.allocator());
     const primitive_int = try create_marker_trait("Primitive_Int", compiler.allocator());
     const primitive_bits = try create_marker_trait("Primitive_Bits", compiler.allocator());
@@ -318,10 +320,19 @@ fn create_primitive_marker_impls(compiler: *Compiler_Context) !void {
         word64_type, word32_type,  word16_type, word8_type,
         float_type,  float32_type, bool_type,
     }, compiler.allocator());
+    try create_marker_impl(primitive_eq, &[_]*Type_AST{
+        int_type,    int32_type,  int16_type,  int8_type,
+        word64_type, word32_type, word16_type, word8_type,
+        bool_type,
+    }, compiler.allocator());
     try create_marker_impl(primitive_partial_ord, &[_]*Type_AST{
         int_type,    int32_type,   int16_type,  int8_type,
         word64_type, word32_type,  word16_type, word8_type,
         float_type,  float32_type,
+    }, compiler.allocator());
+    try create_marker_impl(primitive_ord, &[_]*Type_AST{
+        int_type,    int32_type,  int16_type,  int8_type,
+        word64_type, word32_type, word16_type, word8_type,
     }, compiler.allocator());
     try create_marker_impl(primitive_num, &[_]*Type_AST{
         int_type,    int32_type,   int16_type,  int8_type,

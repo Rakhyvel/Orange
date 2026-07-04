@@ -717,10 +717,10 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
         const rhs = try self.range_expr();
-        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "eq", self.allocator);
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Eq", "eq", self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
         const rhs = try self.range_expr();
-        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "neq", self.allocator);
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Eq", "neq", self.allocator);
     } else if (self.accept(.greater)) |token| {
         const rhs = try self.range_expr();
         exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "gt", self.allocator);

@@ -387,12 +387,14 @@ impl[T] Index_Mut for [*mut]T {
     fn index_mut(&mut self, i: Int) -> &mut Self::Output { @child_addr_mut(self^, i) }
 }
 
-trait Eq {
+trait Partial_Eq {
     fn eq(self, other: Self) -> Bool
     fn neq(self, other: Self) -> Bool { not self.>eq(other) } 
 }
 
-impl[T: Primitive_Partial_Eq] Eq for T {
+trait Eq : Partial_Eq {}
+
+impl[T: Primitive_Partial_Eq] Partial_Eq for T {
     fn eq(self, other: Self) -> Bool {
         match self {
             {other} => true
@@ -401,12 +403,18 @@ impl[T: Primitive_Partial_Eq] Eq for T {
     }
 }
 
-impl[T] Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl[T] Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
-impl[A: Eq, B: Eq] Eq for (A, B) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) } }
-impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) and self.[2].>eq(other.[2]) } }
+impl[T: Primitive_Eq + Partial_Eq] Eq for T {}
 
-impl[const n: Int, T: Eq] Eq for [n]T {
+impl[T] Partial_Eq for [*]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*]T {}
+impl[T] Partial_Eq for [*mut]T { fn eq(self, other: Self) -> Bool { match self { {other} => true; _ => false } } }
+impl[T] Eq for [*mut]T {}
+impl[A: Partial_Eq, B: Partial_Eq] Partial_Eq for (A, B) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) } }
+impl[A: Eq, B: Eq] Eq for (A, B) {}
+impl[A: Partial_Eq, B: Partial_Eq, C: Partial_Eq] Partial_Eq for (A, B, C) { fn eq(self, other: Self) -> Bool { self.[0].>eq(other.[0]) and self.[1].>eq(other.[1]) and self.[2].>eq(other.[2]) } }
+impl[A: Eq, B: Eq, C: Eq] Eq for (A, B, C) {}
+
+impl[const n: Int, T: Partial_Eq] Partial_Eq for [n]T {
     fn eq(self, other: Self) -> Bool {
         while let mut i = 0; i < n; i += 1 {
             if self[i] != other[i] {
@@ -416,8 +424,9 @@ impl[const n: Int, T: Eq] Eq for [n]T {
         true
     }
 }
+impl[const n: Int, T: Eq] Eq for [n]T {}
 
-impl[T: Eq] Eq for []T {
+impl[T: Partial_Eq] Partial_Eq for []T {
     fn eq(self, other: Self) -> Bool {
         if self.length != other.length {
             return false
@@ -430,8 +439,9 @@ impl[T: Eq] Eq for []T {
         true
     }
 }
+impl[T: Eq] Eq for []T {}
 
-impl[T: Eq] Eq for [mut]T {
+impl[T: Partial_Eq] Partial_Eq for [mut]T {
     fn eq(self, other: Self) -> Bool {
         if self.length != other.length {
             return false
@@ -444,6 +454,7 @@ impl[T: Eq] Eq for [mut]T {
         true
     }
 }
+impl[T: Eq] Eq for [mut]T {}
 
 impl[T] for []T {
     fn from_parts(data: [*]T, len: Int) -> Self {

@@ -99,7 +99,8 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             } });
             return error.CompileError;
         }
-        try trait_ast.trait.super_trait_impls.append(super_lookup_res.ast.?);
+        // Add to super trait impls if impl was found. Might not be found for type parameters, thats ok
+        if (super_lookup_res.impl_ast) |impl_ast| try trait_ast.trait.super_trait_impls.append(impl_ast);
     }
 
     // Construct a map of all trait decls
@@ -114,7 +115,7 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         trait_type_decls.put(decl.token().data, decl) catch unreachable;
     }
 
-    // Subtract trait defs - impl decls
+    // Subtract trait defs from impl decls
     for (impl.impl.method_defs.items) |def| {
         const def_key = def.method_decl.name.token().data;
         const trait_decl = trait_method_decls.get(def_key);

@@ -9,6 +9,7 @@ const String = @import("../zig-string/zig-string.zig").String;
 const Type_Set = @import("../types/type_set.zig");
 const Dependency_Node = @import("../types/dependency_node.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");
 

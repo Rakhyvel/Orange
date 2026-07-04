@@ -1326,7 +1326,7 @@ pub const Type_AST = union(enum) {
                             .const_arg => continue,
                         };
                         if (eq_constraint.* != .eq_constraint) continue;
-                        const impl = res.ast orelse {
+                        const impl = res.impl_ast orelse {
                             if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
                                 const param_constraints = self.symbol().?.decl.?.type_param_decl.constraints;
                                 for (param_constraints.items) |param_constraint| {

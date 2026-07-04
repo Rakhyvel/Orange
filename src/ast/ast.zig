@@ -203,6 +203,18 @@ pub const AST = union(enum) {
             }
             return null;
         }
+
+        /// Calculates the total number of virtual methods this trait has, including any from super traits
+        /// Assumes all symbols have been decorated!
+        pub fn total_virtual_methods(self: @This()) i64 {
+            var retval = self.num_virtual_methods;
+            for (self.super_traits.items) |super_trait| {
+                const super_trait_symbol = super_trait.symbol().?;
+                const super_trait_decl = super_trait_symbol.decl.?;
+                retval += super_trait_decl.trait.num_virtual_methods;
+            }
+            return retval;
+        }
     },
     impl: struct {
         common: AST_Common,

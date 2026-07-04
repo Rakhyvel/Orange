@@ -151,7 +151,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
 
 pub const Impl_Trait_Lookup_Result = struct {
     count: u8,
-    ast: ?*ast_.AST,
+    impl_ast: ?*ast_.AST,
     subst: ?unification_.Substitutions,
 };
 
@@ -177,7 +177,7 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
 }
 
 fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
-    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null, .subst = null };
+    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .impl_ast = null, .subst = null };
 
     // Type param with the constraint, return positive count with null ast if traits match
     if (for_type.is_type_param()) {
@@ -185,7 +185,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = try Decorate.symbol(constraint, ctx);
             if (trait_symbol == trait) {
-                return .{ .count = 1, .ast = null, .subst = null };
+                return .{ .count = 1, .impl_ast = null, .subst = null };
             }
         }
     }
@@ -264,7 +264,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, ctx);
 
             retval.count += 1;
-            retval.ast = retval.ast orelse instantiated_impl;
+            retval.impl_ast = retval.impl_ast orelse instantiated_impl;
             retval.subst = retval.subst orelse subst;
         }
     }
@@ -280,7 +280,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             const import_res = try module_scope.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
             if (import_res.count > 0) {
                 retval.count += import_res.count;
-                retval.ast = retval.ast orelse import_res.ast;
+                retval.impl_ast = retval.impl_ast orelse import_res.impl_ast;
                 retval.subst = retval.subst orelse import_res.subst;
                 return import_res;
             }
@@ -292,7 +292,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     if (self.parent) |p| {
         const parent_res = try p.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
         retval.count += parent_res.count;
-        retval.ast = retval.ast orelse parent_res.ast;
+        retval.impl_ast = retval.impl_ast orelse parent_res.impl_ast;
         retval.subst = retval.subst orelse parent_res.subst;
     }
 
@@ -307,7 +307,7 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
         const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
         const trait_decl = constraint_symbol.decl.?;
         if (res.count > 0) {
-            if (res.ast) |impl_ast| {
+            if (res.impl_ast) |impl_ast| {
                 if (search_impl(impl_ast, name)) |method| {
                     try matches.put(method, void{});
                 }
@@ -425,7 +425,10 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         &[_]*Type_AST{}; // empty slice
     const is_type_param = constraints.len > 0;
 
-    for (self.module.?.impls.items) |impl| {
+    var i: usize = 0;
+    while (i < self.module.?.impls.items.len) : (i += 1) {
+        const impl = self.module.?.impls.items[i];
+
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
 

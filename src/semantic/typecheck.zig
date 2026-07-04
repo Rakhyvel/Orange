@@ -708,7 +708,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
             } else {
                 const impl = try ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
-                if (impl.ast == null) {
+                if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
                         .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
@@ -716,7 +716,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     } });
                     return error.CompileError;
                 }
-                ast.dyn_value.impl = impl.ast;
+                ast.dyn_value.impl = impl.impl_ast;
             }
 
             return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
@@ -1024,7 +1024,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null, subst) catch return error.CompileError;
             const impl = try ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
-            if (impl.ast == null) {
+            if (impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
                     .trait_name = core_.into_iterator_trait.name,
@@ -1033,12 +1033,12 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return error.CompileError;
             }
             // Can assume these will be defined by check above
-            const instantiated_impl = try ast.scope().?.instantiate_generic_impl(impl.ast.?, &impl.subst.?, self.ctx);
+            const instantiated_impl = try ast.scope().?.instantiate_generic_impl(impl.impl_ast.?, &impl.subst.?, self.ctx);
             ast.@"for".into_iter_into_iter_method_decl = Scope.search_impl(instantiated_impl, "into_iter").?;
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
 
             const iterator_impl = try ast.scope().?.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
-            if (iterator_impl.ast == null) {
+            if (iterator_impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
                     .trait_name = core_.iterator_trait.name,
@@ -1046,7 +1046,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } });
                 return error.CompileError;
             }
-            const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.ast.?, &iterator_impl.subst.?, self.ctx);
+            const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.impl_ast.?, &iterator_impl.subst.?, self.ctx);
             ast.@"for".into_iter_next_method_decl = Scope.search_impl(iterator_instantiated_impl, "next").?;
             const item_type = ast.@"for".into_iter_next_method_decl.?.method_decl.ret_type.get_some_type();
             try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type, subst);
