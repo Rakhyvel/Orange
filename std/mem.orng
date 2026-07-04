@@ -20,20 +20,6 @@ fn destroy[T](slice: [mut]T) with core::Allocating {
     core::Allocating.alloc.>free(slice.data as [*mut]Byte)
 }
 
-fn mut_slice_from_parts[T](data: [*mut]T, length: Int) -> [mut]T {
-    let mut retval: [mut]T = undefined
-    retval.data = data
-    retval.length = length
-    retval
-}
-
-fn slice_from_parts[T](data: [*]T, length: Int) -> []T {
-    let mut retval: []T = undefined
-    retval.data = data
-    retval.length = length
-    retval
-}
-
 fn eql(a: String, b: String) -> Bool {
     if a.length != b.length {return false}
 
