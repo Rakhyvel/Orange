@@ -1,7 +1,8 @@
 // 554
 fn main() -> Int {
-    let x: []Int = &[1, 2, 3, 4, 5]
-    if x.>contains(&4) {
+    let x: [mut]Int = &mut [1, 2, 3, 4, 5]
+    let y = 4
+    if (x as []Int).>contains(&y) {
         554
     } else {
         455

@@ -4,6 +4,6 @@
 // 
 fn main() -> Int {
     let x = [true, false, true]
-    let y = []x
+    let y: []Bool = &x
     y[1]
 }

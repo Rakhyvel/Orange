@@ -18,7 +18,7 @@ impl[U] for My_Type[U] {
 
 fn main() -> Int {
     let items = [1, 2, 3]
-    let slice = []items
+    let slice: []Int = &items
     let mut my_val = My_Type[Int]::init(slice.data)
     my_val.>first()
 }

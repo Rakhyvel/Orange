@@ -1,5 +1,5 @@
 // r5.orng:5:20: error: expected a value of type `Bool`
-// const a: Bool = (0, []1)
+// const a: Bool = (0, &1)
 //                   ^
 // 
-const a: Bool = (0, []1)
+const a: Bool = (0, &1)

@@ -1,9 +1,9 @@
 // sliceof_non_array.orng:7:21: error: attempt to take slice-of something that is not an array
-//     let y: []Int = []x
+//     let y: []Int = &x
 //                    ^
 // 
 fn main() -> Int {
     let x = 4
-    let y: []Int = []x
+    let y: []Int = &x
     0
 }

@@ -1299,6 +1299,7 @@ pub const Type_AST = union(enum) {
                 }
                 return false;
             },
+            .struct_type => from_expanded.struct_type.was_slice and to_expanded.* == .struct_type and from_expanded.children().items[0].child().addr_of.mut,
             .dyn_type => is_sub_trait(from.child(), to.child()) and (!to_expanded.dyn_type.mut or from_expanded.dyn_type.mut),
             else => false,
         };
