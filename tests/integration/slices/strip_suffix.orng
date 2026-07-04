@@ -1,0 +1,13 @@
+// 552
+fn main() -> Int {
+    let x: []Int = &[1, 2, 3, 4, 5]
+    let y: []Int = &[3, 4, 5]
+    check(x, y)
+}
+
+fn check(x: []Int, y: []Int) -> Int {
+    match x.>strip_suffix(y) {
+        .some(_) => 552
+        .none    => 255
+    }
+}

@@ -547,20 +547,39 @@ impl[T] for [mut]T {
 
 impl[T: Eq] for []T {
     fn starts_with(self, prefix: []T) -> Bool {
-        self == self.>subslice(Range(0, prefix.length))
+        if prefix.length > self.length { return false }
+        self.>subslice(Range(0, prefix.length)) == prefix
     }
 
-    // fn strip_prefix(self, prefix: []T) -> ?Self {
-    //     unreachable
-    // }
+    fn ends_with(self, suffix: []T) -> Bool {
+        if suffix.length > self.length { return false }
+        self.>subslice(Range(self.length - suffix.length, self.length)) == suffix
+    }
 
-    // fn ends_with(self, suffix: []T) -> Bool {
-    //     unreachable
-    // }
+    fn strip_prefix(self, prefix: []T) -> ?Self {
+        if self.>starts_with(prefix) {
+            .some(self.>subslice(Range(0, prefix.length)))
+        } else {
+            .none
+        }
+    }
 
-    // fn contains(self, x: &T) -> Bool {
-    //     unreachable
-    // }
+    fn strip_suffix(self, suffix: []T) -> ?Self {
+        if self.>ends_with(suffix) {
+            .some(self.>subslice(Range(self.length - suffix.length, self.length)))
+        } else {
+            .none
+        }
+    }
+
+    fn contains(self, x: &T) -> Bool {
+        while let mut i = 0; i < self.length; i += 1 {
+            if x^ == self[i] {
+                return true
+            }
+        }
+        false
+    }
 }
 
 trait Hash: Eq {

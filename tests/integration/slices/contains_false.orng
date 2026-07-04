@@ -1,0 +1,9 @@
+// 555
+fn main() -> Int {
+    let x: []Int = &[1, 2, 3, 4, 5]
+    if x.>contains(&40) {
+        0
+    } else {
+        555
+    }
+}
