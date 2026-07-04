@@ -479,10 +479,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             args_validator.implicit_ref();
             try args_validator.validate_arity();
             try args_validator.validate_type(subst, self.ctx);
-            // Resolve an associated-type return (`Self::Output` or `&Self::Output`) to the concrete type when the receiver is concrete, so the result isn't an unresolvable access
-            if (codomain.* == .access) return codomain.expand_identifier();
-            if (codomain.* == .addr_of and codomain.child().* == .access)
-                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_identifier(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
+            // Resolve associated type returns to concrete type when receiver is concrete. Keep as_trait constraint, so indexed monomorph elements stay bound for its trait dispatch
+            if (codomain.* == .access) return codomain.expand_keep_constraint();
+            if (codomain.* == .addr_of and codomain.child().* == .access) {
+                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_keep_constraint(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
+            }
             return codomain;
         },
         .child_addr, .child_addr_mut => {
@@ -651,7 +652,12 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 const lhs_type = if (true_lhs_type.* == .addr_of and !true_lhs_type.addr_of.multiptr) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 if (lhs_type.* == .as_trait) {
+                    // Dispatch through the constraint traits, so a monomorph carrying `(Concrete as C)` stays bound to C instead of any same-named method the concrete type also has
                     try Scope.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
+                    if (candidate_method_decls.keys().len == 0) {
+                        // Fall back to a broad lookup for methods not covered by the constraints
+                        try ast.scope().?.lookup_impl_member(lhs_type.lhs(), ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
+                    }
                 } else {
                     try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
                 }
@@ -659,7 +665,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     var i: usize = 0;
                     while (i < candidate_method_decls.keys().len) {
                         const candidate_method_decl = candidate_method_decls.keys()[i];
-                        if (candidate_method_decl.method_decl.init == null) {
+                        if (candidate_method_decl.* != .method_decl or candidate_method_decl.method_decl.init == null) {
                             _ = candidate_method_decls.swapRemove(candidate_method_decl);
                         } else {
                             i += 1;

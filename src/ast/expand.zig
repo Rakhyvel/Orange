@@ -7,6 +7,7 @@ const core_ = @import("../hierarchy/core.zig");
 const errs_ = @import("../util/errors.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Token = @import("../lexer/token.zig");
+const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
 
 errors: *errs_.Errors,
@@ -58,5 +59,10 @@ fn expand_range(self: Self, ast: *ast_.AST) !void {
     var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
     try terms.append(ast.range.lower);
     try terms.append(ast.range.upper);
-    ast.* = ast_.AST.create_struct_value(ast.token(), core_.range_type, terms, self.allocator).*;
+
+    const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), self.allocator);
+    const eq_trait_field = Type_AST.create_field(Token.init_simple("Range"), self.allocator);
+    const range_type = Type_AST.create_type_access(ast.token(), core_ident, eq_trait_field, self.allocator);
+
+    ast.* = ast_.AST.create_struct_value(ast.token(), range_type, terms, self.allocator).*;
 }

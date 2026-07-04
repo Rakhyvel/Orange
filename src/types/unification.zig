@@ -72,8 +72,15 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (lhs.* == .annotation) return try unify_inner(lhs.child(), rhs, subst, visited_map, options);
     if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
 
-    if (lhs.* == .as_trait) return try unify_inner(lhs.lhs(), rhs, subst, visited_map, options);
-    if (rhs.* == .as_trait) return try unify_inner(lhs, rhs.lhs(), subst, visited_map, options);
+    // Check if the lhs/rhs are type params whose name does not appear in the substitutions (meaning they're unbound/free type variables)
+    const lhs_unbound_tp = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(lhs.symbol().?.name) == null;
+    const rhs_unbound_tp = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(rhs.symbol().?.name) == null;
+    // Check if lhs/rhs binds the other, as an as-trait
+    const lhs_binds_rhs = rhs.* == .as_trait and lhs_unbound_tp and !(rhs.lhs().* == .identifier and rhs.lhs().symbol() == lhs.symbol());
+    const rhs_binds_lhs = lhs.* == .as_trait and rhs_unbound_tp and !(lhs.lhs().* == .identifier and lhs.lhs().symbol() == rhs.symbol());
+    // If lhs/rhs are as-traits, and we don't have a cycle, attempt to unify the inner lhs of the as-trait
+    if (lhs.* == .as_trait and !rhs_binds_lhs) return try unify_inner(lhs.lhs(), rhs, subst, visited_map, options);
+    if (rhs.* == .as_trait and !lhs_binds_rhs) return try unify_inner(lhs, rhs.lhs(), subst, visited_map, options);
 
     if (lhs.* == .identifier and lhs.symbol() != null and subst.get_type(lhs.symbol().?.name) != null) {
         if (lhs.symbol().?.decl.?.* != .type_param_decl or !lhs.symbol().?.decl.?.type_param_decl.rigid) {
@@ -215,10 +222,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             const r_len = rhs.array_of.len;
             const l_is_param = l_len.is_const_param_ref();
             const r_is_param = r_len.is_const_param_ref();
-            if (l_is_param and r_is_param) {
-                // Cannot verify equality at the abstract level; both sides are const param refs
-                // that may or may not be equal. Concrete equality is enforced at instantiation.
-            } else if (l_is_param) {
+            if (l_is_param) {
                 try subst.put_const(l_len.token().data, r_len);
             } else if (r_is_param) {
                 if (!options.allow_rigid) return error.TypesMismatch;
@@ -384,6 +388,9 @@ pub fn print_substitutions(subst: *const Substitutions) void {
         const ty = subst.get_type(key).?;
         const bad = ty.is_generic();
         std.debug.print("    {s}: {?f} ({})\n", .{ key, subst.get_type(key), bad });
+    }
+    for (subst.const_subst.keys()) |key| {
+        std.debug.print("    {s}: {?f}\n", .{ key, subst.get_const(key) });
     }
     std.debug.print("}}\n", .{});
 }

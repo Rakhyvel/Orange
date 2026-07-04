@@ -1,0 +1,15 @@
+// 545
+fn main() -> Int {
+    let x = [1, 2, 3]
+    let y = [1, 2, 3]
+
+    check[3](x, y)
+}
+
+fn check[const n: Int](x: [n]Int, y: [n]Int) -> Int {
+    if x == y {
+        545
+    } else {
+        454
+    }
+}

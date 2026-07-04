@@ -546,12 +546,12 @@ impl[T] for [mut]T {
 }
 
 impl[T: Eq] for []T {
+    fn starts_with(self, prefix: []T) -> Bool {
+        self == self.>subslice(Range(0, prefix.length))
+    }
+
     // fn strip_prefix(self, prefix: []T) -> ?Self {
     //     unreachable
-    // }
-
-    // fn starts_with(self, prefix: []T) -> Bool {
-    //     self == self.>subslice(0...prefix.length)
     // }
 
     // fn ends_with(self, suffix: []T) -> Bool {

@@ -731,6 +731,23 @@ pub const Type_AST = union(enum) {
         return null;
     }
 
+    /// Like `expand_identifier` but returns an `as_trait` constraint wrapper rather than stripping it.
+    pub fn expand_keep_constraint(self: *Type_AST) *Type_AST {
+        var res = self;
+        while (true) {
+            if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
+                res = res.symbol().?.init_typedef().?;
+            } else if (res.* == .access and res.lhs().symbol().?.decl.?.* == .type_param_decl) {
+                if (res.associated_type_from_constraint()) |assoc_type| res = assoc_type else return res;
+            } else if (res.* == .annotation) {
+                res = res.child();
+            } else {
+                // Stop at `as_trait` to keep the constraint, otherwise this is the fully expanded type
+                return res;
+            }
+        }
+    }
+
     /// Expands an ast one level if it is an identifier
     pub fn expand_identifier(self: *Type_AST) *Type_AST {
         var res = self;
