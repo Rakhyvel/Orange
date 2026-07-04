@@ -109,8 +109,8 @@ fn output_impls(self: *Self) CodeGen_Error!void {
         for (trait_decl.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
             const super_trait_decl = super_trait_symbol.decl.?;
-            const super_trait_impl = trait_decl.trait.super_trait_impls.items[i];
             if (super_trait_decl.trait.total_virtual_methods() == 0) continue;
+            const super_trait_impl = trait_decl.trait.super_trait_impls.items[i];
             // output vtables by number. numbers are 0..N, but non-virtual supers may be skipped
             try self.writer.print("    ._{} = &{s}__{s}_{}__vtable,\n", .{
                 i,

@@ -176,32 +176,45 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
     return impl_trait_lookup_inner(self, self, for_type, trait, ctx);
 }
 
+/// True when `candidate` is `target`, or transitively lists `target` among its super-traits.
+/// `visited` guards against cyclic trait inheritance
+fn trait_is_or_extends(candidate: *Symbol, target: *Symbol, ctx: *Compiler_Context, visited: *std.AutoHashMap(*Symbol, void)) error{ CompileError, OutOfMemory }!bool {
+    if (candidate == target) return true;
+    if (visited.contains(candidate)) return false;
+    try visited.put(candidate, {});
+    const decl = candidate.decl orelse return false;
+    if (decl.* != .trait) return false;
+    for (decl.trait.super_traits.items) |super_trait| {
+        const super_sym = try Decorate.symbol(super_trait, ctx);
+        if (try trait_is_or_extends(super_sym, target, ctx, visited)) return true;
+    }
+    return false;
+}
+
 fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
     var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .impl_ast = null, .subst = null };
 
-    // Type param with the constraint, return positive count with null ast if traits match
+    // Check if a type param has the trait as a constraint, or as a super trait of one of the constraints
     if (for_type.is_type_param()) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = try Decorate.symbol(constraint, ctx);
-            if (trait_symbol == trait) {
+            var visited = std.AutoHashMap(*Symbol, void).init(ctx.allocator());
+            defer visited.deinit();
+            if (try trait_is_or_extends(trait_symbol, trait, ctx, &visited)) {
                 return .{ .count = 1, .impl_ast = null, .subst = null };
             }
         }
     }
 
-    // As-trait ascription, return positive count with null ast if traits match
+    // Check if the as_trait type is of the trait in question, or has it as a super trait
     if (for_type.* == .as_trait) {
         for (for_type.as_trait.constraints.items) |constraint| {
-            const trait_decl = (try Decorate.symbol(constraint, ctx)).decl.?;
-            if (constraint.symbol().? == trait) {
+            const constraint_symbol = try Decorate.symbol(constraint, ctx);
+            var visited = std.AutoHashMap(*Symbol, void).init(ctx.allocator());
+            defer visited.deinit();
+            if (try trait_is_or_extends(constraint_symbol, trait, ctx, &visited)) {
                 const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
-                if (res.count > 0) return res;
-            }
-            if (trait_decl.* != .trait) continue;
-            for (trait_decl.trait.super_traits.items) |super_trait| {
-                if (super_trait.symbol().? != trait) continue;
-                const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), super_trait.symbol().?, ctx);
                 if (res.count > 0) return res;
             }
         }

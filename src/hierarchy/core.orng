@@ -273,16 +273,41 @@ impl[T: Primitive_Partial_Ord] Partial_Ord for T {
     fn ge(self, other: Self) -> Bool { @ge(self, other) }
 }
 
-trait Ord: Partial_Ord {}
+trait Ord: Eq + Partial_Ord {
+    fn cmp(self, oter: Self) -> Ordering
 
-impl Ord for Int {}
-impl Ord for Int32 {}
-impl Ord for Int16 {}
-impl Ord for Int8 {}
-impl Ord for Word64 {}
-impl Ord for Word32 {}
-impl Ord for Word16 {}
-impl Ord for Word8 {}
+    fn max(self, other: Self) -> Self {
+        if self < other {
+            other
+        } else {
+            self
+        }
+    }
+
+    fn min(self, other: Self) -> Self {
+        if self > other {
+            other
+        } else {
+            self
+        }
+    }
+
+    fn clamp(self, low: Self, high: Self) -> Self {
+        if self < low {
+            low
+        } else if self > high {
+            high
+        } else {
+            self
+        }
+    }
+}
+
+impl[T: Primitive_Ord + Eq + Partial_Ord] Ord for T {
+    fn cmp(self, other: Self) -> Ordering {
+        self.>partial_cmp(other).some
+    }
+}
 
 trait Bit_And {
     fn bit_and(self, other: Self) -> Self

@@ -211,7 +211,7 @@ pub const AST = union(enum) {
             for (self.super_traits.items) |super_trait| {
                 const super_trait_symbol = super_trait.symbol().?;
                 const super_trait_decl = super_trait_symbol.decl.?;
-                retval += super_trait_decl.trait.num_virtual_methods;
+                retval += super_trait_decl.trait.total_virtual_methods();
             }
             return retval;
         }
