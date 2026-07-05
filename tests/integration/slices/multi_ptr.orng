@@ -1,6 +1,6 @@
 // 337
 fn main() -> Int {
-    let xs: []Int = [][37, 2, 300, 4]
+    let xs: []Int = &[37, 2, 300, 4]
     let xs_data: [*]Int = xs.data
     xs_data[0] + xs_data[2] // multi-ptrs can be dereferenced to get the first, or indexed
 }

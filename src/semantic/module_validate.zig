@@ -20,8 +20,11 @@ pub fn init(ctx: *Compiler_Context) Self {
 }
 
 pub fn validate_module(self: *Self, module: *module_.Module) Validate_Error_Enum!void {
-    for (module.impls.items) |impl| {
-        try self.ctx.validate_scope.validate_impl(impl);
+    // Iterate by position, since validate_impl might instantiate generic impls, which appends to module.impls
+    const num_impls = module.impls.items.len;
+    var impl_idx: usize = 0;
+    while (impl_idx < num_impls) : (impl_idx += 1) {
+        try self.ctx.validate_scope.validate_impl(module.impls.items[impl_idx]);
     }
     try self.ctx.validate_scope.validate_scope(self.ctx.module_scope(module.absolute_path).?);
     for (0..module.cincludes.items.len) |i| {

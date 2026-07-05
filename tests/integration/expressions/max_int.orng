@@ -1,0 +1,6 @@
+// 534
+fn main() -> Int {
+    let x = 534
+    let y = 435
+    x.>max(y)
+}

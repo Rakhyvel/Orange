@@ -717,10 +717,10 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     var exp = try self.range_expr();
     if (self.accept(.double_equals)) |token| {
         const rhs = try self.range_expr();
-        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Eq", "eq", self.allocator);
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Eq", "eq", self.allocator);
     } else if (self.accept(.e_mark_equals)) |token| {
-        // TODO: Trait call
-        exp = ast_.AST.create_not_equal(token, exp, try self.range_expr(), self.allocator);
+        const rhs = try self.range_expr();
+        exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Eq", "neq", self.allocator);
     } else if (self.accept(.greater)) |token| {
         const rhs = try self.range_expr();
         exp = try ast_.AST.create_core_trait_op(token, exp, rhs, "Partial_Ord", "gt", self.allocator);
@@ -938,17 +938,9 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 }
 
-/// Parses what follows a prefix `[`: either a slice-of (`[]x`, `[mut]x`) or an
+/// Parses what follows a prefix `[`: either a slice-type (`[]T`, `[mut]T`) or an
 /// array literal (`[a, b, ...]`).
 fn prefix_left_square(self: *Self, token: Token) Parser_Error_Enum!*ast_.AST {
-    // TODO: Trait call for index
-    if (self.accept(.mut)) |_| {
-        _ = try self.expect(.right_square);
-        return ast_.AST.create_slice_of(token, try self.prefix_expr(), true, self.allocator);
-    } else if (self.accept(.right_square)) |_| {
-        return ast_.AST.create_slice_of(token, try self.prefix_expr(), false, self.allocator);
-    }
-
     // Must be an array literal
     var terms = std.array_list.Managed(*ast_.AST).init(self.allocator);
     if (self.accept(.comma) == null) {
@@ -1123,7 +1115,7 @@ fn bracket_arg(self: *Self) Parser_Error_Enum!GenericArg {
             return .{ .type_arg = ty };
         }
     } else |_| {}
-    // Not a whole-arg type: backtrack and parse it as an expression
+    // Not a whole-arg type, backtrack and parse it as an expression
     self.cursor = start;
     self.errors.record_errors = saved_record;
     return .{ .const_arg = try self.assignment_expr() };
@@ -1973,8 +1965,38 @@ fn tuple_value(self: *Self, elem: *const fn (*Self) Parser_Error_Enum!*ast_.AST)
     }
 }
 
+/// Whether the parenthesizes group at the cursor is enclosed a `)` immediately followed by `::`.
+/// Such a group must be a type expression, `::` is invalid for values.
+fn paren_wraps_type(self: *Self) bool {
+    var depth: usize = 1; // the opening `(` is already consumed
+    var i = self.cursor;
+    while (i < self.tokens.items.len) : (i += 1) {
+        switch (self.tokens.items[i].kind) {
+            .left_parenthesis => depth += 1,
+            .right_parenthesis => {
+                depth -= 1;
+                if (depth == 0) {
+                    return i + 1 < self.tokens.items.len and self.tokens.items[i + 1].kind == .double_colon;
+                }
+            },
+            else => {},
+        }
+    }
+    return false;
+}
+
 fn parens(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.left_parenthesis);
+
+    // `(TYPE)::field` type-access expression
+    if (self.paren_wraps_type()) {
+        const ty = try self.type_expr();
+        _ = try self.expect(.right_parenthesis);
+        const colon = try self.expect(.double_colon);
+        const field = ast_.AST.create_field(try self.expect(.identifier), self.allocator);
+        return ast_.AST.create_type_access(colon, ty, field, self.allocator);
+    }
+
     var exp: ?*ast_.AST = null;
     if (self.next_is_expr()) {
         exp = try self.parse_expr();

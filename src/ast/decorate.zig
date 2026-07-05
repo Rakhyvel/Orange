@@ -14,6 +14,7 @@ const Token = @import("../lexer/token.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Decorate = @import("../ast/type_decorate.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
 
@@ -410,8 +411,14 @@ fn resolve_access_ast(self: Self, ast: *ast_.AST) walk_.Error!*Symbol {
     else
         ast.lhs();
 
-    const sym = stripped_lhs.symbol().?;
     const stripped_lhs_type = Type_AST.from_ast(stripped_lhs, self.ctx.allocator());
+
+    // A structural type lhs has no symbol, resolve it as a type access
+    if (!union_fields_.has_struct_field(stripped_lhs.*, "_symbol")) {
+        return self.resolve_lhs_type_access(stripped_lhs_type, ast.rhs().token(), ast.scope());
+    }
+
+    const sym = stripped_lhs.symbol().?;
     return self.resolve_access_symbol(sym, ast.rhs().token(), ast.scope(), stripped_lhs_type);
 }
 
@@ -445,7 +452,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
             const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
-            if (res.ast) |impl_ast| {
+            if (res.impl_ast) |impl_ast| {
                 const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
                 // Decorate the original member first so `Self::Output` etc resolve before any remap
                 try walk_.walk_ast(decl, self);
@@ -670,5 +677,5 @@ fn create_format_args_slice(self: *const Self, ast: *ast_.AST) !*ast_.AST {
         try array_terms.append(dyn_value);
     }
     const args_array = ast_.AST.create_array_value(ast.token(), array_terms, self.ctx.allocator());
-    return ast_.AST.create_slice_of(ast.token(), args_array, false, self.ctx.allocator());
+    return ast_.AST.create_addr_of(ast.token(), args_array, false, false, self.ctx.allocator());
 }

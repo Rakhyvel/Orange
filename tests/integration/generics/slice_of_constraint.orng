@@ -12,5 +12,5 @@ fn sum_array[T: Summable](arr: []T, init: T) -> T {
 
 fn main() -> Int {
     let items = [100, 200, 76]
-    sum_array[Int]([]items, 0)
+    sum_array[Int](&items, 0)
 }

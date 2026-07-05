@@ -1,7 +1,7 @@
 import mem
 import testing
 
-struct Map[K: core::Hash + core::Eq, V] {
+struct Map[K, V] {
     hashes: [mut]Word64
     keys: [mut]K
     values: [mut]V
@@ -42,9 +42,9 @@ enum Error {
 impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn init() -> Self with core::Allocating {
         Self(
-            .hashes = mem::mut_slice_from_parts[Word64](0 as [*mut]Word64, 0),
-            .keys = mem::mut_slice_from_parts[K](0 as [*mut]K, 0),
-            .values = mem::mut_slice_from_parts[V](0 as [*mut]V, 0),
+            .hashes = ([mut]Word64)::from_parts(0 as [*mut]Word64, 0),
+            .keys = ([mut]K)::from_parts(0 as [*mut]K, 0),
+            .values = ([mut]V)::from_parts(0 as [*mut]V, 0),
             .capacity = 0,
             .alloc = core::Allocating.alloc,
         )
@@ -299,7 +299,7 @@ impl[K: core::Hash + core::Eq, V] core::Into_Iterator for Map[K, V] {
 }
 
 test "init_from_slice" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     try testing::expect(map.>count() == 3)
@@ -311,7 +311,7 @@ test "init_from_slice" with core::Allocating {
 }
 
 test "clone" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     let mut clone = map.>clone() catch {return .err}
     defer clone.>deinit()
@@ -350,7 +350,7 @@ test "get mut" with core::Allocating {
 }
 
 test "clear" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     map.>clear()
@@ -424,21 +424,21 @@ test "set" with core::Allocating {
 }
 
 test "into_iter" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>into_iter()
 
     let mut item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "a"))
+    try testing::expect(item.some.[0]^ == "a")
     try testing::expect(item.some.[1]^ == 1)
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "b"))
+    try testing::expect(item.some.[0]^ == "b")
     try testing::expect(item.some.[1]^ == 2)
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some.[0]^, "c"))
+    try testing::expect(item.some.[0]^ == "c")
     try testing::expect(item.some.[1]^ == 3)
 
     item = iter.>next()
@@ -448,19 +448,19 @@ test "into_iter" with core::Allocating {
 }
 
 test "keys" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>keys()
 
     let mut item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "a"))
+    try testing::expect(item.some^ == "a")
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "b"))
+    try testing::expect(item.some^ == "b")
 
     item = iter.>next()
-    try testing::expect(mem::eql(item.some^, "c"))
+    try testing::expect(item.some^ == "c")
 
     item = iter.>next()
     try testing::expect(item.>is_none())
@@ -469,7 +469,7 @@ test "keys" with core::Allocating {
 }
 
 test "values" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
     
     let mut iter = map.>values()
@@ -490,7 +490,7 @@ test "values" with core::Allocating {
 }
 
 test "values_mut" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     for v in map.>values_mut() {
@@ -505,11 +505,11 @@ test "values_mut" with core::Allocating {
 }
 
 test "iter_mut" with core::Allocating {
-    let mut map = Map[String, Int]::init_from_slice([][("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
+    let mut map = Map[String, Int]::init_from_slice(&[("a", 1), ("b", 2), ("c", 3)]) catch {return .err}
     defer map.>deinit()
 
     for (k, v) in map.>iter_mut() {
-        if mem::eql(k^, "b") {
+        if k^ == "b" {
             v^ *= 2
         }
     }

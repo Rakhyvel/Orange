@@ -30,7 +30,7 @@ static inline struct orange_type_C53265BF4F923210 orange__core__write(void *self
     return (struct orange_type_C53265BF4F923210){.tag = 0};
 }
 
-static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_CE26574889E9A595 maybe_limit)
+static inline struct orange_type_C53265BF4F923210 orange__core__read(void *self, struct orange_type_384D608F76C1F2D2 /*&mut dyn identifier("core")::Writer*/ writer, struct orange_type_2D35235D4574A2CD maybe_limit)
 {
     unsigned char buffer[4096];
     size_t total = 0;

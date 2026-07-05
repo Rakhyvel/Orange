@@ -1,6 +1,6 @@
 // 444
 fn main() -> Int {
-    let xs = [][400, 40, 4]
+    let xs: []Int = &[400, 40, 4]
     let mut retval = 0
     for x in xs {
         retval += x

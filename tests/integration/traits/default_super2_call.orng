@@ -1,0 +1,29 @@
+// 532
+trait Base {
+    fn base_req(self, other: Self) -> Int
+}
+
+trait Base2 {
+    fn base2_req(self, other: Self) -> Int
+}
+
+trait Derived: Base + Base2 {
+    fn derived_default(self, other: Self) -> Int {
+        self.>base_req(other) + other.>base2_req(self)
+    }
+}
+
+impl Base for Int {
+    fn base_req(self, other: Int) -> Int { self + other }
+}
+
+impl Base2 for Int {
+    fn base2_req(self, other: Int) -> Int { self + other }
+}
+
+impl[T: Base + Base2] Derived for T {}
+
+fn main() -> Int {
+    let x = 133
+    x.>derived_default(x)
+}

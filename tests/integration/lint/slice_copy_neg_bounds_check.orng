@@ -1,7 +1,7 @@
 // 
 fn main() -> Int {
     let mut x: [4]Int
-    let mut y = [mut]x
+    let mut y: [mut]Int = &mut x
     y[f()] = 0
     0
 }

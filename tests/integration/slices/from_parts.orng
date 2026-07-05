@@ -1,0 +1,9 @@
+// 5
+fn get[T](arr: [mut]T) -> Int {
+    ([mut]T)::from_parts(arr.data, arr.length).length
+}
+
+fn main() -> Int {
+    let mut a = [1, 2, 3, 4, 5]
+    get[Int](&mut a)
+}

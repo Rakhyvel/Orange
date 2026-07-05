@@ -1,0 +1,10 @@
+// 554
+fn main() -> Int {
+    let x: [mut]Int = &mut [1, 2, 3, 4, 5]
+    let y = 4
+    if (x as []Int).>contains(&y) {
+        554
+    } else {
+        455
+    }
+}

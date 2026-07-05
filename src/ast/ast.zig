@@ -22,6 +22,7 @@ const validation_state_ = @import("../util/validation_state.zig");
 const unification_ = @import("../types/unification.zig");
 const fmt_ = @import("../util/fmt.zig");
 const union_fields_ = @import("../util/union_fields.zig");
+const Tree_Writer = @import("tree_writer.zig");
 
 pub const AST_Validation_State = validation_state_.Validation_State;
 
@@ -121,8 +122,6 @@ pub const AST = union(enum) {
     mult: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     div: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     mod: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
-    not_equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     greater: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     lesser: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
     greater_equal: struct { common: AST_Common, _lhs: *AST, _rhs: *AST },
@@ -204,6 +203,18 @@ pub const AST = union(enum) {
             }
             return null;
         }
+
+        /// Calculates the total number of virtual methods this trait has, including any from super traits
+        /// Assumes all symbols have been decorated!
+        pub fn total_virtual_methods(self: @This()) i64 {
+            var retval = self.num_virtual_methods;
+            for (self.super_traits.items) |super_trait| {
+                const super_trait_symbol = super_trait.symbol().?;
+                const super_trait_decl = super_trait_symbol.decl.?;
+                retval += super_trait_decl.trait.total_virtual_methods();
+            }
+            return retval;
+        }
     },
     impl: struct {
         common: AST_Common,
@@ -281,11 +292,6 @@ pub const AST = union(enum) {
         multiptr: bool = false,
         anytptr: bool = false, // When this is true, the addr_of should output as a void*, and should be cast whenever dereferenced
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
-    },
-    slice_of: struct {
-        common: AST_Common,
-        _expr: *AST,
-        mut: bool,
     },
     sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
     range: struct { common: AST_Common, lower: *AST, upper: *AST },
@@ -708,23 +714,6 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_equal(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
-        return AST.box(AST{ .equal = .{
-            .common = AST_Common{ ._token = _token },
-            ._lhs = _lhs,
-            ._rhs = _rhs,
-        } }, allocator);
-    }
-
-    pub fn create_not_equal(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .not_equal = .{
-            .common = _common,
-            ._lhs = _lhs,
-            ._rhs = _rhs,
-        } }, allocator);
-    }
-
     pub fn create_greater(_token: Token, _lhs: *AST, _rhs: *AST, allocator: std.mem.Allocator) *AST {
         const _common: AST_Common = .{ ._token = _token };
         return AST.box(AST{ .greater = .{
@@ -1075,15 +1064,6 @@ pub const AST = union(enum) {
             ._expr = _expr,
             .mut = _mut,
             .multiptr = multiptr,
-        } }, allocator);
-    }
-
-    pub fn create_slice_of(_token: Token, _expr: *AST, _mut: bool, allocator: std.mem.Allocator) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .slice_of = .{
-            .common = _common,
-            ._expr = _expr,
-            .mut = _mut,
         } }, allocator);
     }
 
@@ -1569,6 +1549,10 @@ pub const AST = union(enum) {
             .identifier => {
                 if (self.refers_to_type()) {
                     if (substs.get_type(self.token().data)) |replacement| {
+                        // A composite replacement type cannot be a bare identifier, so rebuild its value expr to keep the structure. Falls back to the token for plain types
+                        if (replacement.* != .identifier) {
+                            if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
+                        }
                         return create_identifier(replacement.token(), allocator);
                     }
                 } else if (self.is_const_param_ref()) {
@@ -1652,18 +1636,6 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .mod => return create_mod(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
-            .equal => return create_equal(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
-            .not_equal => return create_not_equal(
                 self.token(),
                 self.lhs().clone(substs, allocator),
                 self.rhs().clone(substs, allocator),
@@ -1767,12 +1739,14 @@ pub const AST = union(enum) {
                 retval.select._pos = self.select._pos;
                 return retval;
             },
-            .access => return create_access(
-                self.token(),
-                self.lhs().clone(substs, allocator),
-                self.rhs().clone(substs, allocator),
-                allocator,
-            ),
+            .access => {
+                return create_access(
+                    self.token(),
+                    self.lhs().clone(substs, allocator),
+                    self.rhs().clone(substs, allocator),
+                    allocator,
+                );
+            },
             .type_access => return create_type_access(
                 self.token(),
                 self.type_access._lhs_type.clone(substs, allocator),
@@ -1941,12 +1915,6 @@ pub const AST = union(enum) {
                 self.expr().clone(substs, allocator),
                 self.mut(),
                 self.addr_of.multiptr,
-                allocator,
-            ),
-            .slice_of => return create_slice_of(
-                self.token(),
-                self.expr().clone(substs, allocator),
-                self.slice_of.mut,
                 allocator,
             ),
             .sub_slice => return create_sub_slice(
@@ -2629,8 +2597,6 @@ pub const AST = union(enum) {
             .mult => try out.print("mult()", .{}),
             .div => try out.print("div()", .{}),
             .mod => try out.print("mod()", .{}),
-            .equal => try out.print("equal()", .{}),
-            .not_equal => try out.print("not_equal()", .{}),
             .greater => try out.print("greater()", .{}),
             .lesser => try out.print("lesser()", .{}),
             .greater_equal => try out.print("greater_equal()", .{}),
@@ -2794,7 +2760,6 @@ pub const AST = union(enum) {
 
             .as => try out.print("as({f}, {f})", .{ self.expr(), self.type() }),
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
-            .slice_of => try out.print("slice_of()", .{}),
             .sub_slice => try out.print("sub_slice()", .{}),
             .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),

@@ -1,0 +1,14 @@
+// 547
+fn main() -> Int {
+    let x: []Int = &[1, 2, 3, 4, 5]
+    let y: []Int = &[1, 2, 3]
+    check(y, x)
+}
+
+fn check(x: []Int, y: []Int) -> Int {
+    if x.>starts_with(y) {
+        745
+    } else {
+        547
+    }
+}

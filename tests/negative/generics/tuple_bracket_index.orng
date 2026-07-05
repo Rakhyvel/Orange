@@ -17,5 +17,5 @@ impl[K, V] for Map[K, V] {
 }
 
 fn main() -> Int {
-    Map[Int, Int]::from_slice([][(1, 2), (3, 4)])
+    Map[Int, Int]::from_slice(&[(1, 2), (3, 4)])
 }

@@ -11,6 +11,7 @@ const Source_Emitter = @import("source_emitter.zig");
 const Emitter = @import("emitter.zig");
 const Test_Emitter = @import("test_emitter.zig");
 const Typedef_Emitter = @import("typedef_emitter.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_Map = @import("../types/type_map.zig").Type_Map;
 const Type_Set = @import("../types/type_set.zig");
 const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");

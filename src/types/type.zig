@@ -555,10 +555,6 @@ pub const Type_AST = union(enum) {
                 const id = Type_AST.create_addr_of_type(ast.token(), typed_expr, ast.addr_of.mut, ast.addr_of.multiptr, allocator);
                 break :blk id;
             },
-            .slice_of => blk: {
-                const of = from_ast(ast.expr(), allocator);
-                break :blk Type_AST.create_slice_type(of, ast.slice_of.mut, allocator);
-            },
             .tuple_value => blk: {
                 var terms = std.array_list.Managed(*Type_AST).init(allocator);
                 for (ast.children().items) |term| {
@@ -591,9 +587,8 @@ pub const Type_AST = union(enum) {
                 return id;
             },
             .access => {
-                const lhs_expr = self.lhs().to_value_expr(allocator) orelse return null;
                 const rhs_field = AST.create_field(self.rhs().token(), allocator);
-                const id = AST.create_access(self.token(), lhs_expr, rhs_field, allocator);
+                const id = AST.create_type_access(self.token(), self.lhs(), rhs_field, allocator);
                 id.set_scope(self.scope());
                 id.set_symbol(self.symbol());
                 return id;
@@ -734,6 +729,23 @@ pub const Type_AST = union(enum) {
             }
         }
         return null;
+    }
+
+    /// Like `expand_identifier` but returns an `as_trait` constraint wrapper rather than stripping it.
+    pub fn expand_keep_constraint(self: *Type_AST) *Type_AST {
+        var res = self;
+        while (true) {
+            if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
+                res = res.symbol().?.init_typedef().?;
+            } else if (res.* == .access and res.lhs().symbol().?.decl.?.* == .type_param_decl) {
+                if (res.associated_type_from_constraint()) |assoc_type| res = assoc_type else return res;
+            } else if (res.* == .annotation) {
+                res = res.child();
+            } else {
+                // Stop at `as_trait` to keep the constraint, otherwise this is the fully expanded type
+                return res;
+            }
+        }
     }
 
     /// Expands an ast one level if it is an identifier
@@ -1287,6 +1299,7 @@ pub const Type_AST = union(enum) {
                 }
                 return false;
             },
+            .struct_type => from_expanded.struct_type.was_slice and to_expanded.* == .struct_type and from_expanded.children().items[0].child().addr_of.mut,
             .dyn_type => is_sub_trait(from.child(), to.child()) and (!to_expanded.dyn_type.mut or from_expanded.dyn_type.mut),
             else => false,
         };
@@ -1309,9 +1322,10 @@ pub const Type_AST = union(enum) {
     };
 
     pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+        const Decorate = @import("../ast/decorate.zig");
         for (constraints) |constraint| {
+            if (constraint.base_symbol() == null) _ = Decorate.symbol(constraint, ctx) catch {}; // Resolve symbols first
             if (constraint.base_symbol() != null) {
-                const Decorate = @import("../ast/decorate.zig");
                 const trait = try Decorate.symbol(constraint, ctx);
                 const res = try _scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
@@ -1325,7 +1339,7 @@ pub const Type_AST = union(enum) {
                             .const_arg => continue,
                         };
                         if (eq_constraint.* != .eq_constraint) continue;
-                        const impl = res.ast orelse {
+                        const impl = res.impl_ast orelse {
                             if ((self.* == .identifier or self.* == .access) and self.symbol().?.decl.?.* == .type_param_decl) {
                                 const param_constraints = self.symbol().?.decl.?.type_param_decl.constraints;
                                 for (param_constraints.items) |param_constraint| {
@@ -1564,8 +1578,8 @@ pub const Type_AST = union(enum) {
 
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
-            .anyptr_type, .unit_type, .dyn_type => false,
-            .identifier, .access => _type.symbol().?.decl.?.* == .type_param_decl,
+            .anyptr_type, .unit_type, .dyn_type, .as_trait => false, // I added as_trait, not sure if it should actually do more stuff or just be false
+            .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.* == .type_param_decl,
             .addr_of => _type.child().is_generic(),
             .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
             .annotation => _type.child().is_generic(),
@@ -1653,56 +1667,48 @@ pub const Type_AST = union(enum) {
         return info.type_kind == .floating_point;
     }
 
-    /// Determines if an AST type has the operators `==` and `!=` defined
-    /// TODO: Replace with trait impl lookup
-    pub fn is_eq_type(self: *Type_AST) bool {
-        const expanded = self.expand_identifier();
-        if (expanded.* == .addr_of) {
-            return true;
-        } else if (expanded.* == .tuple_type) {
-            for (expanded.children().items) |term| {
-                if (!term.is_eq_type()) {
-                    return false;
-                }
-            }
-            return true;
-        } else if (expanded.* == .enum_type) {
-            return true;
+    /// True when `self` is a generic type param whose constraints include the named flag trait.
+    pub fn type_param_bounded_by(self: *Type_AST, trait_name: []const u8) bool {
+        if (self.* != .identifier and self.* != .access) return false;
+        const sym = self.symbol() orelse return false;
+        const decl = sym.decl orelse return false;
+        if (decl.* != .type_param_decl) return false;
+        for (decl.type_param_decl.constraints.items) |constraint| {
+            const base = constraint.base_symbol() orelse continue;
+            if (std.mem.eql(u8, base.name, trait_name)) return true;
         }
-        const info = prelude_.info_from_ast(expanded) orelse return false;
-        return info.type_class == .eq or expanded.is_ord_type();
+        return false;
     }
 
-    /// Determines if an AST type has the operators `<` and `>` defined.
-    /// Ord <: Eq
-    /// TODO: Replace with trait impl lookup
+    /// Determines if an AST type has the builtin operators `@lt`, `@le`, `@gt` and `@ge` defined.
     pub fn is_ord_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
-        const info = prelude_.info_from_ast(expanded) orelse return false;
-        return info.type_class == .ord or expanded.is_num_type();
-    }
-
-    /// Determines if an AST type has the operators `+`, `-`, `/` and `*` defined.
-    /// Num <: Ord
-    /// TODO: Replace with trait impl lookup
-    pub fn is_num_type(self: *Type_AST) bool {
-        const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Partial_Ord")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_class == .num or expanded.is_int_type();
     }
 
-    /// Determines if an AST type has the operator `%` defined.
-    /// Int <: Num
-    /// TODO: Replace with trait impl lookup
+    /// Determines if a type has the builtin operators `@add`, `@sub`, `@div` and `@mul` defined.
+    pub fn is_num_type(self: *Type_AST) bool {
+        const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Num")) return true;
+        const info = prelude_.info_from_ast(expanded) orelse return false;
+        return info.type_class == .num or expanded.is_int_type();
+    }
+
+    /// Determines if a type has the builtin operator `@mod` defined.
     pub fn is_int_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Int")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_class == .int;
     }
 
-    /// TODO: Replace with trait impl lookup
+    /// Determines if a type has the builtin operators `@bit_and`, `@bit_or`, `@bit_xor`, `@bit_not`, `@shl`,
+    /// and `@shr` defined.
     pub fn is_bits_type(self: *Type_AST) bool {
         const expanded = self.expand_identifier();
+        if (expanded.type_param_bounded_by("Primitive_Bits")) return true;
         const info = prelude_.info_from_ast(expanded) orelse return false;
         return info.type_kind == .unsigned_integer;
     }

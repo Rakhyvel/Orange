@@ -1,0 +1,6 @@
+// 535
+fn main() -> Int {
+    let x = 535
+    let y = 1000
+    x.>min(y)
+}

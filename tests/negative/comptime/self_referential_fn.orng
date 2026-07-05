@@ -1,9 +1,9 @@
-// self_referential_fn.orng:7:6: error: attempt to take slice-of something that is not an array
-//     []comptime {main}
-//     ^
+// self_referential_fn.orng:7:14: error: not an l-value
+//     &comptime {main}
+//             ^
 // 
 fn main() -> Int {
     // This can't be checked properly because slice-of can't know if comptime is valid without knowing if slice-of is valid
-    []comptime {main}
+    &comptime {main}
     323
 }

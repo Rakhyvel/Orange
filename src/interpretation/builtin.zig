@@ -31,6 +31,10 @@ pub fn package_find(compiler: *Compiler_Context, interpreter: *Interpreter_Conte
     const build_cfg = try compiler.compile_build_file(package_build_absolute_path);
     interpreter.load_module(build_cfg.symbol.scope.module.?);
 
+    // Guard against circular package requirements, which would otherwise re-enter `build()` for the same package forever and overflow the stack
+    try compiler.enter_build_file(package_build_absolute_path);
+    defer compiler.exit_build_file(package_build_absolute_path);
+
     // Allocate space for the package to be placed
     const package_len: usize = @intCast(core_.package_type.sizeof().?);
     const adrs: i64 = @intCast(try interpreter.alloc(@intCast(package_len), 8));

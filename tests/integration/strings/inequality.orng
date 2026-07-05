@@ -1,0 +1,12 @@
+// 531
+fn main() -> Int {
+    check("531")
+}
+
+fn check(the_num: String) -> Int {
+    if the_num != "500" {
+        531
+    } else {
+        500
+    }
+}

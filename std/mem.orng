@@ -11,27 +11,13 @@ fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
 
 fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
     match core::Allocating.alloc.>alloc(T::size * length) {
-        .some(bytes) => .ok(mut_slice_from_parts[T](bytes as [*mut]T, length))
+        .some(bytes) => .ok(([mut]T)::from_parts(bytes as [*mut]T, length))
         .none => .err
     }
 }
 
 fn destroy[T](slice: [mut]T) with core::Allocating {
     core::Allocating.alloc.>free(slice.data as [*mut]Byte)
-}
-
-fn mut_slice_from_parts[T](data: [*mut]T, length: Int) -> [mut]T {
-    let mut retval: [mut]T = undefined
-    retval.data = data
-    retval.length = length
-    retval
-}
-
-fn slice_from_parts[T](data: [*]T, length: Int) -> []T {
-    let mut retval: []T = undefined
-    retval.data = data
-    retval.length = length
-    retval
 }
 
 fn eql(a: String, b: String) -> Bool {
@@ -42,14 +28,6 @@ fn eql(a: String, b: String) -> Bool {
     }
 
     true
-}
-
-fn starts_with(haystack: []Byte, needle: []Byte) -> Bool {
-    if needle.length > haystack.length {
-        false
-    } else {
-        eql(haystack[..needle.length], needle)
-    }
 }
 
 fn copy[T](dest: [mut]T, src: []T) {
@@ -90,7 +68,7 @@ fn replacement_size(input: []Byte, needle: []Byte, replacement: []Byte) -> Int {
 
     let mut size = input.length
     while let mut i = 0; i < input.length {
-        if starts_with(input[i..], needle) {
+        if input[i..].>starts_with(needle) {
             size = size - needle.length + replacement.length
             i += needle.length
         } else {
@@ -107,7 +85,7 @@ fn replace(input: []Byte, needle: []Byte, replacement: []Byte, output: [mut]Byte
     let mut slide = 0
     let mut replacements = 0
     while let mut i = 0; slide < input.length {
-        if starts_with(input[slide..], needle) {
+        if input[slide..].>starts_with(needle) {
             copy[Byte](output[i..][0..replacement.length], replacement)
             i += replacement.length
             slide += needle.length
@@ -161,9 +139,9 @@ test "delimiter iterator" {
     let bytes = "a,b,c"
     let mut delim_iter = Delimiter_Iterator(.data = bytes, .delimiter = ',')
 
-    try testing::expect(eql("a", delim_iter.>next().some))
-    try testing::expect(eql("b", delim_iter.>next().some))
-    try testing::expect(eql("c", delim_iter.>next().some))
+    try testing::expect("a" == delim_iter.>next().some)
+    try testing::expect("b" == delim_iter.>next().some)
+    try testing::expect("c" == delim_iter.>next().some)
     try testing::expect(delim_iter.>next().>is_none())
 
     .ok

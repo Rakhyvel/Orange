@@ -1,0 +1,13 @@
+// 550
+fn main() -> Int {
+    let x: []Int = &[1, 2, 3, 4, 5]
+    let y: []Int = &[1, 2, 3]
+    check(x, y)
+}
+
+fn check(x: []Int, y: []Int) -> Int {
+    match x.>strip_prefix(y) {
+        .some(_) => 550
+        .none    => 0o55
+    }
+}

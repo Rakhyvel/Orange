@@ -1,9 +1,9 @@
-// sliceof.orng:7:23: error: expected a value of type `[]Int`, got a value of type `[]Bool`
-//     let y: []Int = []x
-//                      ^
+// sliceof.orng:7:22: error: expected a value of type `[]Int`, got a value of type `[]Bool`
+//     let y: []Int = &x
+//                     ^
 // 
 fn main() -> Int {
     let x: [3]Bool = [true, false, true]
-    let y: []Int = []x
+    let y: []Int = &x
     0
 }

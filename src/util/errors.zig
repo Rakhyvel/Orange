@@ -918,8 +918,10 @@ fn print_epilude(maybe_span: ?Span, writer: *std.io.Writer, conf: Error_Config) 
             print_color(not_bold, writer, conf);
             writer.print("{s}\n", .{span.line_text}) catch unreachable;
         }
-        if (span.col > 2) {
-            for (2..span.col) |_| {
+        // Cap the caret indent so a garbage `col` can't spin forever
+        const caret_col = @min(span.col, 130);
+        if (caret_col > 2) {
+            for (2..caret_col) |_| {
                 writer.print(" ", .{}) catch unreachable;
             }
         }

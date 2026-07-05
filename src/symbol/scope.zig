@@ -151,7 +151,7 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
 
 pub const Impl_Trait_Lookup_Result = struct {
     count: u8,
-    ast: ?*ast_.AST,
+    impl_ast: ?*ast_.AST,
     subst: ?unification_.Substitutions,
 };
 
@@ -176,32 +176,45 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
     return impl_trait_lookup_inner(self, self, for_type, trait, ctx);
 }
 
-fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
-    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .ast = null, .subst = null };
+/// True when `candidate` is `target`, or transitively lists `target` among its super-traits.
+/// `visited` guards against cyclic trait inheritance
+fn trait_is_or_extends(candidate: *Symbol, target: *Symbol, ctx: *Compiler_Context, visited: *std.AutoHashMap(*Symbol, void)) error{ CompileError, OutOfMemory }!bool {
+    if (candidate == target) return true;
+    if (visited.contains(candidate)) return false;
+    try visited.put(candidate, {});
+    const decl = candidate.decl orelse return false;
+    if (decl.* != .trait) return false;
+    for (decl.trait.super_traits.items) |super_trait| {
+        const super_sym = try Decorate.symbol(super_trait, ctx);
+        if (try trait_is_or_extends(super_sym, target, ctx, visited)) return true;
+    }
+    return false;
+}
 
-    // Type param with the constraint, return positive count with null ast if traits match
+fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
+    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .impl_ast = null, .subst = null };
+
+    // Check if a type param has the trait as a constraint, or as a super trait of one of the constraints
     if (for_type.is_type_param()) {
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_symbol = try Decorate.symbol(constraint, ctx);
-            if (trait_symbol == trait) {
-                return .{ .count = 1, .ast = null, .subst = null };
+            var visited = std.AutoHashMap(*Symbol, void).init(ctx.allocator());
+            defer visited.deinit();
+            if (try trait_is_or_extends(trait_symbol, trait, ctx, &visited)) {
+                return .{ .count = 1, .impl_ast = null, .subst = null };
             }
         }
     }
 
-    // As-trait ascription, return positive count with null ast if traits match
+    // Check if the as_trait type is of the trait in question, or has it as a super trait
     if (for_type.* == .as_trait) {
         for (for_type.as_trait.constraints.items) |constraint| {
-            const trait_decl = (try Decorate.symbol(constraint, ctx)).decl.?;
-            if (constraint.symbol().? == trait) {
+            const constraint_symbol = try Decorate.symbol(constraint, ctx);
+            var visited = std.AutoHashMap(*Symbol, void).init(ctx.allocator());
+            defer visited.deinit();
+            if (try trait_is_or_extends(constraint_symbol, trait, ctx, &visited)) {
                 const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), trait, ctx);
-                if (res.count > 0) return res;
-            }
-            if (trait_decl.* != .trait) continue;
-            for (trait_decl.trait.super_traits.items) |super_trait| {
-                if (super_trait.symbol().? != trait) continue;
-                const res = try self.impl_trait_lookup_inner(original_scope, for_type.lhs(), super_trait.symbol().?, ctx);
                 if (res.count > 0) return res;
             }
         }
@@ -264,7 +277,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, ctx);
 
             retval.count += 1;
-            retval.ast = retval.ast orelse instantiated_impl;
+            retval.impl_ast = retval.impl_ast orelse instantiated_impl;
             retval.subst = retval.subst orelse subst;
         }
     }
@@ -280,7 +293,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
             const import_res = try module_scope.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
             if (import_res.count > 0) {
                 retval.count += import_res.count;
-                retval.ast = retval.ast orelse import_res.ast;
+                retval.impl_ast = retval.impl_ast orelse import_res.impl_ast;
                 retval.subst = retval.subst orelse import_res.subst;
                 return import_res;
             }
@@ -292,7 +305,7 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
     if (self.parent) |p| {
         const parent_res = try p.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
         retval.count += parent_res.count;
-        retval.ast = retval.ast orelse parent_res.ast;
+        retval.impl_ast = retval.impl_ast orelse parent_res.impl_ast;
         retval.subst = retval.subst orelse parent_res.subst;
     }
 
@@ -304,10 +317,11 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
     for (traits) |constraint| {
         const scope = constraint.scope().?;
         const constraint_symbol = try Decorate.symbol(constraint, ctx);
-        const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
         const trait_decl = constraint_symbol.decl.?;
+        if (trait_decl.* != .trait) continue; // a non-trait constraint has no members to dispatch through
+        const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
         if (res.count > 0) {
-            if (res.ast) |impl_ast| {
+            if (res.impl_ast) |impl_ast| {
                 if (search_impl(impl_ast, name)) |method| {
                     try matches.put(method, void{});
                 }
@@ -325,19 +339,12 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
 
 /// Looks up the impl's decl/method_decl ast for a given type, with a given name
 pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
-    if (false) {
-        std.debug.print("searching {} impls for {f}::{s}\n", .{ if (self.module) |m| m.impls.items.len else 0, for_type.*, name });
-        Tree_Writer.print(for_type);
-        self.pprint();
-    }
-
     var mut_short_circuit = short_circuit;
 
-    // for type is a type parameter
+    // for type is a type parameter, check its trait constraints
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         mut_short_circuit = true;
         const type_param_decl = for_type.symbol().?.decl.?;
-        // Check all constraints on the type parameter
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
             if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
@@ -349,13 +356,31 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, ma
         }
     }
 
-    try self.lookup_impl_member_impls(for_type, name, matches, mut_short_circuit, compiler);
-    if (mut_short_circuit and matches.keys().len > 0) return;
+    // Search this module and its transitive imports as a module graph
+    if (self.module) |module| {
+        var visited = std.AutoArrayHashMap(*module_.Module, void).init(compiler.allocator());
+        defer visited.deinit();
+        const root = compiler.module_scope(module.absolute_path) orelse self;
+        try root.lookup_impl_member_in_modules(for_type, name, matches, mut_short_circuit, compiler, &visited);
+    }
+}
+
+/// Scans the module's impls, then recurses into each imported module
+fn lookup_impl_member_in_modules(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context, visited: *std.AutoArrayHashMap(*module_.Module, void)) !void {
+    const module = self.module orelse return;
+    if (visited.contains(module)) return;
+    try visited.put(module, {});
+
+    try self.lookup_impl_member_impls(for_type, name, matches, short_circuit, compiler);
+    if (short_circuit and matches.keys().len > 0) return;
     if (try self.lookup_impl_member_super_impls(for_type, name, compiler)) |res| try matches.put(res, void{});
-    if (mut_short_circuit and matches.keys().len > 0) return;
-    try self.lookup_impl_member_imports(for_type, name, matches, compiler);
-    if (mut_short_circuit and matches.keys().len > 0) return;
-    if (self.parent) |p| try p.lookup_impl_member(for_type, name, matches, mut_short_circuit, compiler);
+    if (short_circuit and matches.keys().len > 0) return;
+
+    for (module.local_imported_modules.keys()) |imported| {
+        const imported_root = compiler.module_scope(imported.absolute_path) orelse continue;
+        try imported_root.lookup_impl_member_in_modules(for_type, name, matches, short_circuit, compiler, visited);
+        if (short_circuit and matches.keys().len > 0) return;
+    }
 }
 
 pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
@@ -425,7 +450,10 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         &[_]*Type_AST{}; // empty slice
     const is_type_param = constraints.len > 0;
 
-    for (self.module.?.impls.items) |impl| {
+    var i: usize = 0;
+    while (i < self.module.?.impls.items.len) : (i += 1) {
+        const impl = self.module.?.impls.items[i];
+
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
 
@@ -459,14 +487,23 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
     }
 }
 
-/// True if `subst` maps any of `impl`'s generic params to a different generic param
-/// `T` -> the same `T` (identity) returns false
+/// True if `subst` maps any of `impl`'s generic type/const params to a different generic type/const params.
+/// A type/const param `T`/`n` -> the same `T`/`n` resp. returns false (identity).
 pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
     for (impl.impl._generic_params.items) |param| {
-        if (param.* != .type_param_decl) continue;
-        const mapped = subst.get_type(param.symbol().?.name) orelse continue;
-        if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
-        if (mapped.is_generic()) return true;
+        switch (param.*) {
+            .type_param_decl => {
+                const mapped = subst.get_type(param.symbol().?.name) orelse continue;
+                if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
+                if (mapped.is_generic()) return true;
+            },
+            .const_param_decl => {
+                const mapped = subst.get_const(param.symbol().?.name) orelse continue;
+                if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
+                if (mapped.is_const_param_ref()) return true; // renamed to another const param
+            },
+            else => {},
+        }
     }
     return false;
 }
@@ -505,24 +542,13 @@ fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []cons
         if (impl.impl.trait) |trait| {
             if (trait.symbol() == null) continue;
             for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
+                // Decorate the super-trait on-demand, since it may be reached before its own decl is decorated
+                if (super_trait.symbol() == null) try walker_.walk_type(super_trait, Decorate.new(compiler));
                 if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
             }
         }
     }
     return null;
-}
-
-fn lookup_impl_member_imports(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), compiler: *Compiler_Context) error{ OutOfMemory, CompileError }!void {
-    for (self.symbols.keys()) |symbol_name| {
-        const symbol = self.symbols.get(symbol_name).?;
-        if (symbol.kind == .import) {
-            var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
-
-            const module_scope = res_symbol.init_value().?.scope().?;
-            if (module_scope == self) continue; // skip self-referential imports
-            try module_scope.lookup_impl_member(for_type, name, matches, true, compiler);
-        }
-    }
 }
 
 pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) !*ast_.AST {

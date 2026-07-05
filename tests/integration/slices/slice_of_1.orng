@@ -1,6 +1,6 @@
 // 233
 fn main() -> Int {
-    first([][233])
+    first(&[233])
 }
 
 fn first(xs: []Int) -> Int {

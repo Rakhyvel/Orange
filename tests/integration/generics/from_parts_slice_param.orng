@@ -1,0 +1,15 @@
+// 0
+struct Box[K] {
+    keys: [mut]K
+}
+
+impl[K] for Box[K] {
+    fn init() -> Self {
+        Self(.keys = ([mut]K)::from_parts(0 as [*mut]K, 0))
+    }
+}
+
+fn main() -> Int {
+    let b = Box[[]Byte]::init()
+    b.keys.length
+}

@@ -156,9 +156,9 @@ fn append_enum_fields(
     next_id: *usize,
     writer: *std.io.Writer,
 ) !void {
-    for (_type.children().items) |child| {
+    for (_type.children().items, 0..) |child, i| {
         if (child.is_c_void_type()) continue;
-        try writer.print("_", .{});
+        try writer.print("_{}", .{i});
         try hash_type_internal(child, seen_map, next_id, writer);
     }
 }

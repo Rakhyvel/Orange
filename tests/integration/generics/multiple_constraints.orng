@@ -23,5 +23,5 @@ fn sum[T: Add + Default](ts: []T) -> T {
 
 fn main() -> Int {
     let arr = [300, 90, 3]
-    sum[Int]([]arr)
+    sum[Int](&arr)
 }

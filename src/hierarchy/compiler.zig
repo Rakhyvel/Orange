@@ -12,6 +12,7 @@ const Package_Iterator_Node = @import("../hierarchy/package.zig").Package_Iterat
 const poison_ = @import("../ast/poison.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const repo_ = @import("../util/repo.zig");
+const Span = @import("../util/span.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Scope = @import("../symbol/scope.zig");
 const Impl_Trait_Lookup_Result = Scope.Impl_Trait_Lookup_Result;
@@ -62,6 +63,9 @@ module_interned_strings: std.AutoArrayHashMap(u32, *Interned_String_Set),
 // Maps package names to their root module
 packages: std.StringArrayHashMap(*Package),
 
+/// Set of `build.orng` absolute paths whose `build()` fn is currently being interpreted. Used to detect circular package requirements.
+resolving_build_files: std.StringArrayHashMap(void),
+
 impl_cache: std.AutoHashMap(Impl_Cache_Key, Impl_Trait_Lookup_Result),
 
 pub const Impl_Cache_Key = struct { type_sym: *Symbol, trait: *Symbol };
@@ -78,6 +82,7 @@ pub fn init(stderr: ?std.fs.File, alloc: std.mem.Allocator) Error!*Self {
     retval.module_interned_strings = std.AutoArrayHashMap(u32, *Interned_String_Set).init(retval.allocator());
     retval.modules = std.StringArrayHashMap(*Symbol).init(retval.allocator());
     retval.packages = std.StringArrayHashMap(*Package).init(retval.allocator());
+    retval.resolving_build_files = std.StringArrayHashMap(void).init(retval.allocator());
     retval.impl_cache = std.AutoHashMap(Impl_Cache_Key, Impl_Trait_Lookup_Result).init(retval.allocator());
     retval.core = null;
     retval.stderr = stderr;
@@ -124,6 +129,22 @@ pub fn allocator(self: *Self) std.mem.Allocator {
 pub fn compile_build_file(self: *Self, absolute_path: []const u8) Error!*CFG {
     const build_module = try self.compile_module(absolute_path, "build", false);
     return build_module.init_value().?.scope().?.lookup("build", .{}).found.cfg.?;
+}
+
+/// Marks a build file as being currently interpreted.
+pub fn enter_build_file(self: *Self, absolute_path: []const u8) Error!void {
+    if (self.resolving_build_files.contains(absolute_path)) {
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .msg = "circular package requirement detected",
+            .span = Span.phony,
+        } });
+        return error.CompileError;
+    }
+    self.resolving_build_files.put(absolute_path, {}) catch return error.OutOfMemory;
+}
+
+pub fn exit_build_file(self: *Self, absolute_path: []const u8) void {
+    _ = self.resolving_build_files.swapRemove(absolute_path);
 }
 
 /// Compiles a module from a file

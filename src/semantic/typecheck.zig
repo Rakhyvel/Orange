@@ -19,6 +19,7 @@ const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
+const union_fields_ = @import("../util/union_fields.zig");
 
 const Validate_Error_Enum = error{
     // Returned when there is a type check compile error
@@ -190,8 +191,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return _type;
         },
         .access => {
+            // Structural-type receivers arent values, tolerate their value-typecheck failure
+            const lhs_is_structural = !union_fields_.has_struct_field(ast.lhs().*, "_symbol");
             _ = self.typecheck_AST(ast.lhs(), null, subst) catch |e| switch (e) {
                 error.UnexpectedTypeType => {}, // This is expected
+                error.CompileError => if (!lhs_is_structural) return e,
                 else => return e,
             };
 
@@ -354,11 +358,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try typing_.type_check_integral(ast.token().span, lhs_type, &self.ctx.errors);
             return lhs_type;
         },
-        .equal, .not_equal => {
-            const lhs_type = try self.binary_operator_open(ast, null, subst);
-            try typing_.type_check_eq(ast.token().span, lhs_type, &self.ctx.errors);
-            return prelude_.bool_type;
-        },
         .greater, .lesser, .greater_equal, .lesser_equal => {
             const lhs_type = try self.binary_operator_open(ast, null, subst);
             try typing_.type_check_ord(ast.token().span, lhs_type, &self.ctx.errors);
@@ -480,10 +479,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             args_validator.implicit_ref();
             try args_validator.validate_arity();
             try args_validator.validate_type(subst, self.ctx);
-            // Resolve an associated-type return (`Self::Output` or `&Self::Output`) to the concrete type when the receiver is concrete, so the result isn't an unresolvable access
-            if (codomain.* == .access) return codomain.expand_identifier();
-            if (codomain.* == .addr_of and codomain.child().* == .access)
-                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_identifier(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
+            // Resolve associated type returns to concrete type when receiver is concrete. Keep as_trait constraint, so indexed monomorph elements stay bound for its trait dispatch
+            if (codomain.* == .access) return codomain.expand_keep_constraint();
+            if (codomain.* == .addr_of and codomain.child().* == .access) {
+                return Type_AST.create_addr_of_type(codomain.token(), codomain.child().expand_keep_constraint(), codomain.addr_of.mut, codomain.addr_of.multiptr, self.ctx.allocator());
+            }
             return codomain;
         },
         .child_addr, .child_addr_mut => {
@@ -648,11 +648,16 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 try candidate_method_decls.put(method_decl.?, void{});
             } else {
-                // The receiver is a regular type. STRIP AWAY 1 ADDR only!
-                const lhs_type = if (true_lhs_type.* == .addr_of) true_lhs_type.child() else true_lhs_type;
+                // The receiver is a regular type. STRIP AWAY 1 (non-multiptr) ADDR only!
+                const lhs_type = if (true_lhs_type.* == .addr_of and !true_lhs_type.addr_of.multiptr) true_lhs_type.child() else true_lhs_type;
                 try self.ctx.validate_type.validate_type(lhs_type);
                 if (lhs_type.* == .as_trait) {
+                    // Dispatch through the constraint traits, so a monomorph carrying `(Concrete as C)` stays bound to C instead of any same-named method the concrete type also has
                     try Scope.as_trait_member_lookup(lhs_type.lhs(), lhs_type.as_trait.constraints.items, ast.rhs().token().data, &candidate_method_decls, self.ctx);
+                    if (candidate_method_decls.keys().len == 0) {
+                        // Fall back to a broad lookup for methods not covered by the constraints
+                        try ast.scope().?.lookup_impl_member(lhs_type.lhs(), ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
+                    }
                 } else {
                     try ast.scope().?.lookup_impl_member(lhs_type, ast.rhs().token().data, &candidate_method_decls, false, self.ctx);
                 }
@@ -660,7 +665,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     var i: usize = 0;
                     while (i < candidate_method_decls.keys().len) {
                         const candidate_method_decl = candidate_method_decls.keys()[i];
-                        if (candidate_method_decl.method_decl.init == null) {
+                        if (candidate_method_decl.* != .method_decl or candidate_method_decl.method_decl.init == null) {
                             _ = candidate_method_decls.swapRemove(candidate_method_decl);
                         } else {
                             i += 1;
@@ -713,7 +718,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
             } else {
                 const impl = try ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
-                if (impl.ast == null) {
+                if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
                         .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
@@ -721,7 +726,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     } });
                     return error.CompileError;
                 }
-                ast.dyn_value.impl = impl.ast;
+                ast.dyn_value.impl = impl.impl_ast;
             }
 
             return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
@@ -845,6 +850,25 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } else if (expanded_expected.* == .anyptr_type) {
                     ast.addr_of.anytptr = true;
                     return expanded_expected;
+                } else if (expanded_expected.* == .struct_type and expanded_expected.struct_type.was_slice) {
+                    const expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+                    // ast.expr() must be array type of expected
+                    if (expr_type.* != .array_of) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                            .span = ast.token().span,
+                            .msg = "attempt to take slice-of something that is not an array",
+                        } });
+                        return error.CompileError;
+                    }
+
+                    if (ast.addr_of.mut) {
+                        try self.assert_mutable(ast.expr());
+                    }
+                    const retval = Type_AST.create_slice_type(expr_type.child(), ast.addr_of.mut, self.ctx.allocator());
+                    ast.* = ast_.AST.create_slice_value(ast.expr(), ast.addr_of.mut, expr_type, self.ctx.allocator()).*;
+                    _ = self.typecheck_AST(ast, null, subst) catch return error.CompileError;
+                    return retval;
                 } else if (expanded_expected.* != .addr_of) {
                     // Didn't expect an address type. Validate expr and report error
                     return typing_.throw_unexpected_type(ast.token().span, expected.?, poison_.poisoned_type, &self.ctx.errors);
@@ -858,26 +882,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
             }
-        },
-        .slice_of => {
-            const expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
-
-            // ast.expr() must be homotypical tuple type of expected
-            if (expr_type.* != .array_of) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                    .span = ast.token().span,
-                    .msg = "attempt to take slice-of something that is not an array",
-                } });
-                return error.CompileError;
-            }
-
-            if (ast.slice_of.mut) {
-                try self.assert_mutable(ast.expr());
-            }
-            const retval = Type_AST.create_slice_type(expr_type.child(), ast.slice_of.mut, self.ctx.allocator());
-            ast.* = ast_.AST.create_slice_value(ast.expr(), ast.slice_of.mut, expr_type, self.ctx.allocator()).*;
-            _ = self.typecheck_AST(ast, null, subst) catch return error.CompileError;
-            return retval;
         },
         .sub_slice => {
             const super_type = self.typecheck_AST(ast.sub_slice.super, null, subst) catch return error.CompileError;
@@ -1029,7 +1033,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null, subst) catch return error.CompileError;
             const impl = try ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
-            if (impl.ast == null) {
+            if (impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
                     .trait_name = core_.into_iterator_trait.name,
@@ -1038,12 +1042,12 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return error.CompileError;
             }
             // Can assume these will be defined by check above
-            const instantiated_impl = try ast.scope().?.instantiate_generic_impl(impl.ast.?, &impl.subst.?, self.ctx);
+            const instantiated_impl = try ast.scope().?.instantiate_generic_impl(impl.impl_ast.?, &impl.subst.?, self.ctx);
             ast.@"for".into_iter_into_iter_method_decl = Scope.search_impl(instantiated_impl, "into_iter").?;
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
 
             const iterator_impl = try ast.scope().?.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
-            if (iterator_impl.ast == null) {
+            if (iterator_impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
                     .trait_name = core_.iterator_trait.name,
@@ -1051,7 +1055,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } });
                 return error.CompileError;
             }
-            const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.ast.?, &iterator_impl.subst.?, self.ctx);
+            const iterator_instantiated_impl = try ast.scope().?.instantiate_generic_impl(iterator_impl.impl_ast.?, &iterator_impl.subst.?, self.ctx);
             ast.@"for".into_iter_next_method_decl = Scope.search_impl(iterator_instantiated_impl, "next").?;
             const item_type = ast.@"for".into_iter_next_method_decl.?.method_decl.ret_type.get_some_type();
             try self.ctx.validate_pattern.assert_pattern_matches(ast.@"for".elem.binding.pattern, item_type, subst);
@@ -1320,7 +1324,7 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
                 // receiver is value, create any dereferences necessary
                 var stripped_expanded_true_lhs_type = expanded_true_lhs_type;
                 var retval = ast.lhs();
-                while (stripped_expanded_true_lhs_type.* == .addr_of) {
+                while (stripped_expanded_true_lhs_type.* == .addr_of and !stripped_expanded_true_lhs_type.addr_of.multiptr) {
                     retval = ast_.AST.create_dereference(ast.lhs().token(), retval, self.ctx.allocator());
                     stripped_expanded_true_lhs_type = stripped_expanded_true_lhs_type.child();
                 }

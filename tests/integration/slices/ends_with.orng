@@ -1,0 +1,14 @@
+// 548
+fn main() -> Int {
+    let x: []Int = &[1, 2, 3, 4, 5]
+    let y: []Int = &[3, 4, 5]
+    check(x, y)
+}
+
+fn check(x: []Int, y: []Int) -> Int {
+    if x.>ends_with(y) {
+        548
+    } else {
+        645
+    }
+}
