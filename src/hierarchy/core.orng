@@ -490,16 +490,19 @@ impl[T] for []T {
     }
 
     fn subslice(self, range: Range) -> Self {
-        if range.start > range.end { unreachable }
-        if range.start < 0 { unreachable }
-        if range.start >= self.length { unreachable }
-        if range.end > self.length { unreachable }
+        let start = range.start orelse 0
+        let end = range.end orelse self.length
 
-        Self::from_parts(&self.data[range.start] as [*]T, range.end - range.start)
+        if start > end { unreachable }
+        if start < 0 { unreachable }
+        if start > self.length { unreachable }
+        if end > self.length { unreachable }
+
+        Self::from_parts(&self.data[start] as [*]T, end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
-        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+        (self.>subslice(0..i), self.>subslice(i..self.length))
     }
 
     fn is_empty(self) -> Bool { self.length == 0 }
@@ -522,16 +525,19 @@ impl[T] for [mut]T {
     }
 
     fn subslice(self, range: Range) -> Self {
-        if range.start > range.end { unreachable }
-        if range.start < 0 { unreachable }
-        if range.start >= self.length { unreachable }
-        if range.end > self.length { unreachable }
+        let start = range.start orelse 0
+        let end = range.end orelse self.length
 
-        Self::from_parts(&mut self.data[range.start] as [*mut]T, range.end - range.start)
+        if start > end { unreachable }
+        if start < 0 { unreachable }
+        if start > self.length { unreachable }
+        if end > self.length { unreachable }
+
+        Self::from_parts(&mut self.data[start] as [*mut]T, end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
-        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+        (self.>subslice(0..i), self.>subslice(i..self.length))
     }
 
     fn is_empty(self) -> Bool { self.length == 0 }
@@ -548,17 +554,17 @@ impl[T] for [mut]T {
 impl[T: Eq] for []T {
     fn starts_with(self, prefix: []T) -> Bool {
         if prefix.length > self.length { return false }
-        self.>subslice(Range(0, prefix.length)) == prefix
+        self.>subslice(0..prefix.length) == prefix
     }
 
     fn ends_with(self, suffix: []T) -> Bool {
         if suffix.length > self.length { return false }
-        self.>subslice(Range(self.length - suffix.length, self.length)) == suffix
+        self.>subslice(self.length - suffix.length..self.length) == suffix
     }
 
     fn strip_prefix(self, prefix: []T) -> ?Self {
         if self.>starts_with(prefix) {
-            .some(self.>subslice(Range(0, prefix.length)))
+            .some(self.>subslice(0..prefix.length))
         } else {
             .none
         }
@@ -566,7 +572,7 @@ impl[T: Eq] for []T {
 
     fn strip_suffix(self, suffix: []T) -> ?Self {
         if self.>ends_with(suffix) {
-            .some(self.>subslice(Range(self.length - suffix.length, self.length)))
+            .some(self.>subslice(self.length - suffix.length..self.length))
         } else {
             .none
         }
@@ -585,17 +591,17 @@ impl[T: Eq] for []T {
 impl[T: Eq] for [mut]T {
     fn starts_with(self, prefix: []T) -> Bool {
         if prefix.length > self.length { return false }
-        (self.>subslice(Range(0, prefix.length)) as []T) == prefix
+        (self.>subslice(0..prefix.length) as []T) == prefix
     }
 
     fn ends_with(self, suffix: []T) -> Bool {
         if suffix.length > self.length { return false }
-        (self.>subslice(Range(self.length - suffix.length, self.length)) as []T) == suffix
+        (self.>subslice(self.length - suffix.length..self.length) as []T) == suffix
     }
 
     fn strip_prefix(self, prefix: []T) -> ?Self {
         if self.>starts_with(prefix) {
-            .some(self.>subslice(Range(0, prefix.length)))
+            .some(self.>subslice(0..prefix.length))
         } else {
             .none
         }
@@ -603,7 +609,7 @@ impl[T: Eq] for [mut]T {
 
     fn strip_suffix(self, suffix: []T) -> ?Self {
         if self.>ends_with(suffix) {
-            .some(self.>subslice(Range(self.length - suffix.length, self.length)))
+            .some(self.>subslice(self.length - suffix.length..self.length))
         } else {
             .none
         }
@@ -743,8 +749,8 @@ impl[I, const n: Int] Into_Iterator for [n]I {
 }
 
 struct Range {
-    start: Int
-    end: Int
+    start: ?Int
+    end: ?Int
 }
 
 struct Range_Iter {
@@ -757,7 +763,7 @@ impl Into_Iterator for Range {
     type Iter = Range_Iter
 
     fn into_iter(self) -> Self::Iter {
-        Range_Iter(self, self.start)
+        Range_Iter(self, self.start orelse 0)
     }
 }
 
@@ -765,14 +771,13 @@ impl Iterator for Range_Iter {
     type Item = Int
 
     fn next(&mut self) -> ?Int {
-        match self.counter {
-            {self.range.end} => .none
-            _ => {
-                let retval = self.counter
-                self.counter += 1
-                .some(retval)
-            }
+        match self.range.end {
+            .some(end) => if self.counter == end {return .none}
+            .none => {}
         }
+        let retval = self.counter
+        self.counter += 1
+        .some(retval)
     }
 }
 

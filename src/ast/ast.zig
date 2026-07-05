@@ -293,7 +293,6 @@ pub const AST = union(enum) {
         anytptr: bool = false, // When this is true, the addr_of should output as a void*, and should be cast whenever dereferenced
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
-    range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
         common: AST_Common,
         kind: Receiver_Kind,
@@ -1063,20 +1062,6 @@ pub const AST = union(enum) {
             ._expr = _expr,
             .mut = _mut,
             .multiptr = multiptr,
-        } }, allocator);
-    }
-
-    pub fn create_range(
-        _token: Token,
-        lower: *AST,
-        upper: *AST,
-        allocator: std.mem.Allocator,
-    ) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .range = .{
-            .common = _common,
-            .lower = lower,
-            .upper = upper,
         } }, allocator);
     }
 
@@ -1900,12 +1885,6 @@ pub const AST = union(enum) {
                 self.addr_of.multiptr,
                 allocator,
             ),
-            .range => return create_range(
-                self.token(),
-                self.range.lower.clone(substs, allocator),
-                self.range.upper.clone(substs, allocator),
-                allocator,
-            ),
             .receiver => {
                 var retval = create_receiver(
                     self.token(),
@@ -2407,6 +2386,30 @@ pub const AST = union(enum) {
         return member.assert_ast_valid();
     }
 
+    pub fn create_range(_token: Token, lower: ?*AST, upper: ?*AST, allocator: std.mem.Allocator) !*AST {
+        var terms = std.array_list.Managed(*AST).init(allocator);
+        if (lower) |l| {
+            const member = create_enum_value(Token.init_simple("some"), allocator);
+            member.enum_value.init = l;
+            try terms.append(member);
+        } else {
+            try terms.append(create_enum_value(Token.init_simple("none"), allocator));
+        }
+        if (upper) |u| {
+            const member = create_enum_value(Token.init_simple("some"), allocator);
+            member.enum_value.init = u;
+            try terms.append(member);
+        } else {
+            try terms.append(create_enum_value(Token.init_simple("none"), allocator));
+        }
+
+        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
+        const eq_trait_field = Type_AST.create_field(Token.init_simple("Range"), allocator);
+        const range_type = Type_AST.create_type_access(_token, core_ident, eq_trait_field, allocator);
+
+        return create_struct_value(_token, range_type, terms, allocator);
+    }
+
     pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
         const dispatch_expr = if (exp.* == .int or exp.* == .float) other else exp;
         const exp_type = Type_AST.create_type_of(_token, dispatch_expr, allocator);
@@ -2736,7 +2739,6 @@ pub const AST = union(enum) {
 
             .as => try out.print("as({f}, {f})", .{ self.expr(), self.type() }),
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
-            .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),
 
             .@"if" => try out.print("if()", .{}),

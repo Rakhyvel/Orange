@@ -740,7 +740,11 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const exp = try self.coalesce_expr();
     if (self.accept(.double_period)) |token| {
-        return ast_.AST.create_range(token, exp, try self.coalesce_expr(), self.allocator);
+        var upper: ?*ast_.AST = null;
+        if (self.next_is_expr()) {
+            upper = try self.coalesce_expr();
+        }
+        return ast_.AST.create_range(token, exp, upper, self.allocator);
     } else {
         return exp;
     }
@@ -833,6 +837,12 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         return self.prefix_left_square(token);
     } else if (self.accept(.@"try")) |token| {
         return ast_.AST.create_try(token, try self.parse_expr(), self.allocator);
+    } else if (self.accept(.double_period)) |token| {
+        var upper: ?*ast_.AST = null;
+        if (self.next_is_expr()) {
+            upper = try self.coalesce_expr();
+        }
+        return ast_.AST.create_range(token, null, upper, self.allocator);
     } else {
         return try self.postfix_expr();
     }
