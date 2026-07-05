@@ -2,7 +2,7 @@
 impl[const n: Int] for [n]Int {
     fn sum(&self) -> Int {
         let mut acc = 0
-        for i in 0...n {
+        for i in 0..n {
             acc += self^[i]
         }
         acc

@@ -293,7 +293,6 @@ pub const AST = union(enum) {
         anytptr: bool = false, // When this is true, the addr_of should output as a void*, and should be cast whenever dereferenced
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
-    sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
     range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
         common: AST_Common,
@@ -1064,22 +1063,6 @@ pub const AST = union(enum) {
             ._expr = _expr,
             .mut = _mut,
             .multiptr = multiptr,
-        } }, allocator);
-    }
-
-    pub fn create_sub_slice(
-        _token: Token,
-        super: *AST,
-        lower: ?*AST,
-        upper: ?*AST,
-        allocator: std.mem.Allocator,
-    ) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .sub_slice = .{
-            .common = _common,
-            .super = super,
-            .lower = lower,
-            .upper = upper,
         } }, allocator);
     }
 
@@ -1915,13 +1898,6 @@ pub const AST = union(enum) {
                 self.expr().clone(substs, allocator),
                 self.mut(),
                 self.addr_of.multiptr,
-                allocator,
-            ),
-            .sub_slice => return create_sub_slice(
-                self.token(),
-                self.sub_slice.super.clone(substs, allocator),
-                if (self.sub_slice.lower) |lower| lower.clone(substs, allocator) else null,
-                if (self.sub_slice.upper) |upper| upper.clone(substs, allocator) else null,
                 allocator,
             ),
             .range => return create_range(
@@ -2760,7 +2736,6 @@ pub const AST = union(enum) {
 
             .as => try out.print("as({f}, {f})", .{ self.expr(), self.type() }),
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
-            .sub_slice => try out.print("sub_slice()", .{}),
             .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),
 

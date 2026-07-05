@@ -1,7 +1,7 @@
 // 479
 fn ones[const n: Int]() -> [n]Float {
     let mut x: [n]Float
-    for i in 0...n {
+    for i in 0..n {
         x[i] = 1.0
     }
     x

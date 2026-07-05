@@ -32,27 +32,10 @@ fn expand_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         else => {},
 
         // TOOD: A pass that ensures that there are no duplicate fields in product and sum types
-
-        .sub_slice => self.expand_subslice(ast),
         .range => try self.expand_range(ast),
     }
 
     return self;
-}
-
-fn expand_subslice(self: Self, ast: *ast_.AST) void {
-    if (ast.sub_slice.lower == null) {
-        ast.sub_slice.lower = ast_.AST.create_int(ast.token(), 0, self.allocator);
-    }
-    if (ast.sub_slice.upper == null) {
-        const length = ast_.AST.create_field(Token.init("length", null, "", "", 0, 0), self.allocator);
-        ast.sub_slice.upper = ast_.AST.create_select(
-            ast.token(),
-            ast.sub_slice.super,
-            length,
-            self.allocator,
-        );
-    }
 }
 
 fn expand_range(self: Self, ast: *ast_.AST) !void {

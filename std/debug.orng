@@ -3,7 +3,7 @@ impl core::Writer for Console_Writer {
     virtual fn write(&mut self, bytes: String) -> ()!() {
         _ = self
         extern const putchar: Byte -> Int32
-        for i in 0...bytes.length {
+        for i in 0..bytes.length {
             _ = putchar(bytes[i])
         }
         .ok

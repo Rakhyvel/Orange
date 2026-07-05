@@ -883,20 +883,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
             }
         },
-        .sub_slice => {
-            const super_type = self.typecheck_AST(ast.sub_slice.super, null, subst) catch return error.CompileError;
-            const expanded_super_type = super_type.expand_identifier();
-            _ = self.typecheck_AST(ast.sub_slice.lower.?, null, subst) catch return error.CompileError; // lower and upper should exist
-            _ = self.typecheck_AST(ast.sub_slice.upper.?, null, subst) catch return error.CompileError; // they are set in expand phase
-            if (expanded_super_type.* != .struct_type or !expanded_super_type.struct_type.was_slice) {
-                self.ctx.errors.add_error(errs_.Error{ .not_subsliceable = .{
-                    .span = ast.token().span,
-                    ._type = expanded_super_type,
-                } });
-                return error.CompileError;
-            }
-            return expanded_super_type;
-        },
         .variant_tag => {
             const expr_type: *Type_AST = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
             const expanded_expr_type = expr_type.expand_identifier();

@@ -7,6 +7,6 @@ fn sum(xs: []Int) -> Int {
     if xs.length == 0 {
         0
     } else {
-        xs[0] + sum(xs[1..])
+        xs[0] + sum(xs.>subslice(1..))
     }
 }

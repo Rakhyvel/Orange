@@ -388,7 +388,7 @@ test "index_mut" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
     
-    for i in 0...3 {
+    for i in 0..3 {
         list[i] *= 2
     }
 

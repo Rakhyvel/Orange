@@ -220,11 +220,6 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
                 try walk_type(ast.enum_value.base, new_context);
             }
         },
-        .sub_slice => {
-            try walk_ast(ast.sub_slice.super, new_context);
-            try walk_ast(ast.sub_slice.lower, new_context);
-            try walk_ast(ast.sub_slice.upper, new_context);
-        },
         .range => {
             try walk_ast(ast.range.lower, new_context);
             try walk_ast(ast.range.upper, new_context);

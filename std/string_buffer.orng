@@ -218,7 +218,7 @@ impl for String_Buffer {
         // If the index is >= length, then simply push to the end.
         // If not, then copy contents over and insert literal.
         if index == self.>length() {
-            for i in 0...literal.length {
+            for i in 0..literal.length {
                 buffer[self.size + i] = literal[i]
             }
         } else {
@@ -233,7 +233,7 @@ impl for String_Buffer {
                         if i == 0 {break}
                     }
 
-                    for i in 0...literal.length {
+                    for i in 0..literal.length {
                         buffer[k + i] = literal[i]
                     }
                 }
@@ -261,7 +261,7 @@ impl for String_Buffer {
                 let rend = get_index(buffer, end, true).some
                 let difference = rend - rstart
 
-                for i in rend...self.size {
+                for i in rend..self.size {
                     buffer[i - difference] = buffer[i]
                 }
 
@@ -277,7 +277,7 @@ impl for String_Buffer {
     fn clear(&mut self) {
         match self.buffer {
             .some(mut buffer) => {
-                for i in 0...buffer.length {
+                for i in 0..buffer.length {
                     buffer[i] = 0
                 }
 

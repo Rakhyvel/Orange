@@ -485,6 +485,7 @@
 - [ ] Convert some recursive calls to iteration
 - [ ] Logger
 - [ ] rename files meant to be types to be their true Orange_Case
+- [ ] comptime contexts, interpretation mode, REPL and notebooks, live coding?
 
 ### Core Library
 > Mostly trait and type definitions, and really basic stuff. Available for freestanding programs

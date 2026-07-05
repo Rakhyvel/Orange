@@ -345,30 +345,6 @@ fn lower_AST_inner(
             self.instructions.append(instr) catch unreachable;
             return temp;
         },
-        // Fancy Operators
-        .sub_slice => {
-            const arr = (try self.lower_AST(ast.sub_slice.super, labels)) orelse return null;
-            const lower = (try self.lower_AST(ast.sub_slice.lower.?, labels)) orelse return null;
-            const upper = (try self.lower_AST(ast.sub_slice.upper.?, labels)) orelse return null;
-
-            self.generate_subslice_check(lower, upper, ast.token().span);
-
-            const new_size = self.create_temp_lvalue(prelude_.int_type);
-            self.instructions.append(Instruction.init(.sub_int, new_size, upper, lower, ast.token().span, self.ctx.allocator())) catch unreachable;
-
-            const data_type = self.ctx.typecheck.typeof(ast).children().items[0];
-            const data_ptr = arr.create_select_lval(0, 0, data_type.expand_identifier(), null, self.ctx.allocator());
-
-            const new_data_ptr = self.create_temp_lvalue(data_type);
-            self.instructions.append(Instruction.init(.add_int, new_data_ptr, data_ptr, lower, ast.token().span, self.ctx.allocator())) catch unreachable;
-
-            const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
-            var load_struct = Instruction.init_load_struct(temp, ast.token().span, self.ctx.allocator());
-            load_struct.data.lval_list.append(new_data_ptr) catch unreachable;
-            load_struct.data.lval_list.append(new_size) catch unreachable;
-            self.instructions.append(load_struct) catch unreachable;
-            return temp;
-        },
         .variant_tag => {
             const expr = (try self.lower_AST(ast.expr(), labels)) orelse return null;
             const temp = self.create_temp_lvalue(prelude_.word64_type);

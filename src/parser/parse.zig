@@ -739,7 +739,7 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
 fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const exp = try self.coalesce_expr();
-    if (self.accept(.triple_period)) |token| {
+    if (self.accept(.double_period)) |token| {
         return ast_.AST.create_range(token, exp, try self.coalesce_expr(), self.allocator);
     } else {
         return exp;
@@ -973,36 +973,16 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
         } else if (self.accept(.left_square)) |token| {
-            // A sub-slice `[a..b]` whose bounds are value expressions, or a bracket `[args]`, whose args are parsed type-first
-            if (self.accept(.double_period)) |_| {
-                // `[..]` or `[..b]`
-                var second: ?*ast_.AST = null;
-                if (self.next_is_expr()) {
-                    second = try self.assignment_expr();
+            const first = try self.bracket_arg();
+            var args = std.array_list.Managed(GenericArg).init(self.allocator);
+            args.append(first) catch unreachable;
+            while (self.accept(.comma)) |_| {
+                if (self.peek_kind(.right_square)) {
+                    break;
                 }
-                exp = ast_.AST.create_sub_slice(token, exp, null, second, self.allocator);
-            } else {
-                const first = try self.bracket_arg();
-                if (self.accept(.double_period)) |_| {
-                    // `[a..]` or `[a..b]`, the lower bound is always a value expression
-                    var second: ?*ast_.AST = null;
-                    if (self.next_is_expr()) {
-                        second = try self.assignment_expr();
-                    }
-                    exp = ast_.AST.create_sub_slice(token, exp, self.generic_arg_as_expr(first), second, self.allocator);
-                } else {
-                    // Simple index or generic apply, resolved in decorate
-                    var args = std.array_list.Managed(GenericArg).init(self.allocator);
-                    args.append(first) catch unreachable;
-                    while (self.accept(.comma)) |_| {
-                        if (self.peek_kind(.right_square)) {
-                            break;
-                        }
-                        args.append(try self.bracket_arg()) catch unreachable;
-                    }
-                    exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
-                }
+                args.append(try self.bracket_arg()) catch unreachable;
             }
+            exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
             if (self.peek_kind(.right_square)) {
                 _ = self.expect(.right_square) catch {};
             } else {
