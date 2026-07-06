@@ -106,7 +106,9 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
 
         .module => {}, // std.debug.panic("compiler error: walking over modules not implemented!\n", .{}),
 
-        .size_of, .default => try walk_type(ast.type(), new_context),
+        .size_of,
+        // .default
+        => try walk_type(ast.type(), new_context),
 
         .not,
         .negate,
@@ -263,10 +265,10 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .@"return" => try walk_ast(ast.@"return"._ret_expr, new_context),
         .decl => {
             try walk_type(ast.decl.type, new_context);
-            if (!(ast.decl.init != null and ast.decl.init.?.* == .default and ast.decl.init.?.default._type == ast.decl.type)) {
-                // Don't double-walk when decl's init is a default of its type
-                try walk_ast(ast.decl.init, new_context);
-            }
+            // if (!(ast.decl.init != null and ast.decl.init.?.* == .default and ast.decl.init.?.default._type == ast.decl.type)) {
+            //     // Don't double-walk when decl's init is a default of its type
+            //     try walk_ast(ast.decl.init, new_context);
+            // }
         },
         .fn_decl => {
             try walk_asts(&ast.fn_decl.context_decls, new_context);

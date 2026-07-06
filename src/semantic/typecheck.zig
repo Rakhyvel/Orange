@@ -317,10 +317,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             return expanded_expr_type.get_ok_type().child();
         },
-        .default => {
-            try self.ctx.validate_type.validate_type(ast.default._type);
-            return ast.default._type;
-        },
+        // .default => {
+        //     try self.ctx.validate_type.validate_type(ast.default._type);
+        //     return ast.default._type;
+        // },
         .size_of => {
             try self.ctx.validate_type.validate_type(ast.size_of._type);
             return prelude_.int_type;

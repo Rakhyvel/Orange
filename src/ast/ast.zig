@@ -299,10 +299,10 @@ pub const AST = union(enum) {
         _type: ?*Type_AST = null,
         value_derefd: bool = false,
     },
-    default: struct {
-        common: AST_Common,
-        _type: *Type_AST,
-    },
+    // default: struct {
+    //     common: AST_Common,
+    //     _type: *Type_AST,
+    // },
     size_of: struct {
         common: AST_Common,
         _type: *Type_AST,
@@ -638,12 +638,12 @@ pub const AST = union(enum) {
         );
     }
 
-    pub fn create_default(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
-        return AST.box(AST{ .default = .{
-            .common = AST_Common{ ._token = _token },
-            ._type = _expr,
-        } }, allocator);
-    }
+    // pub fn create_default(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
+    //     return AST.box(AST{ .default = .{
+    //         .common = AST_Common{ ._token = _token },
+    //         ._type = _expr,
+    //     } }, allocator);
+    // }
 
     pub fn create_size_of(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .size_of = .{
@@ -1542,7 +1542,7 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .@"try" => return create_try(self.token(), self.expr().clone(substs, allocator), allocator),
-            .default => return create_default(self.token(), self.default._type.clone(substs, allocator), allocator),
+            // .default => return create_default(self.token(), self.default._type.clone(substs, allocator), allocator),
             .size_of => return create_size_of(self.token(), self.size_of._type.clone(substs, allocator), allocator),
             .write => {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
@@ -2077,7 +2077,7 @@ pub const AST = union(enum) {
         return switch (self) {
             .as => self.as._type,
             .size_of => self.size_of._type,
-            .default => self.default._type,
+            // .default => self.default._type,
             else => std.debug.panic("can't call type on {s}\n", .{@tagName(self)}),
         };
     }
@@ -2403,11 +2403,17 @@ pub const AST = union(enum) {
             try terms.append(create_enum_value(Token.init_simple("none"), allocator));
         }
 
-        const core_ident = Type_AST.create_type_identifier(Token.init_simple("core"), allocator);
-        const eq_trait_field = Type_AST.create_field(Token.init_simple("Range"), allocator);
-        const range_type = Type_AST.create_type_access(_token, core_ident, eq_trait_field, allocator);
+        // core::Range[@typeof(u | l)](.some(l), .some(u))
 
-        return create_struct_value(_token, range_type, terms, allocator);
+        const core_ident = create_identifier(Token.init_simple("core"), allocator);
+        const range_type = create_field(Token.init_simple("Range"), allocator);
+        var bracket_terms = std.array_list.Managed(GenericArg).init(allocator);
+        const typeof = Type_AST.create_type_of(Token.init_simple("Range"), lower orelse upper orelse return error.Bad, allocator);
+        try bracket_terms.append(GenericArg{ .type_arg = typeof });
+        const full_range_type = create_access(_token, core_ident, range_type, allocator);
+        const bracket = create_bracket(Token.init_simple("Range"), full_range_type, bracket_terms, allocator);
+
+        return create_call(_token, bracket, terms, allocator);
     }
 
     pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
@@ -2558,9 +2564,9 @@ pub const AST = union(enum) {
             .negate => try out.print("negate({f})", .{self.expr()}),
             .dereference => try out.print("dereference()", .{}),
             .@"try" => try out.print("try()", .{}),
-            .default => {
-                try out.print("default({f})", .{self.default._type});
-            },
+            // .default => {
+            //     try out.print("default({f})", .{self.default._type});
+            // },
             .size_of => try out.print("size_of({f})", .{self.type()}),
             .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
             .variant_name => try out.print("variant_name({f})", .{self.expr()}),

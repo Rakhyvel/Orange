@@ -394,16 +394,21 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
         },
         .load_int => {
             try self.output_var_assign(instr.dest.?);
-            try self.writer.print("{}", .{instr.data.int});
-            if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .unsigned_integer) {
-                if (instr.dest.?.expanded_type_sizeof().? == 8) {
-                    try self.writer.print("ULL", .{});
-                } else {
-                    try self.writer.print("U", .{});
-                }
-            } else if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .signed_integer) {
-                if (instr.dest.?.expanded_type_sizeof().? == 8) {
-                    try self.writer.print("LL", .{});
+            if (instr.data.int == std.math.minInt(i64)) {
+                // Needed because C compilers will parse `-0x8000000000000000` as negating `0x8000000000000000`, which isn't in the valid range for int64_t
+                try self.writer.print("INT64_MIN", .{});
+            } else {
+                try self.writer.print("{}", .{instr.data.int});
+                if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .unsigned_integer) {
+                    if (instr.dest.?.expanded_type_sizeof().? == 8) {
+                        try self.writer.print("ULL", .{});
+                    } else {
+                        try self.writer.print("U", .{});
+                    }
+                } else if (prelude_.info_from_ast(instr.dest.?.get_expanded_type()).?.type_kind == .signed_integer) {
+                    if (instr.dest.?.expanded_type_sizeof().? == 8) {
+                        try self.writer.print("LL", .{});
+                    }
                 }
             }
             try self.writer.print(";\n", .{});

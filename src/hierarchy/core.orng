@@ -481,6 +481,16 @@ impl[T: Partial_Eq] Partial_Eq for [mut]T {
 }
 impl[T: Eq] Eq for [mut]T {}
 
+trait Bounded {
+    const min_value: Self
+    const max_value: Self
+}
+
+impl Bounded for Int {
+    const min_value: Self = -0x7FFF_FFFF_FFFF_FFFF - 1
+    const max_value: Self = 0x7FFF_FFFF_FFFF_FFFF
+}
+
 impl[T] for []T {
     fn from_parts(data: [*]T, len: Int) -> Self {
         let mut retval: []T = undefined
@@ -489,7 +499,7 @@ impl[T] for []T {
         retval
     }
 
-    fn subslice(self, range: Range) -> Self {
+    fn subslice(self, range: Range[Int]) -> Self {
         let start = range.start orelse 0
         let end = range.end orelse self.length
 
@@ -524,7 +534,7 @@ impl[T] for [mut]T {
         retval
     }
 
-    fn subslice(self, range: Range) -> Self {
+    fn subslice(self, range: Range[Int]) -> Self {
         let start = range.start orelse 0
         let end = range.end orelse self.length
 
@@ -748,22 +758,22 @@ impl[I, const n: Int] Into_Iterator for [n]I {
     }
 }
 
-struct Range {
-    start: ?Int
-    end: ?Int
+struct Range[Idx] {
+    start: ?Idx
+    end: ?Idx
 }
 
 struct Range_Iter {
-    range: Range
+    range: Range[Int]
     counter: Int
 }
 
-impl Into_Iterator for Range {
+impl Into_Iterator for Range[Int] {
     type Item = Int
     type Iter = Range_Iter
 
     fn into_iter(self) -> Self::Iter {
-        Range_Iter(self, self.start orelse 0)
+        Range_Iter(self, self.start orelse (Int as Bounded)::min_value)
     }
 }
 
@@ -771,10 +781,8 @@ impl Iterator for Range_Iter {
     type Item = Int
 
     fn next(&mut self) -> ?Int {
-        match self.range.end {
-            .some(end) => if self.counter == end {return .none}
-            .none => {}
-        }
+        let end = self.range.end orelse (Int as Bounded)::max_value
+        if self.counter >= end {return .none}
         let retval = self.counter
         self.counter += 1
         .some(retval)

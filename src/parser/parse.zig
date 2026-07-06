@@ -534,7 +534,7 @@ fn const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         token,
         pattern,
         _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
-        _init orelse ast_.AST.create_default(_type.?.token(), _type.?, self.allocator), // default value generate done here!
+        _init,
         self.allocator,
     );
 }
@@ -571,7 +571,7 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         token,
         ident,
         _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
-        _init orelse if (is_undefined) null else ast_.AST.create_default(_type.?.token(), _type.?, self.allocator), // default value generate done here!
+        _init, // default value generate done here!
         self.allocator,
     );
 }
@@ -744,7 +744,10 @@ fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (self.next_is_expr()) {
             upper = try self.coalesce_expr();
         }
-        return ast_.AST.create_range(token, exp, upper, self.allocator);
+        return ast_.AST.create_range(token, exp, upper, self.allocator) catch |e| switch (e) {
+            error.Bad => unreachable,
+            error.OutOfMemory => return error.OutOfMemory,
+        };
     } else {
         return exp;
     }
@@ -842,7 +845,10 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         if (self.next_is_expr()) {
             upper = try self.coalesce_expr();
         }
-        return ast_.AST.create_range(token, null, upper, self.allocator);
+        return ast_.AST.create_range(token, null, upper, self.allocator) catch |e| switch (e) {
+            error.Bad => unreachable,
+            error.OutOfMemory => return error.OutOfMemory,
+        };
     } else {
         return try self.postfix_expr();
     }
@@ -898,10 +904,12 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (std.mem.eql(u8, token.data, "shr")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
         return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
-    } else if (std.mem.eql(u8, token.data, "default")) {
-        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-        return ast_.AST.create_default(token, args.items[0], self.allocator);
-    } else if (std.mem.eql(u8, token.data, "sizeof")) {
+    }
+    // else if (std.mem.eql(u8, token.data, "default")) {
+    //     const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
+    //     return ast_.AST.create_default(token, args.items[0], self.allocator);
+    // }
+    else if (std.mem.eql(u8, token.data, "sizeof")) {
         const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
         return ast_.AST.create_size_of(token, args.items[0], self.allocator);
     } else if (std.mem.eql(u8, token.data, "write")) {

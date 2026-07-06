@@ -35,6 +35,7 @@ pub var file_io_context: *Type_AST = undefined;
 var core: ?*Scope = null;
 pub var core_symbol: ?*Symbol = null;
 pub var core_package_name: []const u8 = undefined;
+pub var core_initialized: bool = false;
 pub fn get_core_scope(compiler: *Compiler_Context) !*Scope {
     if (core == null) {
         try create_core(compiler);
@@ -44,6 +45,7 @@ pub fn get_core_scope(compiler: *Compiler_Context) !*Scope {
 
 pub fn deinit() void {
     core = null;
+    core_initialized = false;
 }
 
 fn create_core(compiler: *Compiler_Context) !void {
@@ -125,4 +127,6 @@ fn create_core(compiler: *Compiler_Context) !void {
     file_io_context = module_scope.lookup("File_IO", .{}).found.init_typedef().?;
 
     _ = module_scope.lookup("Requirement", .{}).found.init_typedef().?;
+
+    core_initialized = true;
 }
