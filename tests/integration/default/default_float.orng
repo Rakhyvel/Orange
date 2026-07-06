@@ -1,6 +1,6 @@
 // 132
 fn main() -> Int {
-    let x: Float
+    let x: Float = Float::default
     if x == 0.0 {
         132
     } else {

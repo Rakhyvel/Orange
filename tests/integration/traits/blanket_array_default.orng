@@ -1,0 +1,23 @@
+// 0
+
+trait My_Default {
+    const default: Self
+}
+
+impl My_Default for Int { const default = 0 }
+
+impl[const n: Int, T: My_Default] My_Default for [n]T {
+    const default: Self = {
+        let t_default = (T as My_Default)::default
+        let mut retval: Self = undefined
+        while let mut i = 0; i < n; i += 1 {
+            retval[i] = t_default
+        }
+        retval
+    }
+}
+
+fn main() -> Int {
+    let arr: [3]Int = ([3]Int as My_Default)::default
+    arr[0] + arr[1] + arr[2]
+}

@@ -432,7 +432,8 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const new_scope = init(const_scope.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
-        return cloned;
+        // Return the pattern, which carries the symbol, matching what search_impl returns for consts
+        return cloned.binding.pattern;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {
         if (!std.mem.eql(u8, type_decl.token().data, name)) continue;

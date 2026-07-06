@@ -1593,12 +1593,8 @@ fn parse_struct_field(self: *Self) Parser_Error_Enum!*Type_AST {
     _ = try self.expect(.single_colon);
     const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
     const _type = try self.type_expr();
-    var _init: ?*ast_.AST = null;
-    if (self.accept(.single_equals)) |token| {
-        _init = ast_.AST.create_comptime(token, try self.bool_expr(), self.allocator);
-    }
 
-    return Type_AST.create_annotation(ident_token, field_ident, _type, _init, self.allocator);
+    return Type_AST.create_annotation(ident_token, field_ident, _type, null, self.allocator);
 }
 
 fn parse_enum_field(self: *Self) Parser_Error_Enum!*Type_AST {
