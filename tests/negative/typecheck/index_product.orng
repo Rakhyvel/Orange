@@ -3,7 +3,7 @@
 //      ^
 // 
 fn main() -> Int {
-    let x: (Int, Bool, Bool, Int)
+    let x: (Int, Bool, Bool, Int) = (0, false, false, 0)
     x.[f()]
 }
 

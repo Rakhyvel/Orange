@@ -1,6 +1,6 @@
-// undefined.orng:7:22: error: expected an expression here, got `undefined`
+// undefined.orng:7:23: error: variable declarations require at least a type or an intial value
 //     let x = undefined
-//                     ^
+//                      ^
 // 
 
 fn main() -> Int {

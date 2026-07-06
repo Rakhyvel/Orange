@@ -543,6 +543,12 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     if (self.accept(.undefined) == null) {
         _init = try self.bool_expr();
+    } else if (_type == null) {
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = self.peek().span,
+            .msg = "variable declarations require at least a type or an intial value",
+        } });
+        return error.ParseError;
     }
 
     return ast_.AST.create_binding(

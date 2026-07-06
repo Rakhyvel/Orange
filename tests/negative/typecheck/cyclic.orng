@@ -6,7 +6,7 @@ type A = (B, Int)
 type B = (A, Int)
 
 fn main() -> Int {
-    let x: A
+    let x: A = 0
     _ = x
     2
 }

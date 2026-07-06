@@ -1,5 +1,5 @@
 // 
-const x: Int8 = (100 as Int8) + (50 as Int8)
+const x: Int8 = comptime{(100 as Int8) + (50 as Int8)}
 fn main() -> Int8 {
     x
 }

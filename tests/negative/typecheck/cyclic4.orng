@@ -1,5 +1,5 @@
-// cyclic4.orng:6:7: error: cyclic type detected
-// type B = ( ?&A, Int )
+// cyclic4.orng:5:7: error: cyclic type detected
+// type A = ( ?&B, Int )
 //      ^
 // 
 type A = ( ?&B, Int )
@@ -8,6 +8,6 @@ type B = ( ?&A, Int )
 fn main() -> Int {
     let mut a: A = (.none, 200)
     let b: B = (.none, 86)
-    a[0] = .some(&b)
-    a[1] + a[0].some[1]
+    a.[0] = .some(&b)
+    a.[1] + a.[0].some[1]
 }

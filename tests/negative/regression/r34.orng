@@ -1,7 +1,7 @@
 // r34.orng:6:17: error: expected a type
-//     let a: &main
+//     let a: &main = 4
 //                ^
 // 
 fn main() -> Int {
-    let a: &main
+    let a: &main = 4
 } 

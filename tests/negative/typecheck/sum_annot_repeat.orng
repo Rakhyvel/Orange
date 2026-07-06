@@ -1,5 +1,5 @@
 // sum_annot_repeat.orng:11:10: error: symbol `x` is never used
-//     let x: Duplicate
+//     let x: Duplicate = .y(0)
 //         ^
 // 
 enum Duplicate {
@@ -8,6 +8,6 @@ enum Duplicate {
     y(Int)
 }
 fn main() -> Int {
-    let x: Duplicate
+    let x: Duplicate = .y(0)
     0
 }

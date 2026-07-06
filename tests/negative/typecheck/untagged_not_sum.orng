@@ -1,5 +1,5 @@
 // untagged_not_sum.orng:5:19: error: not an enum type
-// const x: @Untagged(Int)
+// const x: @Untagged(Int) = 0
 //                  ^
 // 
-const x: @Untagged(Int)
+const x: @Untagged(Int) = 0

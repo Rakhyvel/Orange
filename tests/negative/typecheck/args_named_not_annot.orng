@@ -3,7 +3,7 @@
 //        ^
 // 
 fn main() -> Int {
-    let mut y: [2]Int
+    let mut y: [2]Int = [0, 0]
     f(y[2] = 5, y[2] = 5)
     0
 }

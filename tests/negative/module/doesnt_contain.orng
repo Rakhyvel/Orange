@@ -1,7 +1,7 @@
 // doesnt_contain.orng:7:34: error: member `The_Type` not in module `doesnt_contain`
-// const x: doesnt_contain::The_Type
+// const x: doesnt_contain::The_Type = 3
 //                                 ^
 // 
 import doesnt_contain
 
-const x: doesnt_contain::The_Type
+const x: doesnt_contain::The_Type = 3

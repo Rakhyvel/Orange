@@ -1,7 +1,7 @@
-// r11.orng:6:28: error: expected tuple type for tuple pattern, got `[]String`
-//     let (a, b, c): []String
-//                           ^
+// r11.orng:6:34: error: expected a value of type `[]String`
+//     let (a, b, c): []String = (0, 0, 0)
+//                                 ^
 // 
 fn main()->() {
-    let (a, b, c): []String
+    let (a, b, c): []String = (0, 0, 0)
 }
