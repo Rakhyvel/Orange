@@ -48,6 +48,7 @@ pub fn lower_AST_into_cfg(self: *Self) Lower_Errors!void {
     const fn_def = self.cfg.symbol.init_value();
     std.debug.assert(fn_def != null); // If this fails, it likely means we fell back to using an abstract trait method, which can't be lowered
     const eval: ?*lval_.L_Value = try self.lower_AST(fn_def.?, Labels.null_labels);
+    // Tree_Writer.print(fn_def.?);
     if (self.cfg.symbol.decl.?.* == .fn_decl or self.cfg.symbol.decl.?.* == .method_decl) {
         // `_comptime` symbols don't have parameters anyway
         const param_symbols = self.cfg.symbol.decl.?.param_symbols();

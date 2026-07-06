@@ -4,10 +4,14 @@ enum Error {
 }
 
 struct Good {
-    a: Int = 139
+    a: Int
+}
+
+impl core::Default for Good {
+    const default = Good(139)
 }
 
 fn main() -> Int {
-    let x: Error!Good
+    let x = (Error!Good)::default
     x.ok.a
 }

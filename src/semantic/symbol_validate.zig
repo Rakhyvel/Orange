@@ -71,7 +71,8 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 return error.CompileError;
             },
         };
-        if (_init.* != .module and symbol.kind != .@"comptime") {
+        // A generic impl's consts cannot be comptime evaluated, their instantiations are instead
+        if (_init.* != .module and symbol.kind != .@"comptime" and !symbol.in_generic_impl) {
             try walk_.walk_ast(_init, Const_Eval.new(self.ctx));
         }
     } else if (symbol.kind == .type and symbol.init_typedef() != null) {

@@ -243,7 +243,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            // try self.ctx.validate_symbol.validate_symbol(symbol);
+            if (symbol.kind == .@"const") {
+                try self.ctx.validate_symbol.validate_symbol(symbol);
+            }
 
             if (symbol.decl.?.num_generic_params() > 0) {
                 self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
@@ -434,7 +436,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
-                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait`?
+                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait(s)`?
                         .type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = method_name,
@@ -542,7 +544,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            // try self.ctx.validate_symbol.validate_symbol(symbol);
+            try self.ctx.validate_symbol.validate_symbol(symbol);
             if (symbol.is_type() or symbol.kind == .context) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });

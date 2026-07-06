@@ -846,7 +846,10 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
             upper = try self.coalesce_expr();
         }
         return ast_.AST.create_range(token, null, upper, self.allocator) catch |e| switch (e) {
-            error.Bad => unreachable,
+            error.Bad => {
+                self.errors.add_error(errs_.Error{ .basic = .{ .msg = "must specify either a begining or end of a range", .span = token.span } }); // TODO: Won't need this eventually
+                return error.ParseError;
+            },
             error.OutOfMemory => return error.OutOfMemory,
         };
     } else {

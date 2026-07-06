@@ -14,6 +14,7 @@ const Token = @import("../lexer/token.zig");
 const Type_Set = @import("../types/type_set.zig");
 const UID_Gen = @import("../util/uid_gen.zig");
 const walk_ = @import("../ast/walker.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 // Front-end pipeline steps
 const Read_File = @import("../lexer/read_file.zig");
@@ -325,6 +326,7 @@ pub const Module = struct {
 
     /// Puts all the types used in this module into the given type set
     pub fn collect_module_types(self: *Module, type_set: *Type_Set) void {
+        // self.type_set.print();
         type_set.union_from(&self.type_set);
     }
 
