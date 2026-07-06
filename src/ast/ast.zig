@@ -299,10 +299,6 @@ pub const AST = union(enum) {
         _type: ?*Type_AST = null,
         value_derefd: bool = false,
     },
-    // default: struct {
-    //     common: AST_Common,
-    //     _type: *Type_AST,
-    // },
     size_of: struct {
         common: AST_Common,
         _type: *Type_AST,
@@ -637,13 +633,6 @@ pub const AST = union(enum) {
             allocator,
         );
     }
-
-    // pub fn create_default(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
-    //     return AST.box(AST{ .default = .{
-    //         .common = AST_Common{ ._token = _token },
-    //         ._type = _expr,
-    //     } }, allocator);
-    // }
 
     pub fn create_size_of(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .size_of = .{
@@ -1542,7 +1531,6 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .@"try" => return create_try(self.token(), self.expr().clone(substs, allocator), allocator),
-            // .default => return create_default(self.token(), self.default._type.clone(substs, allocator), allocator),
             .size_of => return create_size_of(self.token(), self.size_of._type.clone(substs, allocator), allocator),
             .write => {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
@@ -2077,7 +2065,6 @@ pub const AST = union(enum) {
         return switch (self) {
             .as => self.as._type,
             .size_of => self.size_of._type,
-            // .default => self.default._type,
             else => std.debug.panic("can't call type on {s}\n", .{@tagName(self)}),
         };
     }
@@ -2564,9 +2551,6 @@ pub const AST = union(enum) {
             .negate => try out.print("negate({f})", .{self.expr()}),
             .dereference => try out.print("dereference()", .{}),
             .@"try" => try out.print("try()", .{}),
-            // .default => {
-            //     try out.print("default({f})", .{self.default._type});
-            // },
             .size_of => try out.print("size_of({f})", .{self.type()}),
             .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
             .variant_name => try out.print("variant_name({f})", .{self.expr()}),

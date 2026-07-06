@@ -1,6 +1,6 @@
 // 139
 fn main() -> Int {
-    let x:()
+    let x = (())::default
     _ = x
     139
 }

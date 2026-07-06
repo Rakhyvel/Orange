@@ -1,6 +1,6 @@
 // 
 fn main() -> Int {
-    let x: [4]Int
+    let x = [0, 0, 0, 0]
     let y: []Int = &x
     y[f()]
 }

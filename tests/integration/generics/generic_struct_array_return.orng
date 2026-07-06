@@ -5,7 +5,7 @@ fn id[const n: Int](x: Buf[n]) -> Buf[n] {
 }
 
 fn main() -> Int {
-    let mut x: Buf[3]
+    let mut x = Buf[3]([0, 0, 0], 0)
     x.data[1] = 482
     x = id[3](x)
     x.data[1]

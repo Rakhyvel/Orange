@@ -1,6 +1,6 @@
 // 160
 fn main()->Int {
-    let (a, b): (Int, Int)
+    let (a, b): (Int, Int) = (0, 0)
     if a + b == 0 {
         160
     } else {

@@ -1,7 +1,7 @@
 // 0
 struct Buf[const n: Int] { data: [n]Int, used: Int }
 fn empty_buf[const n: Int]() -> Buf[n] {
-    let x: Buf[n]
+    let x = Buf[n](([n]Int)::default, 0)
     x
 }
 

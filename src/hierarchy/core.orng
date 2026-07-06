@@ -13,6 +13,7 @@ impl Default for Word32 { const default = 0 as Self }
 impl Default for Word64 { const default = 0 as Self }
 impl Default for Float32 { const default = 0.0 as Self }
 impl Default for Float64 { const default = 0.0 as Self }
+impl Default for () { const default: Self = {} }
 impl[T] Default for ?T { const default: ?T = .none }
 impl[Err, Ok: Default] Default for Err!Ok { const default: Self = .ok((Ok as Default)::default) }
 impl[T] Default for []T { const default: Self = Self::from_parts(0 as [*]T, 0) }

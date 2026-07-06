@@ -1,6 +1,6 @@
 // 
 fn main() -> Int {
-    let mut x: [4]Int
+    let mut x = [0, 0, 0, 0]
     x[f()] = 0
     0
 }

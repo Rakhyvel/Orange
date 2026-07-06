@@ -6,7 +6,7 @@ enum A_Or_B {
 
 fn main() -> Int {
     let x: A_Or_B = .a
-    if x.a == @default(Int) {
+    if x.a == Int::default {
         280
     } else {
         unreachable

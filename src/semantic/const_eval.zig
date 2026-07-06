@@ -73,14 +73,6 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
             _ = self.ctx.typecheck.typecheck_AST(ast, expected_type, &subst) catch return error.CompileError;
         },
 
-        // .default => {
-        //     const _type = ast.default._type;
-        //     ast.* = (try defaults_.generate_default(ast.default._type, ast.token().span, &self.ctx.errors, self.ctx.allocator())).*;
-        //     var subst = unification_.Substitutions.init(self.ctx.allocator());
-        //     defer subst.deinit();
-        //     _ = self.ctx.typecheck.typecheck_AST(ast, _type, &subst) catch return error.CompileError;
-        // },
-
         .size_of => {
             const _type = ast.size_of._type;
             if (!_type.is_generic()) {

@@ -263,7 +263,7 @@ fn extern_const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 
     if (self.peek_kind(.@"const")) {
-        var retval = try self.const_declaration();
+        var retval = try self.trait_const_declaration();
         retval.binding.pattern = ast_.AST.create_pattern_symbol(
             retval.binding.pattern.token(),
             .@"const",
@@ -514,21 +514,10 @@ fn const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     if (self.accept(.single_colon)) |_| {
         _type = try self.type_expr();
-        if (self.peek_kind(.single_equals)) {
-            _ = try self.expect(.single_equals);
-            const inner_expr = try self.bool_expr();
-            _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
-        }
-    } else if (self.accept(.single_equals)) |_| {
-        const inner_expr = try self.bool_expr();
-        _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
-    } else {
-        self.errors.add_error(errs_.Error{ .basic = .{
-            .span = self.peek().span,
-            .msg = "variable declarations require at least a type or an intial value",
-        } });
-        return error.ParseError;
     }
+
+    _ = try self.expect(.single_equals);
+    _init = try self.bool_expr();
 
     return ast_.AST.create_binding(
         token,
@@ -545,33 +534,22 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const ident = try self.let_pattern_atom();
     var _type: ?*Type_AST = null;
     var _init: ?*ast_.AST = null;
-    var is_undefined = false;
 
     if (self.accept(.single_colon)) |_| {
         _type = try self.type_expr();
-        if (self.peek_kind(.single_equals)) {
-            _ = try self.expect(.single_equals);
-            if (self.accept(.undefined)) |_| {
-                is_undefined = true;
-            } else {
-                _init = try self.bool_expr();
-            }
-        }
-    } else if (self.accept(.single_equals)) |_| {
+    }
+
+    _ = try self.expect(.single_equals);
+
+    if (self.accept(.undefined) == null) {
         _init = try self.bool_expr();
-    } else {
-        self.errors.add_error(errs_.Error{ .basic = .{
-            .span = self.peek().span,
-            .msg = "variable declarations require at least a type or an intial value",
-        } });
-        return error.ParseError;
     }
 
     return ast_.AST.create_binding(
         token,
         ident,
         _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
-        _init, // default value generate done here!
+        _init,
         self.allocator,
     );
 }
@@ -1636,6 +1614,41 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     return ast_.AST.create_type_param_decl(identifier, false, constraints, self.allocator);
 }
 
+fn trait_const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const token = try self.expect(.@"const");
+
+    const identifier = try self.expect(.identifier);
+    const pattern = ast_.AST.create_pattern_symbol(identifier, .@"const", .local, identifier.data, self.allocator);
+    var _type: ?*Type_AST = null;
+    var _init: ?*ast_.AST = null;
+
+    if (self.accept(.single_colon)) |_| {
+        _type = try self.type_expr();
+        if (self.peek_kind(.single_equals)) {
+            _ = try self.expect(.single_equals);
+            const inner_expr = try self.bool_expr();
+            _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
+        }
+    } else if (self.accept(.single_equals)) |_| {
+        const inner_expr = try self.bool_expr();
+        _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
+    } else {
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = self.peek().span,
+            .msg = "trait constant declarations require at least a type or an intial value",
+        } });
+        return error.ParseError;
+    }
+
+    return ast_.AST.create_binding(
+        token,
+        pattern,
+        _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
+        _init,
+        self.allocator,
+    );
+}
+
 fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     var params = std.array_list.Managed(*ast_.AST).init(self.allocator);
     if (self.accept(.left_square) != null) {
@@ -1705,7 +1718,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     self.newlines();
     while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const") or self.peek_kind(.type)) {
         if (self.peek_kind(.@"const")) {
-            const_decls.append(try self.const_declaration()) catch unreachable;
+            const_decls.append(try self.trait_const_declaration()) catch unreachable;
         } else if (self.peek_kind(.type)) {
             type_decls.append(try self.trait_type_alias_declaration()) catch unreachable;
         } else {

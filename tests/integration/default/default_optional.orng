@@ -1,5 +1,5 @@
 // 138
 fn main() -> Int {
-    let x: ?Int
+    let x = (?Int)::default
     x orelse 138
 }

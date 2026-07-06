@@ -5,7 +5,7 @@ fn main() -> Int {
 }
 
 fn safe_div_vec(x:[3]Int, y:[3]Int) -> [3]?Int {
-    let mut retval: [3]?Int
+    let mut retval: [3]?Int = undefined
     retval[0] = safe_div(x[0], y[0])
     retval[1] = safe_div(x[1], y[1])
     retval[2] = safe_div(x[2], y[2])

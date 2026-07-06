@@ -1,6 +1,6 @@
 // 164
 fn main() -> Int {
-    let [[mut x, mut y], [mut a, mut b]]: [2][2]Int
+    let [[mut x, mut y], [mut a, mut b]]: [2][2]Int = [[0, 0], [0, 0]]
     ((x, y), (a, b)) = ((1, 40), (2, 2))
     (x + y) * (a + b)
 }

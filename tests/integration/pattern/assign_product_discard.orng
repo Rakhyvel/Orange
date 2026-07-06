@@ -1,6 +1,6 @@
 // 165
 fn main() -> Int {
-    let [mut x, mut y]: [2]Int
+    let [mut x, mut y]: [2]Int = [0, 0]
     (x, _, y) = (5, 19, 33)
     x * y
 }

@@ -5,8 +5,16 @@ struct Triplet {
     c: ()
 }
 
+impl core::Default for Triplet {
+    const default = Triplet(
+        (())::default,
+        0,
+        (())::default
+    )
+}
+
 fn main() -> Int {
-    let x: Triplet
+    let x = Triplet::default
     let y = &x
     140 + y.b
 }
