@@ -1,0 +1,7 @@
+// 6
+fn main() -> Int {
+    const precision = 6
+    let mut buf = ([comptime{precision}]Byte)::default
+    let mut buf_slice: [mut]Byte = &mut buf
+    buf_slice.length
+}

@@ -2376,29 +2376,29 @@ pub const AST = union(enum) {
     pub fn create_range(_token: Token, lower: ?*AST, upper: ?*AST, allocator: std.mem.Allocator) !*AST {
         var terms = std.array_list.Managed(*AST).init(allocator);
         if (lower) |l| {
-            const member = create_enum_value(Token.init_simple("some"), allocator);
+            const member = create_enum_value(Token.init_simple_with_span("some", _token.span), allocator);
             member.enum_value.init = l;
             try terms.append(member);
         } else {
-            try terms.append(create_enum_value(Token.init_simple("none"), allocator));
+            try terms.append(create_enum_value(Token.init_simple_with_span("none", _token.span), allocator));
         }
         if (upper) |u| {
-            const member = create_enum_value(Token.init_simple("some"), allocator);
+            const member = create_enum_value(Token.init_simple_with_span("some", _token.span), allocator);
             member.enum_value.init = u;
             try terms.append(member);
         } else {
-            try terms.append(create_enum_value(Token.init_simple("none"), allocator));
+            try terms.append(create_enum_value(Token.init_simple_with_span("none", _token.span), allocator));
         }
 
         // core::Range[@typeof(u | l)](.some(l), .some(u))
 
-        const core_ident = create_identifier(Token.init_simple("core"), allocator);
-        const range_type = create_field(Token.init_simple("Range"), allocator);
+        const core_ident = create_identifier(Token.init_simple_with_span("core", _token.span), allocator);
+        const range_type = create_field(Token.init_simple_with_span("Range", _token.span), allocator);
         var bracket_terms = std.array_list.Managed(GenericArg).init(allocator);
-        const typeof = Type_AST.create_type_of(Token.init_simple("Range"), lower orelse upper orelse return error.Bad, allocator);
+        const typeof = Type_AST.create_type_of(Token.init_simple_with_span("Range", _token.span), lower orelse upper orelse return error.Bad, allocator);
         try bracket_terms.append(GenericArg{ .type_arg = typeof });
         const full_range_type = create_access(_token, core_ident, range_type, allocator);
-        const bracket = create_bracket(Token.init_simple("Range"), full_range_type, bracket_terms, allocator);
+        const bracket = create_bracket(Token.init_simple_with_span("Range", _token.span), full_range_type, bracket_terms, allocator);
 
         return create_call(_token, bracket, terms, allocator);
     }

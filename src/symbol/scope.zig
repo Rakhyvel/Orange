@@ -159,6 +159,8 @@ pub const Impl_Trait_Lookup_Result = struct {
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
     _ = self;
 
+    try ctx.validate_type.validate_type(for_type);
+
     if (for_type.* == .identifier or for_type.* == .generic_apply or for_type.* == .access) {
         // Hot path, if we've seen (for_type, trait) before, return the cached result
         if (for_type.symbol()) |type_sym| {
@@ -444,6 +446,8 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         &[_]*Type_AST{}; // empty slice
     const is_type_param = constraints.len > 0;
 
+    try compiler.validate_type.validate_type(for_type);
+
     // Go through all the impls of the module, check any that fit
     var i: usize = 0;
     while (i < self.module.?.impls.items.len) : (i += 1) {
@@ -498,7 +502,7 @@ pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitu
             .const_param_decl => {
                 const mapped = subst.get_const(param.symbol().?.name) orelse continue;
                 if ((mapped.* == .identifier) and mapped.symbol() == param.symbol()) continue;
-                if (mapped.is_const_param_ref()) return true; // renamed to another const param
+                if (!unification_.const_arg_is_concrete(mapped)) return true;
             },
             else => {},
         }
@@ -506,14 +510,31 @@ pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitu
     return false;
 }
 
-/// Clones an impl member (associated `type` or `method`) with `subst` applied, so it refers
+/// Clones an impl member (associated `type`, `method`, or `const`) with `subst` applied, so it refers
 /// to the querying impl's params instead of the sibling impl's. Needed when
 /// `instantiate_generic_impl` returns the impl un-substituted (subst maps onto generic params)
 /// For methods only the signature (`_decl_type`) is remapped, the body is checked at validate_impl
 pub fn remap_impl_member(res: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) *ast_.AST {
-    if (res.* != .type_alias and res.* != .method_decl) return res;
-    const cloned = res.clone(subst, compiler.allocator());
+    if (res.* != .type_alias and res.* != .method_decl and res.* != .pattern_symbol) return res;
     const old_symbol = res.symbol().?;
+    if (res.* == .pattern_symbol) {
+        // Remap just the type (like method_decl remaps just the signature) the value isn't needed until monomorphization
+        const cloned_type = old_symbol.decl.?.decl_type().clone(subst, compiler.allocator());
+        const new_scope = init(old_symbol.scope, old_symbol.scope.uid_gen, compiler.allocator());
+        walker_.walk_type(cloned_type, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator())) catch {};
+        const cloned_decl = ast_.AST.create_decl(res.token(), res.clone(subst, compiler.allocator()), cloned_type, null, compiler.allocator());
+        const symbol = Symbol.init(
+            old_symbol.scope,
+            old_symbol.name,
+            cloned_decl,
+            old_symbol.kind,
+            old_symbol.storage,
+            compiler.allocator(),
+        );
+        cloned_decl.decl.name.set_symbol(symbol);
+        return cloned_decl.decl.name;
+    }
+    const cloned = res.clone(subst, compiler.allocator());
     if (res.* == .method_decl) {
         // The cloned signature can contain access-types like `[]T::Output` whose scope is lost
         // by cloning. Re-scope just the function type so the access can re-resolve

@@ -326,6 +326,10 @@ pub fn init_simple(data: []const u8) Self {
     return Self.init(data, .identifier, "", "", 0, 0);
 }
 
+pub fn init_simple_with_span(data: []const u8, span: Span) Self {
+    return Self.init(data, .identifier, span.filename, span.line_text, span.line_number, span.col);
+}
+
 pub fn pprint(self: *Self) void {
     std.debug.print("Token {{line: {:03}, kind: {s}, data: {s}}}\n", .{ self.span.line_number, self.repr(), self.data });
 }

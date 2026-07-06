@@ -375,7 +375,7 @@ pub fn substitution_contains_generics(subst: *const Substitutions) bool {
 
 /// Whether a const arg has been resolved to a concrete comptime literal, as opposed to still being
 /// an unresolved const param reference
-fn const_arg_is_concrete(arg: *ast_.AST) bool {
+pub fn const_arg_is_concrete(arg: *ast_.AST) bool {
     return switch (arg.*) {
         .int, .float, .true, .false => true,
         else => false,
