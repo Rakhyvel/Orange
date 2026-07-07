@@ -516,9 +516,44 @@ trait Bounded {
     const max_value: Self
 }
 
-impl Bounded for Int {
+impl Bounded for Int8 {
+    const min_value: Self = -(0x7F as Self) - 1
+    const max_value: Self = 0x7F
+}
+
+impl Bounded for Int16 {
+    const min_value: Self = -(0x7FFF as Self) - 1
+    const max_value: Self = 0x7FFF
+}
+
+impl Bounded for Int32 {
+    const min_value: Self = -(0x7FFF_FFFF as Self) - 1
+    const max_value: Self = 0x7FFF_FFFF
+}
+
+impl Bounded for Int64 {
     const min_value: Self = -0x7FFF_FFFF_FFFF_FFFF - 1
     const max_value: Self = 0x7FFF_FFFF_FFFF_FFFF
+}
+
+impl Bounded for Word8 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFF
+}
+
+impl Bounded for Word16 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF
+}
+
+impl Bounded for Word32 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF_FFFF
+}
+
+impl Bounded for Word64 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF_FFFF_FFFF_FFFF
 }
 
 impl[T] for []T {
