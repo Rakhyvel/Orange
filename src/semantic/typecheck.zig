@@ -6,7 +6,6 @@ const args_ = @import("args.zig");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const core_ = @import("../hierarchy/core.zig");
-const defaults_ = @import("defaults.zig");
 const Decorate = @import("../ast/decorate.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
 const errs_ = @import("../util/errors.zig");
@@ -921,8 +920,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.enum_value.domain = expanded_base.children().items[ast.pos().?];
             if (ast.enum_value.init == null) {
                 // This may be usurped by a .call node
-                ast.enum_value.init = ast.enum_value.domain.?.annotation.init orelse
-                    try defaults_.generate_default(ast.enum_value.domain.?.child(), ast.token().span, &self.ctx.errors, self.ctx.allocator());
+                ast.enum_value.init = ast.enum_value.domain.?.annotation.init orelse prelude_.unit_value;
             }
             _ = self.typecheck_AST(ast.enum_value.init.?, ast.enum_value.domain.?.child(), subst) catch return error.CompileError;
             if (ast.enum_value.base.?.* == .annotation) {

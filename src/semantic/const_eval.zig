@@ -6,7 +6,6 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
 const Interpreter_Context = @import("../interpretation/interpreter.zig");
-const defaults_ = @import("defaults.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;

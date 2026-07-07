@@ -369,7 +369,7 @@ fn construct_obj_cc_cmd(
 
     // Base cc command
     var cc_cmd = std.array_list.Managed([]const u8).init(allocator);
-    cc_cmd.appendSlice(&[_][]const u8{ "zig", "cc" }) catch unreachable;
+    cc_cmd.appendSlice(&[_][]const u8{ "zig", "cc", "-O0" }) catch unreachable;
 
     // Add input/output
     cc_cmd.append("-c") catch unreachable;
@@ -384,8 +384,8 @@ fn construct_obj_cc_cmd(
 
     // Add basic flags
     cc_cmd.appendSlice(&[_][]const u8{
-        "-std=c11",
-        "-O3",
+        "-std=c99",
+        "-O0",
         "-g",
         std_include_path.items,
     }) catch unreachable;

@@ -1,7 +1,7 @@
 // -6510615555426900571
 fn main() -> Int {
-    let x: String = "\xA5\xA5\xA5\xA5\xA5\xA5\xA5\xA5"
-    let x_ptr: [*]Byte = x.data
+    let x: Int = -6510615555426900571
+    let x_ptr: [*]Byte = (&x) as [*]Byte
     let int_ptr = x_ptr as [*]Int
     int_ptr[0]
 }

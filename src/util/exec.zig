@@ -35,7 +35,11 @@ pub fn exec(argv: []const []const u8, behavior: std.process.Child.StdIo) !struct
             retcode = c;
         },
         .Signal => |c| switch (c) {
-            11 => return error.SegmentationFault,
+            std.posix.SIG.ILL => return error.IllegalInstruction,
+            std.posix.SIG.ABRT => return error.Aborted,
+            std.posix.SIG.FPE => return error.ArithmeticError,
+            std.posix.SIG.BUS => return error.BusError,
+            std.posix.SIG.SEGV => return error.SegmentationFault,
             else => return error.UnknownSignal,
         },
         else => return error.CommandFailed,

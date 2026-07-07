@@ -891,12 +891,7 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (std.mem.eql(u8, token.data, "shr")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
         return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
-    }
-    // else if (std.mem.eql(u8, token.data, "default")) {
-    //     const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-    //     return ast_.AST.create_default(token, args.items[0], self.allocator);
-    // }
-    else if (std.mem.eql(u8, token.data, "sizeof")) {
+    } else if (std.mem.eql(u8, token.data, "sizeof")) {
         const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
         return ast_.AST.create_size_of(token, args.items[0], self.allocator);
     } else if (std.mem.eql(u8, token.data, "write")) {
