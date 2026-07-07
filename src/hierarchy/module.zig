@@ -29,7 +29,6 @@ const Apply_Flat_Ast_Walk = @import("../ast/walker.zig").Apply_Flat_Ast_Walk;
 
 // AST walks
 const Const_Eval = @import("../semantic/const_eval.zig");
-const Expand = @import("../ast/expand.zig");
 const Import = @import("../ast/import.zig");
 const Cinclude = @import("../ast/cinclude.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
@@ -224,7 +223,6 @@ pub const Module = struct {
             Special_Identifier_Literals.init(),
             Apply_Layout.init(),
             Parse.init(.top_level, &compiler.errors, compiler.allocator()),
-            Apply_Ast_Walk(Expand).init(Expand.new(&compiler.errors, compiler.allocator())),
             Apply_Flat_Ast_Walk(Import).init(Import.new(compiler, module.get_package_abs_path(), &module.local_imported_modules)),
             Apply_Flat_Ast_Walk(Cinclude).init(Cinclude.new(&module.cincludes)),
             Apply_Ast_Walk(Symbol_Tree).init(Symbol_Tree.new(file_root, &compiler.errors, compiler.allocator())),
