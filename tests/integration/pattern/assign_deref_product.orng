@@ -1,6 +1,6 @@
 // 160
 fn main() -> Int {
-    let mut x: [3]Int
+    let mut x: [3]Int = [0, 0, 0]
     let a = &mut x[0]
     let b = &mut x[1]
     let c = &mut x[2]

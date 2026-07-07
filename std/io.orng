@@ -10,7 +10,7 @@ impl core::Writer for Fixed_Buffer_Writer {
         if self.cursor + bytes.length > self.buf.length {
             return .err
         }
-        mem::copy[Byte](self.buf[self.cursor..], bytes)
+        mem::copy[Byte](self.buf.>subslice(self.cursor..), bytes)
         self.cursor += bytes.length
         .ok
     }
@@ -29,7 +29,7 @@ fn read_until_delimeter(reader: &mut dyn core::Reader, writer: &mut dyn core::Wr
 }
 
 fn read_byte(reader: &mut dyn core::Reader) -> ()!Byte {
-    let mut byte_buf: [1]Byte
+    let mut byte_buf: [1]Byte = [0]
     let mut writer = Fixed_Buffer_Writer(&mut byte_buf, 0)
     try reader.>read(&mut writer, .some(1))
     .ok(byte_buf[0])

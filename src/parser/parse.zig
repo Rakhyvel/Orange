@@ -263,7 +263,7 @@ fn extern_const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     }
 
     if (self.peek_kind(.@"const")) {
-        var retval = try self.const_declaration();
+        var retval = try self.trait_const_declaration();
         retval.binding.pattern = ast_.AST.create_pattern_symbol(
             retval.binding.pattern.token(),
             .@"const",
@@ -514,27 +514,16 @@ fn const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 
     if (self.accept(.single_colon)) |_| {
         _type = try self.type_expr();
-        if (self.peek_kind(.single_equals)) {
-            _ = try self.expect(.single_equals);
-            const inner_expr = try self.bool_expr();
-            _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
-        }
-    } else if (self.accept(.single_equals)) |_| {
-        const inner_expr = try self.bool_expr();
-        _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
-    } else {
-        self.errors.add_error(errs_.Error{ .basic = .{
-            .span = self.peek().span,
-            .msg = "variable declarations require at least a type or an intial value",
-        } });
-        return error.ParseError;
     }
+
+    _ = try self.expect(.single_equals);
+    _init = try self.bool_expr();
 
     return ast_.AST.create_binding(
         token,
         pattern,
         _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
-        _init orelse ast_.AST.create_default(_type.?.token(), _type.?, self.allocator), // default value generate done here!
+        _init,
         self.allocator,
     );
 }
@@ -545,21 +534,16 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const ident = try self.let_pattern_atom();
     var _type: ?*Type_AST = null;
     var _init: ?*ast_.AST = null;
-    var is_undefined = false;
 
     if (self.accept(.single_colon)) |_| {
         _type = try self.type_expr();
-        if (self.peek_kind(.single_equals)) {
-            _ = try self.expect(.single_equals);
-            if (self.accept(.undefined)) |_| {
-                is_undefined = true;
-            } else {
-                _init = try self.bool_expr();
-            }
-        }
-    } else if (self.accept(.single_equals)) |_| {
+    }
+
+    _ = try self.expect(.single_equals);
+
+    if (self.accept(.undefined) == null) {
         _init = try self.bool_expr();
-    } else {
+    } else if (_type == null) {
         self.errors.add_error(errs_.Error{ .basic = .{
             .span = self.peek().span,
             .msg = "variable declarations require at least a type or an intial value",
@@ -571,7 +555,7 @@ fn let_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         token,
         ident,
         _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
-        _init orelse if (is_undefined) null else ast_.AST.create_default(_type.?.token(), _type.?, self.allocator), // default value generate done here!
+        _init,
         self.allocator,
     );
 }
@@ -739,8 +723,15 @@ fn comparison_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
 fn range_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const exp = try self.coalesce_expr();
-    if (self.accept(.triple_period)) |token| {
-        return ast_.AST.create_range(token, exp, try self.coalesce_expr(), self.allocator);
+    if (self.accept(.double_period)) |token| {
+        var upper: ?*ast_.AST = null;
+        if (self.next_is_expr()) {
+            upper = try self.coalesce_expr();
+        }
+        return ast_.AST.create_range(token, exp, upper, self.allocator) catch |e| switch (e) {
+            error.Bad => unreachable,
+            error.OutOfMemory => return error.OutOfMemory,
+        };
     } else {
         return exp;
     }
@@ -833,6 +824,18 @@ fn prefix_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
         return self.prefix_left_square(token);
     } else if (self.accept(.@"try")) |token| {
         return ast_.AST.create_try(token, try self.parse_expr(), self.allocator);
+    } else if (self.accept(.double_period)) |token| {
+        var upper: ?*ast_.AST = null;
+        if (self.next_is_expr()) {
+            upper = try self.coalesce_expr();
+        }
+        return ast_.AST.create_range(token, null, upper, self.allocator) catch |e| switch (e) {
+            error.Bad => {
+                self.errors.add_error(errs_.Error{ .basic = .{ .msg = "must specify either a begining or end of a range", .span = token.span } }); // TODO: Won't need this eventually
+                return error.ParseError;
+            },
+            error.OutOfMemory => return error.OutOfMemory,
+        };
     } else {
         return try self.postfix_expr();
     }
@@ -888,9 +891,6 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (std.mem.eql(u8, token.data, "shr")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 2, 2);
         return ast_.AST.create_right_shift(token, args.items[0], args.items[1], self.allocator);
-    } else if (std.mem.eql(u8, token.data, "default")) {
-        const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
-        return ast_.AST.create_default(token, args.items[0], self.allocator);
     } else if (std.mem.eql(u8, token.data, "sizeof")) {
         const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
         return ast_.AST.create_size_of(token, args.items[0], self.allocator);
@@ -973,36 +973,16 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
         } else if (self.accept(.left_square)) |token| {
-            // A sub-slice `[a..b]` whose bounds are value expressions, or a bracket `[args]`, whose args are parsed type-first
-            if (self.accept(.double_period)) |_| {
-                // `[..]` or `[..b]`
-                var second: ?*ast_.AST = null;
-                if (self.next_is_expr()) {
-                    second = try self.assignment_expr();
+            const first = try self.bracket_arg();
+            var args = std.array_list.Managed(GenericArg).init(self.allocator);
+            args.append(first) catch unreachable;
+            while (self.accept(.comma)) |_| {
+                if (self.peek_kind(.right_square)) {
+                    break;
                 }
-                exp = ast_.AST.create_sub_slice(token, exp, null, second, self.allocator);
-            } else {
-                const first = try self.bracket_arg();
-                if (self.accept(.double_period)) |_| {
-                    // `[a..]` or `[a..b]`, the lower bound is always a value expression
-                    var second: ?*ast_.AST = null;
-                    if (self.next_is_expr()) {
-                        second = try self.assignment_expr();
-                    }
-                    exp = ast_.AST.create_sub_slice(token, exp, self.generic_arg_as_expr(first), second, self.allocator);
-                } else {
-                    // Simple index or generic apply, resolved in decorate
-                    var args = std.array_list.Managed(GenericArg).init(self.allocator);
-                    args.append(first) catch unreachable;
-                    while (self.accept(.comma)) |_| {
-                        if (self.peek_kind(.right_square)) {
-                            break;
-                        }
-                        args.append(try self.bracket_arg()) catch unreachable;
-                    }
-                    exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
-                }
+                args.append(try self.bracket_arg()) catch unreachable;
             }
+            exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
             if (self.peek_kind(.right_square)) {
                 _ = self.expect(.right_square) catch {};
             } else {
@@ -1595,12 +1575,8 @@ fn parse_struct_field(self: *Self) Parser_Error_Enum!*Type_AST {
     _ = try self.expect(.single_colon);
     const field_ident = ast_.AST.create_identifier(ident_token, self.allocator);
     const _type = try self.type_expr();
-    var _init: ?*ast_.AST = null;
-    if (self.accept(.single_equals)) |token| {
-        _init = ast_.AST.create_comptime(token, try self.bool_expr(), self.allocator);
-    }
 
-    return Type_AST.create_annotation(ident_token, field_ident, _type, _init, self.allocator);
+    return Type_AST.create_annotation(ident_token, field_ident, _type, null, self.allocator);
 }
 
 fn parse_enum_field(self: *Self) Parser_Error_Enum!*Type_AST {
@@ -1637,6 +1613,41 @@ fn trait_type_alias_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const constraints = try self.colon_started_constraint_list();
 
     return ast_.AST.create_type_param_decl(identifier, false, constraints, self.allocator);
+}
+
+fn trait_const_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
+    const token = try self.expect(.@"const");
+
+    const identifier = try self.expect(.identifier);
+    const pattern = ast_.AST.create_pattern_symbol(identifier, .@"const", .local, identifier.data, self.allocator);
+    var _type: ?*Type_AST = null;
+    var _init: ?*ast_.AST = null;
+
+    if (self.accept(.single_colon)) |_| {
+        _type = try self.type_expr();
+        if (self.peek_kind(.single_equals)) {
+            _ = try self.expect(.single_equals);
+            const inner_expr = try self.bool_expr();
+            _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
+        }
+    } else if (self.accept(.single_equals)) |_| {
+        const inner_expr = try self.bool_expr();
+        _init = ast_.AST.create_comptime(inner_expr.token(), inner_expr, self.allocator);
+    } else {
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = self.peek().span,
+            .msg = "trait constant declarations require at least a type or an intial value",
+        } });
+        return error.ParseError;
+    }
+
+    return ast_.AST.create_binding(
+        token,
+        pattern,
+        _type orelse Type_AST.create_type_of(_init.?.token(), _init.?, self.allocator), // type inference done here!
+        _init,
+        self.allocator,
+    );
 }
 
 fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
@@ -1708,7 +1719,7 @@ fn trait_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     self.newlines();
     while (self.peek_kind(.@"fn") or self.peek_kind(.virtual) or self.peek_kind(.@"const") or self.peek_kind(.type)) {
         if (self.peek_kind(.@"const")) {
-            const_decls.append(try self.const_declaration()) catch unreachable;
+            const_decls.append(try self.trait_const_declaration()) catch unreachable;
         } else if (self.peek_kind(.type)) {
             type_decls.append(try self.trait_type_alias_declaration()) catch unreachable;
         } else {

@@ -3,11 +3,11 @@
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
-const defaults_ = @import("defaults.zig");
 const errs_ = @import("../util/errors.zig");
 const poison_ = @import("../ast/poison.zig");
 const Span = @import("../util/span.zig");
 const typing_ = @import("typing.zig");
+const prelude_ = @import("../hierarchy/prelude.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const unification_ = @import("../types/unification.zig");
 
@@ -64,8 +64,7 @@ pub fn assert_pattern_matches(
             pattern.enum_value.domain = expanded_base.children().items[pattern.pos().?];
             if (pattern.enum_value.init == null) {
                 // This may be usurped by a .call node
-                pattern.enum_value.init = pattern.enum_value.domain.?.annotation.init orelse
-                    try defaults_.generate_default(pattern.enum_value.domain.?.child(), pattern.token().span, &self.ctx.errors, self.ctx.allocator());
+                pattern.enum_value.init = pattern.enum_value.domain.?.annotation.init orelse prelude_.unit_value;
             }
             _ = self.assert_pattern_matches(pattern.enum_value.init.?, pattern.enum_value.domain.?.child(), subst) catch return error.CompileError;
         },

@@ -6,6 +6,6 @@ impl[const n: Int] for Buf[n] {
 }
 
 fn main() -> Int {
-    let x: Buf[3]
+    let x = Buf[3](([3]Int)::default)
     x.>get()
 }

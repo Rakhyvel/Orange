@@ -1,6 +1,6 @@
 // 207
 fn main() -> Int {
-    let mut x: [3]Int
+    let mut x: [3]Int = [0, 0, 0]
     [x[0], x[1], x[2]] = get_array()
     x[0] + x[1] + x[2]
 }

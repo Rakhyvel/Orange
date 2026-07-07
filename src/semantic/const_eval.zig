@@ -6,7 +6,6 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const Decorate = @import("../ast/decorate.zig");
 const errs_ = @import("../util/errors.zig");
 const Interpreter_Context = @import("../interpretation/interpreter.zig");
-const defaults_ = @import("defaults.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
@@ -71,14 +70,6 @@ fn eval_internal(self: *Self, ast: *ast_.AST) walk_.Error!Self {
             try self.ctx.validate_symbol.validate_symbol(symbol);
             ast.* = (try self.interpret_comptime_expr(ast.expr(), expected_type, symbol)).*;
             _ = self.ctx.typecheck.typecheck_AST(ast, expected_type, &subst) catch return error.CompileError;
-        },
-
-        .default => {
-            const _type = ast.default._type;
-            ast.* = (try defaults_.generate_default(ast.default._type, ast.token().span, &self.ctx.errors, self.ctx.allocator())).*;
-            var subst = unification_.Substitutions.init(self.ctx.allocator());
-            defer subst.deinit();
-            _ = self.ctx.typecheck.typecheck_AST(ast, _type, &subst) catch return error.CompileError;
         },
 
         .size_of => {

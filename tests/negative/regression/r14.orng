@@ -1,8 +1,8 @@
 // r14.orng:6:18: error: not a constant integer
-//     let mut x : [unreachable] Int
+//     let mut x : [unreachable] Int = 4
 //                 ^
 // 
 fn main() -> Int {
-    let mut x : [unreachable] Int
+    let mut x : [unreachable] Int = 4
     0
 } 

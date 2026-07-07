@@ -6,7 +6,7 @@ extern ("Some_Type") struct C_Int { x: Int, y: Int }
 
 fn main() -> Int {
     let mut xs: [5]C_Int = [C_Int(0, 0), C_Int(0, 0), C_Int(0, 0), C_Int(0, 0), C_Int(0, 0)]
-    let mut ys: [5]C_Int
+    let mut ys: [5]C_Int = undefined
     xs[3] = C_Int(326, 4)
     ys[2] = C_Int(@sizeof(C_Int), 4)
     xs[3].x + ys[2].x

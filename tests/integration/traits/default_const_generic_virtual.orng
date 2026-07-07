@@ -11,6 +11,6 @@ impl[const n: Int] Scale[n] for Buf[n] {
 }
 
 fn main() -> Int {
-    let b: Buf[3]
+    let b = Buf[3]([0, 0, 0])
     b.>scaled()
 }

@@ -4,8 +4,12 @@ struct Pair {
     b: Float
 }
 
+impl core::Default for Pair {
+    const default = Pair(Int::default, Float::default)
+}
+
 fn main() -> Int {
-    let x: Pair
+    let x = Pair::default
     if x.a == 0 and x.b == 0.0 {
         135
     } else {

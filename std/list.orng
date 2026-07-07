@@ -63,7 +63,7 @@ impl[T: core::Sized] for List[T] {
     fn append_slice(&mut self, ts: []T) -> Error!() {
         let idx = self.items.length
         try self.>ensure_length(self.items.length + ts.length)
-        mem::copy[T](self.items[idx..], ts)
+        mem::copy[T](self.items.>subslice(idx..), ts)
         .ok
     }
 
@@ -82,13 +82,13 @@ impl[T: core::Sized] for List[T] {
     }
 
     fn ordered_remove(&mut self, idx: Int) {
-        mem::copy[T](self.items[idx..], self.items[idx+1..])
+        mem::copy[T](self.items.>subslice(idx..), self.items.>subslice(idx+1..))
         self.items.length -= 1
     }
 
     fn remove_range(&mut self, start: Int, end: Int) {
         let removed = end - start
-        mem::copy[T](self.items[start..], self.items[end..])
+        mem::copy[T](self.items.>subslice(start..), self.items.>subslice(end..))
         self.items.length -= removed
     }
 
@@ -388,7 +388,7 @@ test "index_mut" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
     
-    for i in 0...3 {
+    for i in 0..3 {
         list[i] *= 2
     }
 

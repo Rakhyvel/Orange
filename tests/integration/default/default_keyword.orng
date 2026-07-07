@@ -1,8 +1,10 @@
 // 250
 struct My_Type {
-    x: Int = 450
-    y: Int = 50
+    x: Int
+    y: Int
 }
+
+impl core::Default for My_Type { const default = My_Type(450, 50) }
 
 fn main() -> Int {
     add_fields(2)
@@ -10,6 +12,6 @@ fn main() -> Int {
 
 // A way to provide a default value for a type
 // This is _really_ useful for generic functions (soon!)
-fn add_fields(scale: Int, mt: My_Type = @default(My_Type)) -> Int {
+fn add_fields(scale: Int, mt: My_Type = My_Type::default) -> Int {
     (mt.x + mt.y) / scale
 }

@@ -4,7 +4,7 @@ struct List[T] {
 }
 
 fn main() -> Int {
-    let mut x: List[Int]
+    let mut x = List[Int](([5]Int)::default)
     x.items[2] = 360
     x.items[2]
 }

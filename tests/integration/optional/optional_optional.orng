@@ -1,6 +1,6 @@
 // 353
 const x : ??Int = .some(.some(353))
-const a : ?@Untagged(?Int)
+const a : ?@Untagged(?Int) = .none
 
 fn main() -> Int {
     match x {

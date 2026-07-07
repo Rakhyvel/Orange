@@ -14,6 +14,7 @@ const Token = @import("../lexer/token.zig");
 const Type_Set = @import("../types/type_set.zig");
 const UID_Gen = @import("../util/uid_gen.zig");
 const walk_ = @import("../ast/walker.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 // Front-end pipeline steps
 const Read_File = @import("../lexer/read_file.zig");
@@ -28,7 +29,6 @@ const Apply_Flat_Ast_Walk = @import("../ast/walker.zig").Apply_Flat_Ast_Walk;
 
 // AST walks
 const Const_Eval = @import("../semantic/const_eval.zig");
-const Expand = @import("../ast/expand.zig");
 const Import = @import("../ast/import.zig");
 const Cinclude = @import("../ast/cinclude.zig");
 const Symbol_Tree = @import("../ast/symbol-tree.zig");
@@ -223,7 +223,6 @@ pub const Module = struct {
             Special_Identifier_Literals.init(),
             Apply_Layout.init(),
             Parse.init(.top_level, &compiler.errors, compiler.allocator()),
-            Apply_Ast_Walk(Expand).init(Expand.new(&compiler.errors, compiler.allocator())),
             Apply_Flat_Ast_Walk(Import).init(Import.new(compiler, module.get_package_abs_path(), &module.local_imported_modules)),
             Apply_Flat_Ast_Walk(Cinclude).init(Cinclude.new(&module.cincludes)),
             Apply_Ast_Walk(Symbol_Tree).init(Symbol_Tree.new(file_root, &compiler.errors, compiler.allocator())),
@@ -325,6 +324,7 @@ pub const Module = struct {
 
     /// Puts all the types used in this module into the given type set
     pub fn collect_module_types(self: *Module, type_set: *Type_Set) void {
+        // self.type_set.print();
         type_set.union_from(&self.type_set);
     }
 

@@ -1,83 +1,78 @@
+trait Default {
+    const default: Self
+}
+
+impl Default for Bool { const default = false }
+impl Default for Int8 { const default = 0 as Self }
+impl Default for Int16 { const default = 0 as Self }
+impl Default for Int32 { const default = 0 as Self }
+impl Default for Int64 { const default = 0 as Self }
+impl Default for Word8 { const default = 0 as Self }
+impl Default for Word16 { const default = 0 as Self }
+impl Default for Word32 { const default = 0 as Self }
+impl Default for Word64 { const default = 0 as Self }
+impl Default for Float32 { const default = 0.0 as Self }
+impl Default for Float64 { const default = 0.0 as Self }
+impl Default for () { const default: Self = {} }
+impl[T] Default for ?T { const default: ?T = .none }
+impl[Err, Ok: Default] Default for Err!Ok { const default: Self = .ok((Ok as Default)::default) }
+impl[T] Default for []T { const default: Self = Self::from_parts(0 as [*]T, 0) }
+impl[T] Default for [mut]T { const default: Self = Self::from_parts(0 as [*mut]T, 0) }
+impl[const n: Int, T: Default] Default for [n]T { 
+    const default: Self = {
+        let t_default = (T as Default)::default
+        let mut retval: Self = undefined
+        while let mut i = 0; i < n; i += 1 {
+            retval[i] = t_default
+        }
+        retval
+    }
+}
+
 struct Package {
     root: String
     kind: Package_Kind
-    dir: String = "."
-    num_requirements: Int = 0
-    requirements: [8]?Requirement = [ // TODO: Replace with an Arraylist
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none
-    ]
-    include_dirs: [8]?String = [
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-    ]
-    libs: [8]?String = [
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-    ]
-    lib_dirs: [8]?String = [
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-        .none,
-    ]
+    dir: String
+    num_requirements: Int
+    requirements: [8]?Requirement
+    include_dirs: [8]?String
+    libs: [8]?String
+    lib_dirs: [8]?String
 }
 
-enum Package_Kind {
-    executable
-    static_library
-}
-
-struct Requirement {
-    name: String
-    package: &Package
-}
-
-enum Package_Source {
-    relative(String)
-    git(Git_Source)
-}
-
-struct Git_Source {
-    url: String
-    subdir: String = ""
-    reference: Git_Reference = .branch("main")
-}
-
-enum Git_Reference {
-    branch(String)
-    tag(String)
-    rev(String)
+impl Default for Package {
+    const default: Self = Package(
+        .root = "",
+        .kind = .executable,
+        .dir = ".",
+        .num_requirements = 0,
+        .requirements = [.none, .none, .none, .none, .none, .none, .none, .none],
+        .include_dirs = [.none, .none, .none, .none, .none, .none, .none, .none],
+        .libs = [.none, .none, .none, .none, .none, .none, .none, .none],
+        .lib_dirs = [.none, .none, .none, .none, .none, .none, .none, .none]
+    )
 }
 
 impl for Package {
+    /// Creates a package
+    fn new(root: String, kind: Package_Kind, dir: String, num_requirements: Int = 0) -> Self {
+        Package(
+            .root = root,
+            .kind = kind,
+            .dir = dir,
+            .num_requirements = num_requirements,
+            .requirements = [.none, .none, .none, .none, .none, .none, .none, .none],
+            .include_dirs = [.none, .none, .none, .none, .none, .none, .none, .none],
+            .libs = [.none, .none, .none, .none, .none, .none, .none, .none],
+            .lib_dirs = [.none, .none, .none, .none, .none, .none, .none, .none]
+        )
+    }
+
     /// Creates an executable package
-    fn executable(root: String) -> Self { Self(root, .executable, "", 0) }
+    fn executable(root: String) -> Self { Self::new(root, .executable, "", 0) }
 
     /// Creates a static library package
-    fn static_library(root: String) -> Self { Self(root, .static_library, "") }
+    fn static_library(root: String) -> Self { Self::new(root, .static_library, "") }
 
     /// Finds a package given a name
     /// NOTE: This is currently implemented as a builtin-function in the compiler
@@ -129,6 +124,41 @@ impl for Package {
         }
         unreachable // no more space!
     }
+}
+
+enum Package_Kind {
+    executable
+    static_library
+}
+
+struct Requirement {
+    name: String
+    package: &Package
+}
+
+enum Package_Source {
+    relative(String)
+    git(Git_Source)
+}
+
+struct Git_Source {
+    url: String
+    subdir: String
+    reference: Git_Reference
+}
+
+impl Default for Git_Source {
+    const default: Self = Git_Source (
+        .url = "",
+        .subdir = "",
+        .reference = .branch("main")
+    )
+}
+
+enum Git_Reference {
+    branch(String)
+    tag(String)
+    rev(String)
 }
 
 type Test_Result = ()!()
@@ -481,6 +511,51 @@ impl[T: Partial_Eq] Partial_Eq for [mut]T {
 }
 impl[T: Eq] Eq for [mut]T {}
 
+trait Bounded {
+    const min_value: Self
+    const max_value: Self
+}
+
+impl Bounded for Int8 {
+    const min_value: Self = -(0x7F as Self) - 1
+    const max_value: Self = 0x7F
+}
+
+impl Bounded for Int16 {
+    const min_value: Self = -(0x7FFF as Self) - 1
+    const max_value: Self = 0x7FFF
+}
+
+impl Bounded for Int32 {
+    const min_value: Self = -(0x7FFF_FFFF as Self) - 1
+    const max_value: Self = 0x7FFF_FFFF
+}
+
+impl Bounded for Int64 {
+    const min_value: Self = -0x7FFF_FFFF_FFFF_FFFF - 1
+    const max_value: Self = 0x7FFF_FFFF_FFFF_FFFF
+}
+
+impl Bounded for Word8 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFF
+}
+
+impl Bounded for Word16 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF
+}
+
+impl Bounded for Word32 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF_FFFF
+}
+
+impl Bounded for Word64 {
+    const min_value: Self = 0
+    const max_value: Self = 0xFFFF_FFFF_FFFF_FFFF
+}
+
 impl[T] for []T {
     fn from_parts(data: [*]T, len: Int) -> Self {
         let mut retval: []T = undefined
@@ -489,17 +564,20 @@ impl[T] for []T {
         retval
     }
 
-    fn subslice(self, range: Range) -> Self {
-        if range.start > range.end { unreachable }
-        if range.start < 0 { unreachable }
-        if range.start >= self.length { unreachable }
-        if range.end > self.length { unreachable }
+    fn subslice(self, range: Range[Int]) -> Self {
+        let start = range.start orelse 0
+        let end = range.end orelse self.length
 
-        Self::from_parts(&self.data[range.start] as [*]T, range.end - range.start)
+        if start > end { unreachable }
+        if start < 0 { unreachable }
+        if start > self.length { unreachable }
+        if end > self.length { unreachable }
+
+        Self::from_parts(&self.data[start] as [*]T, end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
-        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+        (self.>subslice(0..i), self.>subslice(i..self.length))
     }
 
     fn is_empty(self) -> Bool { self.length == 0 }
@@ -521,17 +599,20 @@ impl[T] for [mut]T {
         retval
     }
 
-    fn subslice(self, range: Range) -> Self {
-        if range.start > range.end { unreachable }
-        if range.start < 0 { unreachable }
-        if range.start >= self.length { unreachable }
-        if range.end > self.length { unreachable }
+    fn subslice(self, range: Range[Int]) -> Self {
+        let start = range.start orelse 0
+        let end = range.end orelse self.length
 
-        Self::from_parts(&mut self.data[range.start] as [*mut]T, range.end - range.start)
+        if start > end { unreachable }
+        if start < 0 { unreachable }
+        if start > self.length { unreachable }
+        if end > self.length { unreachable }
+
+        Self::from_parts(&mut self.data[start] as [*mut]T, end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
-        (self.>subslice(Range(0, i)), self.>subslice(Range(i, self.length)))
+        (self.>subslice(0..i), self.>subslice(i..self.length))
     }
 
     fn is_empty(self) -> Bool { self.length == 0 }
@@ -548,17 +629,17 @@ impl[T] for [mut]T {
 impl[T: Eq] for []T {
     fn starts_with(self, prefix: []T) -> Bool {
         if prefix.length > self.length { return false }
-        self.>subslice(Range(0, prefix.length)) == prefix
+        self.>subslice(0..prefix.length) == prefix
     }
 
     fn ends_with(self, suffix: []T) -> Bool {
         if suffix.length > self.length { return false }
-        self.>subslice(Range(self.length - suffix.length, self.length)) == suffix
+        self.>subslice(self.length - suffix.length..self.length) == suffix
     }
 
     fn strip_prefix(self, prefix: []T) -> ?Self {
         if self.>starts_with(prefix) {
-            .some(self.>subslice(Range(0, prefix.length)))
+            .some(self.>subslice(0..prefix.length))
         } else {
             .none
         }
@@ -566,7 +647,7 @@ impl[T: Eq] for []T {
 
     fn strip_suffix(self, suffix: []T) -> ?Self {
         if self.>ends_with(suffix) {
-            .some(self.>subslice(Range(self.length - suffix.length, self.length)))
+            .some(self.>subslice(self.length - suffix.length..self.length))
         } else {
             .none
         }
@@ -585,17 +666,17 @@ impl[T: Eq] for []T {
 impl[T: Eq] for [mut]T {
     fn starts_with(self, prefix: []T) -> Bool {
         if prefix.length > self.length { return false }
-        (self.>subslice(Range(0, prefix.length)) as []T) == prefix
+        (self.>subslice(0..prefix.length) as []T) == prefix
     }
 
     fn ends_with(self, suffix: []T) -> Bool {
         if suffix.length > self.length { return false }
-        (self.>subslice(Range(self.length - suffix.length, self.length)) as []T) == suffix
+        (self.>subslice(self.length - suffix.length..self.length) as []T) == suffix
     }
 
     fn strip_prefix(self, prefix: []T) -> ?Self {
         if self.>starts_with(prefix) {
-            .some(self.>subslice(Range(0, prefix.length)))
+            .some(self.>subslice(0..prefix.length))
         } else {
             .none
         }
@@ -603,7 +684,7 @@ impl[T: Eq] for [mut]T {
 
     fn strip_suffix(self, suffix: []T) -> ?Self {
         if self.>ends_with(suffix) {
-            .some(self.>subslice(Range(self.length - suffix.length, self.length)))
+            .some(self.>subslice(self.length - suffix.length..self.length))
         } else {
             .none
         }
@@ -742,22 +823,22 @@ impl[I, const n: Int] Into_Iterator for [n]I {
     }
 }
 
-struct Range {
-    start: Int
-    end: Int
+struct Range[Idx] {
+    start: ?Idx
+    end: ?Idx
 }
 
 struct Range_Iter {
-    range: Range
+    range: Range[Int]
     counter: Int
 }
 
-impl Into_Iterator for Range {
+impl Into_Iterator for Range[Int] {
     type Item = Int
     type Iter = Range_Iter
 
     fn into_iter(self) -> Self::Iter {
-        Range_Iter(self, self.start)
+        Range_Iter(self, self.start orelse (Int as Bounded)::min_value)
     }
 }
 
@@ -765,14 +846,11 @@ impl Iterator for Range_Iter {
     type Item = Int
 
     fn next(&mut self) -> ?Int {
-        match self.counter {
-            {self.range.end} => .none
-            _ => {
-                let retval = self.counter
-                self.counter += 1
-                .some(retval)
-            }
-        }
+        let end = self.range.end orelse (Int as Bounded)::max_value
+        if self.counter >= end {return .none}
+        let retval = self.counter
+        self.counter += 1
+        .some(retval)
     }
 }
 

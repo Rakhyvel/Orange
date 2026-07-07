@@ -23,7 +23,7 @@ fn destroy[T](slice: [mut]T) with core::Allocating {
 fn eql(a: String, b: String) -> Bool {
     if a.length != b.length {return false}
 
-    for i in 0...a.length {
+    for i in 0..a.length {
         if a[i] != b[i] {return false}
     }
 
@@ -31,7 +31,7 @@ fn eql(a: String, b: String) -> Bool {
 }
 
 fn copy[T](dest: [mut]T, src: []T) {
-    for i in 0...src.length {
+    for i in 0..src.length {
         dest[i] = src[i]
     }
 }
@@ -48,7 +48,7 @@ fn index_of(haystack: []Byte, needle: []Byte) -> ?Int {
     while let mut i = 0; i <= haystack.length - needle.length; i += 1 {
         let mut found = true
 
-        for j in 0...needle.length {
+        for j in 0..needle.length {
             if haystack[i + j] != needle[j] {
                 found = false
                 break
@@ -68,7 +68,7 @@ fn replacement_size(input: []Byte, needle: []Byte, replacement: []Byte) -> Int {
 
     let mut size = input.length
     while let mut i = 0; i < input.length {
-        if input[i..].>starts_with(needle) {
+        if input.>subslice(i..).>starts_with(needle) {
             size = size - needle.length + replacement.length
             i += needle.length
         } else {
@@ -85,8 +85,8 @@ fn replace(input: []Byte, needle: []Byte, replacement: []Byte, output: [mut]Byte
     let mut slide = 0
     let mut replacements = 0
     while let mut i = 0; slide < input.length {
-        if input[slide..].>starts_with(needle) {
-            copy[Byte](output[i..][0..replacement.length], replacement)
+        if input.>subslice(slide..).>starts_with(needle) {
+            copy[Byte](output.>subslice(i..).>subslice(0..replacement.length), replacement)
             i += replacement.length
             slide += needle.length
             replacements += 1
@@ -102,7 +102,7 @@ fn replace(input: []Byte, needle: []Byte, replacement: []Byte, output: [mut]Byte
 
 fn reverse(items: [mut]Byte) {
     let end = items.length / 2
-    for i in 0...end {
+    for i in 0..end {
         let tmp = items[i]
         items[i] = items[items.length - i - 1]
         items[items.length - i - 1] = tmp
@@ -112,7 +112,7 @@ fn reverse(items: [mut]Byte) {
 struct Delimiter_Iterator {
     data: []Byte
     delimiter: Byte
-    cursor: Int = -1
+    cursor: Int
 }
 
 impl core::Iterator for Delimiter_Iterator {
@@ -131,13 +131,13 @@ impl core::Iterator for Delimiter_Iterator {
             self.cursor += 1
         }
 
-        .some(self.data[prev..self.cursor])
+        .some(self.data.>subslice(prev..self.cursor))
     }
 }
 
 test "delimiter iterator" {
     let bytes = "a,b,c"
-    let mut delim_iter = Delimiter_Iterator(.data = bytes, .delimiter = ',')
+    let mut delim_iter = Delimiter_Iterator(.data = bytes, .delimiter = ',', .cursor = -1)
 
     try testing::expect("a" == delim_iter.>next().some)
     try testing::expect("b" == delim_iter.>next().some)

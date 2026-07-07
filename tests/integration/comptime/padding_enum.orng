@@ -4,7 +4,7 @@ enum My_Type {
 }
 
 fn main() -> Int {
-    let a: My_Type
+    let a: My_Type = .x(4)
     _ = a
     @sizeof(@typeof(a)) + 242
 }

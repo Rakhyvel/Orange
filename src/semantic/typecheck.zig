@@ -6,7 +6,6 @@ const args_ = @import("args.zig");
 const Const_Eval = @import("../semantic/const_eval.zig");
 const Compiler_Context = @import("../hierarchy/compiler.zig");
 const core_ = @import("../hierarchy/core.zig");
-const defaults_ = @import("defaults.zig");
 const Decorate = @import("../ast/decorate.zig");
 const Type_Decorate = @import("../ast/type_decorate.zig");
 const errs_ = @import("../util/errors.zig");
@@ -243,7 +242,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            // try self.ctx.validate_symbol.validate_symbol(symbol);
+            if (symbol.kind == .@"const") {
+                try self.ctx.validate_symbol.validate_symbol(symbol);
+            }
 
             if (symbol.decl.?.num_generic_params() > 0) {
                 self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
@@ -316,10 +317,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
             }
             return expanded_expr_type.get_ok_type().child();
-        },
-        .default => {
-            try self.ctx.validate_type.validate_type(ast.default._type);
-            return ast.default._type;
         },
         .size_of => {
             try self.ctx.validate_type.validate_type(ast.size_of._type);
@@ -434,7 +431,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
-                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait`?
+                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait(s)`?
                         .type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = method_name,
@@ -542,7 +539,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.validation_state == .invalid) {
                 return error.CompileError;
             }
-            // try self.ctx.validate_symbol.validate_symbol(symbol);
+            try self.ctx.validate_symbol.validate_symbol(symbol);
             if (symbol.is_type() or symbol.kind == .context) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
@@ -883,20 +880,6 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return Type_AST.create_addr_of_type(ast.token(), child_type, ast.addr_of.mut, ast.addr_of.multiptr, self.ctx.allocator());
             }
         },
-        .sub_slice => {
-            const super_type = self.typecheck_AST(ast.sub_slice.super, null, subst) catch return error.CompileError;
-            const expanded_super_type = super_type.expand_identifier();
-            _ = self.typecheck_AST(ast.sub_slice.lower.?, null, subst) catch return error.CompileError; // lower and upper should exist
-            _ = self.typecheck_AST(ast.sub_slice.upper.?, null, subst) catch return error.CompileError; // they are set in expand phase
-            if (expanded_super_type.* != .struct_type or !expanded_super_type.struct_type.was_slice) {
-                self.ctx.errors.add_error(errs_.Error{ .not_subsliceable = .{
-                    .span = ast.token().span,
-                    ._type = expanded_super_type,
-                } });
-                return error.CompileError;
-            }
-            return expanded_super_type;
-        },
         .variant_tag => {
             const expr_type: *Type_AST = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
             const expanded_expr_type = expr_type.expand_identifier();
@@ -937,8 +920,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.enum_value.domain = expanded_base.children().items[ast.pos().?];
             if (ast.enum_value.init == null) {
                 // This may be usurped by a .call node
-                ast.enum_value.init = ast.enum_value.domain.?.annotation.init orelse
-                    try defaults_.generate_default(ast.enum_value.domain.?.child(), ast.token().span, &self.ctx.errors, self.ctx.allocator());
+                ast.enum_value.init = ast.enum_value.domain.?.annotation.init orelse prelude_.unit_value;
             }
             _ = self.typecheck_AST(ast.enum_value.init.?, ast.enum_value.domain.?.child(), subst) catch return error.CompileError;
             if (ast.enum_value.base.?.* == .annotation) {

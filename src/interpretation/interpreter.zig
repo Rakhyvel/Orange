@@ -92,8 +92,8 @@ pub fn set_entry_point(
     entry: *CFG,
     ret_type: *Type_AST,
 ) void {
-    if (ret_type.sizeof() == null) std.debug.panic("un-sized return type", .{}); // TODO: Is this possible?
-    if (entry.contains_unsizeds or entry.locals_size == null) std.debug.panic("un-sized cfg", .{}); // TODO: Is this possible?
+    if (ret_type.sizeof() == null) std.debug.panic("un-sized return type", .{}); // This shouldn't really be possible, unless there's a compiler bug
+    if (entry.contains_unsizeds or entry.locals_size == null) std.debug.panic("un-sized cfg", .{}); // This shouldn't really be possible, unless there's a compiler bug
     const frame_address = alignment_.next_alignment(ret_type.sizeof().?, 8);
     const module = entry.symbol.scope.module.?;
 
@@ -337,7 +337,7 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
             const symbol: *Symbol = @ptrFromInt(symbol_int);
 
             // Intercept method calls to builtin methods
-            if (symbol.represents_method(core_.package_type, "find")) {
+            if (core_.core_initialized and symbol.represents_method(core_.package_type, "find")) {
                 return self.package_find(instr);
             }
 

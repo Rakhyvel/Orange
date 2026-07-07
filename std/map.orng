@@ -13,26 +13,26 @@ struct Map_Iterator[K, V] {
     hashes: []Word64
     keys: []K
     values: []V
-    counter: Int = 0
+    counter: Int
 }
 
 struct Map_Mut_Iterator[K, V] {
     hashes: []Word64
     keys: []K
     values: [mut]V
-    counter: Int = 0
+    counter: Int
 }
 
 struct Hash_Iterator[T] {
     hashes: []Word64
     items: []T
-    counter: Int = 0
+    counter: Int
 }
 
 struct Mut_Hash_Iterator[T] {
     hashes: []Word64
     items: [mut]T
-    counter: Int = 0
+    counter: Int
 }
 
 enum Error {
@@ -53,7 +53,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn init_from_slice(pairs: [](K, V)) -> Error!Self with core::Allocating {
         let mut retval = Self::init()
 
-        for i in 0...pairs.length {
+        for i in 0..pairs.length {
             try retval.>put(pairs[i].[0], pairs[i].[1])
         }
 
@@ -69,7 +69,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn clone(&self) -> Error!Self with core::Allocating {
         let mut retval = Self::init()
 
-        for i in 0...self.>count() {
+        for i in 0..self.>count() {
             try retval.>put(self.keys[i], self.values[i])
         }
 
@@ -83,7 +83,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn get(&self, key: K) -> ?&V {
         let hash = key.>hash() | 1
 
-        for i in 0...self.hashes.length {
+        for i in 0..self.hashes.length {
             if self.hashes[i] == hash {
                 if self.keys[i].>eq(key) {
                     return .some(&self.values[i])
@@ -97,7 +97,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn get_mut(&self, key: K) -> ?&mut V {
         let hash = key.>hash() | 1
 
-        for i in 0...self.hashes.length {
+        for i in 0..self.hashes.length {
             if self.hashes[i] == hash {
                 if self.keys[i].>eq(key) {
                     return .some(&mut self.values[i])
@@ -119,6 +119,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
         Hash_Iterator[K](
             .hashes = self.hashes,
             .items = self.keys,
+            .counter = 0,
         )
     }
 
@@ -126,6 +127,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
         Hash_Iterator[V](
             .hashes = self.hashes,
             .items = self.values,
+            .counter = 0,
         )
     }
 
@@ -133,6 +135,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
         Mut_Hash_Iterator[V](
             .hashes = self.hashes,
             .items = self.values,
+            .counter = 0,
         )
     }
 
@@ -141,6 +144,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
             .hashes = self.hashes,
             .keys = self.keys,
             .values = self.values,
+            .counter = 0,
         )
     }
 
@@ -153,7 +157,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn put(&mut self, key: K, value: V) -> Error!() {
         let hash = key.>hash() | 1
 
-        for i in 0...self.hashes.length {
+        for i in 0..self.hashes.length {
             if self.hashes[i] == hash and self.keys[i].>eq(key) {
                 self.values[i] = value
                 return .ok
@@ -172,7 +176,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn remove(&mut self, key: K) {
         let hash = key.>hash() | 1
 
-        for i in 0...self.hashes.length {
+        for i in 0..self.hashes.length {
             if self.hashes[i] == hash and self.keys[i].>eq(key) {
                 let last = self.hashes.length - 1
 
@@ -293,7 +297,8 @@ impl[K: core::Hash + core::Eq, V] core::Into_Iterator for Map[K, V] {
         Self::Iter(
             .hashes = self.hashes,
             .keys = self.keys,
-            .values = self.values
+            .values = self.values,
+            .counter = 0,
         )
     }
 }

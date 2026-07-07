@@ -1,6 +1,6 @@
 // 131
 fn main() -> Int {
-    let x: Int
+    let x = Int::default
     if x == 0 {
         131
     } else {

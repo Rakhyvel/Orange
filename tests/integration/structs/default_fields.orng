@@ -1,10 +1,14 @@
 // 57
 struct Has_Defaults {
-    a: Int = 50
-    b: Int = 7
+    a: Int
+    b: Int
+}
+
+impl core::Default for Has_Defaults {
+    const default = Has_Defaults(50, 7)
 }
 
 fn main() -> Int {
-    let x: Has_Defaults
+    let x = Has_Defaults::default
     x.a + x.b
 }

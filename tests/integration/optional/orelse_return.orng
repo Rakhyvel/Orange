@@ -1,6 +1,6 @@
 // 363
 fn main() -> Int {
-    let mut x: Int
+    let mut x: Int = 0
     let y: ?Int = .some(363)
     maybe_copy(&mut x, y)
     x

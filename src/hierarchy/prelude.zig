@@ -112,8 +112,9 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     byte_slice_type = Type_AST.create_slice_type(byte_type, false, compiler.allocator());
 
     // Create prelude scope
-    var uid_gen = UID_Gen.init();
-    prelude = Scope.init(null, &uid_gen, compiler.allocator());
+    const uid_gen = try compiler.allocator().create(UID_Gen);
+    uid_gen.* = UID_Gen.init();
+    prelude = Scope.init(null, uid_gen, compiler.allocator());
 
     // Create Symbols for primitives
     blackhole = create_prelude_symbol("_", unit_type, unit_value, compiler.allocator());
@@ -191,7 +192,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     );
     create_info(
         "Int32",
-        Bounds{ .lower = -0x8000_000, .upper = 0x7FFF_FFFF },
+        Bounds{ .lower = -0x8000_0000, .upper = 0x7FFF_FFFF },
         "int32_t",
         "i32",
         int32_type,
@@ -227,7 +228,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     );
     create_info(
         "Word8",
-        Bounds{ .lower = 0, .upper = 0xFFFF },
+        Bounds{ .lower = 0, .upper = 0xFF },
         "uint8_t",
         "u8",
         word8_type,

@@ -5,8 +5,12 @@ enum My_Type {
     c
 }
 
+impl core::Default for My_Type {
+    const default = My_Type.a(0)
+}
+
 fn main() -> Int {
-    let x: My_Type
+    let x = My_Type::default
     if x.a == 0 {
         133
     } else {

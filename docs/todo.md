@@ -482,9 +482,10 @@
 - [ ] Counter for how many impls/symbols/etc have been validated, ensure everything is validated before codegen
 - [ ] `AST.clone` preserves identifiers if not being substituted
 - [ ] Make test script more "TUI"-y, only re-write last line, newlines only for errors
-- [ ] Convert some recursive calls to iteration
+- [ ] Convert some recursive calls to iteration. Pipelines should be iterative. `walker.zig`, `scope_validate.zig`, should use a work queue, not recursion. Might be able to do validate_ast and lower_ast too, by splitting up the sequencing and the execution
 - [ ] Logger
 - [ ] rename files meant to be types to be their true Orange_Case
+- [ ] comptime contexts, interpretation mode, REPL and notebooks, live coding?
 
 ### Core Library
 > Mostly trait and type definitions, and really basic stuff. Available for freestanding programs

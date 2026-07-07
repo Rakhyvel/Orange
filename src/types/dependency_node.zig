@@ -5,6 +5,7 @@
 const std = @import("std");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self = @This();
 
@@ -30,12 +31,13 @@ pub fn mark_visited(self: *Self) void {
     self.visited = true;
 }
 
-fn print(self: *Self) void {
+pub fn print(self: *Self) void {
     std.debug.print("{} <= ", .{self.uid});
     for (self.dependencies.items) |dep| {
         std.debug.print("{} ", .{dep.uid});
     }
     std.debug.print("\n", .{});
+    Tree_Writer.print(self.base);
 }
 
 /// Prints out a graphviz representation of the dependency node

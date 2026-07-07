@@ -32,8 +32,6 @@ uid_gen: *UID_Gen,
 function_depth: usize = 0,
 inner_function: ?*Symbol = null,
 
-var twenties: usize = 0;
-
 pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Self {
     var retval = allocator.create(Self) catch unreachable;
     retval.parent = parent;
@@ -43,12 +41,6 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.enums = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
-    if (retval.uid == 20) {
-        twenties += 1;
-        if (twenties == 2) {
-            // std.debug.panic("created the 20 scope\n", .{});
-        }
-    }
     retval.uid_gen = uid_gen;
     if (parent) |_parent| {
         _parent.children.append(retval) catch unreachable;
@@ -157,7 +149,11 @@ pub const Impl_Trait_Lookup_Result = struct {
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
 pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
-    if (for_type.* == .identifier) {
+    _ = self;
+
+    try ctx.validate_type.validate_type(for_type);
+
+    if (for_type.* == .identifier or for_type.* == .generic_apply or for_type.* == .access) {
         // Hot path, if we've seen (for_type, trait) before, return the cached result
         if (for_type.symbol()) |type_sym| {
             if (type_sym.decl == null or type_sym.decl.?.* != .type_param_decl) {
@@ -165,15 +161,39 @@ pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: 
                 if (ctx.impl_cache.get(key)) |cached| {
                     return cached;
                 }
-                const result = try impl_trait_lookup_inner(self, self, for_type, trait, ctx);
-                if (result.count > 0) ctx.impl_cache.put(key, result) catch {};
-                return result;
             }
         }
     }
 
     // Cold path, do full lookup
-    return impl_trait_lookup_inner(self, self, for_type, trait, ctx);
+    var retval: Impl_Trait_Lookup_Result = .{ .count = 0, .impl_ast = null, .subst = null };
+    for (ctx.modules.keys()) |module_key| {
+        const module_scope = ctx.module_scope(module_key).?;
+        const result = try impl_trait_lookup_inner(module_scope, module_scope, for_type, trait, ctx);
+        if (result.count > 0) {
+            retval.count += 1;
+            retval.impl_ast = retval.impl_ast orelse result.impl_ast;
+            retval.subst = retval.subst orelse result.subst;
+        }
+    }
+    const result = try impl_trait_lookup_inner(ctx.prelude, ctx.prelude, for_type, trait, ctx);
+    if (result.count > 0) {
+        retval.count += 1;
+        retval.impl_ast = retval.impl_ast orelse result.impl_ast;
+        retval.subst = retval.subst orelse result.subst;
+    }
+
+    if (for_type.* == .identifier or for_type.* == .generic_apply or for_type.* == .access) {
+        // Cache for hot path later
+        if (for_type.symbol()) |type_sym| {
+            if (type_sym.decl == null or type_sym.decl.?.* != .type_param_decl) {
+                const key = Compiler_Context.Impl_Cache_Key{ .type_sym = type_sym, .trait = trait };
+                try ctx.impl_cache.put(key, retval);
+            }
+        }
+    }
+
+    return retval;
 }
 
 /// True when `candidate` is `target`, or transitively lists `target` among its super-traits.
@@ -226,87 +246,54 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         &[_]*Type_AST{}; // empty slice
     const is_type_param = constraints.len > 0;
 
-    // Scan module-level impls only once per module: at the original call site, or when entering
-    // a different module (like an imported module). Parent-scope passes in the same module skip
-    // this scan to avoid double-counting.
-    const entering_new_module = self.module != null and (self == original_scope or self.module != original_scope.module);
-    if (entering_new_module) {
-        // instantiate_generic_impl may append to module.impls, potentially reallocating the backing array
-        const n = self.module.?.impls.items.len;
-        for (0..n) |ii| {
-            const impl = self.module.?.impls.items[ii];
-            const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
-            var traits_match = impl_trait == trait;
-            if (!traits_match) {
-                // Check if `trait` is a monomorphized form of some generic trait
-                for (impl_trait.monomorphs.pairs.items) |pair| {
-                    if (pair.value == trait) {
-                        traits_match = true;
-                        break;
-                    }
+    // instantiate_generic_impl may append to module.impls, potentially reallocating the backing array
+    var ii: usize = 0;
+    while (ii < self.module.?.impls.items.len) : (ii += 1) {
+        const impl = self.module.?.impls.items[ii];
+        const impl_trait = try Decorate.symbol(impl.impl.trait.?, ctx);
+        var traits_match = impl_trait == trait;
+        if (!traits_match) {
+            // Check if `trait` is a monomorphized form of some generic trait
+            for (impl_trait.monomorphs.pairs.items) |pair| {
+                if (pair.value == trait) {
+                    traits_match = true;
+                    break;
                 }
             }
-            if (!traits_match) continue;
-
-            // Decorate the impl type on-demand, since it may be looked up before its own decl is
-            // decorated, leaving inner params (the `T` in `[]T`) unsymbolized and breaking unify.
-            // An earlier fn indexing a `[]T` before the `impl Index for []T` decl triggers this.
-            // Composite types are walked so their inner params resolve, not just identifiers
-            if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {
-                _ = try Decorate.symbol(impl.impl._type, ctx);
-            } else if (impl.impl._type.* != .identifier) {
-                try walker_.walk_type(impl.impl._type, Decorate.new(ctx));
-            }
-
-            var subst = unification_.Substitutions.init(std.heap.page_allocator);
-            errdefer subst.deinit();
-            unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
-                continue;
-            };
-
-            if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-                const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, original_scope, ctx) catch continue;
-                if (sat_res != .satisfies) continue;
-            }
-
-            if (is_type_param) {
-                const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, original_scope, ctx) catch continue;
-                if (sat_res != .satisfies) continue;
-            }
-
-            const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, ctx);
-
-            retval.count += 1;
-            retval.impl_ast = retval.impl_ast orelse instantiated_impl;
-            retval.subst = retval.subst orelse subst;
         }
-    }
+        if (!traits_match) continue;
 
-    // Search imported modules at this scope level
-    for (self.symbols.keys()) |symbol_name| {
-        const symbol = self.symbols.get(symbol_name).?;
-        if (symbol.kind == .import) {
-            var res_symbol: *Symbol = symbol.kind.import.real_symbol orelse self.parent.?.lookup(symbol.kind.import.real_name, .{ .allow_modules = true }).found;
-
-            const module_scope = res_symbol.init_value().?.scope().?;
-            if (module_scope == self) continue; // skip self-referential imports
-            const import_res = try module_scope.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
-            if (import_res.count > 0) {
-                retval.count += import_res.count;
-                retval.impl_ast = retval.impl_ast orelse import_res.impl_ast;
-                retval.subst = retval.subst orelse import_res.subst;
-                return import_res;
-            }
+        // Decorate the impl type on-demand, since it may be looked up before its own decl is
+        // decorated, leaving inner params (the `T` in `[]T`) unsymbolized and breaking unify.
+        // An earlier fn indexing a `[]T` before the `impl Index for []T` decl triggers this.
+        // Composite types are walked so their inner params resolve, not just identifiers
+        if (impl.impl._type.* == .identifier and impl.impl._type.symbol() == null) {
+            _ = try Decorate.symbol(impl.impl._type, ctx);
+        } else if (impl.impl._type.* != .identifier) {
+            try walker_.walk_type(impl.impl._type, Decorate.new(ctx));
         }
-    }
 
-    // Walk up parent scopes to discover imports defined at outer scope levels (like the
-    // `core` import lives on the module root scope, not on nested impl/fn scopes).
-    if (self.parent) |p| {
-        const parent_res = try p.impl_trait_lookup_inner(original_scope, for_type, trait, ctx);
-        retval.count += parent_res.count;
-        retval.impl_ast = retval.impl_ast orelse parent_res.impl_ast;
-        retval.subst = retval.subst orelse parent_res.subst;
+        var subst = unification_.Substitutions.init(std.heap.page_allocator);
+        errdefer subst.deinit();
+        unification_.unify(impl.impl._type, for_type, &subst, .{ .allow_rigid = !is_type_param }) catch {
+            continue;
+        };
+
+        if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, original_scope, ctx) catch continue;
+            if (sat_res != .satisfies) continue;
+        }
+
+        if (is_type_param) {
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, original_scope, ctx) catch continue;
+            if (sat_res != .satisfies) continue;
+        }
+
+        const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, ctx);
+
+        retval.count += 1;
+        retval.impl_ast = retval.impl_ast orelse instantiated_impl;
+        retval.subst = retval.subst orelse subst;
     }
 
     return retval;
@@ -432,7 +419,8 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         const new_scope = init(const_scope.parent.?, self.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
-        return cloned;
+        // Return the pattern, which carries the symbol, matching what search_impl returns for consts
+        return cloned.binding.pattern;
     }
     for (trait_decl.trait.type_decls.items) |type_decl| {
         if (!std.mem.eql(u8, type_decl.token().data, name)) continue;
@@ -441,7 +429,6 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
     return null;
 }
 
-var count: usize = 0;
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
     if (self.module == null) return;
     const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)
@@ -450,6 +437,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         &[_]*Type_AST{}; // empty slice
     const is_type_param = constraints.len > 0;
 
+    try compiler.validate_type.validate_type(for_type);
+
+    // Go through all the impls of the module, check any that fit
     var i: usize = 0;
     while (i < self.module.?.impls.items.len) : (i += 1) {
         const impl = self.module.?.impls.items[i];
@@ -472,6 +462,9 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
             const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, self, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
+
+        // Skip generic impl if it doesnt contain the item
+        if (search_impl(impl, name) == null) continue;
 
         const instantiated_impl = try self.instantiate_generic_impl(impl, &subst, compiler);
         if (search_impl(instantiated_impl, name)) |res| {
@@ -499,8 +492,8 @@ pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitu
             },
             .const_param_decl => {
                 const mapped = subst.get_const(param.symbol().?.name) orelse continue;
-                if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
-                if (mapped.is_const_param_ref()) return true; // renamed to another const param
+                if ((mapped.* == .identifier) and mapped.symbol() == param.symbol()) continue;
+                if (!unification_.const_arg_is_concrete(mapped)) return true;
             },
             else => {},
         }
@@ -508,14 +501,31 @@ pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitu
     return false;
 }
 
-/// Clones an impl member (associated `type` or `method`) with `subst` applied, so it refers
+/// Clones an impl member (associated `type`, `method`, or `const`) with `subst` applied, so it refers
 /// to the querying impl's params instead of the sibling impl's. Needed when
 /// `instantiate_generic_impl` returns the impl un-substituted (subst maps onto generic params)
 /// For methods only the signature (`_decl_type`) is remapped, the body is checked at validate_impl
 pub fn remap_impl_member(res: *ast_.AST, subst: *const unification_.Substitutions, compiler: *Compiler_Context) *ast_.AST {
-    if (res.* != .type_alias and res.* != .method_decl) return res;
-    const cloned = res.clone(subst, compiler.allocator());
+    if (res.* != .type_alias and res.* != .method_decl and res.* != .pattern_symbol) return res;
     const old_symbol = res.symbol().?;
+    if (res.* == .pattern_symbol) {
+        // Remap just the type (like method_decl remaps just the signature) the value isn't needed until monomorphization
+        const cloned_type = old_symbol.decl.?.decl_type().clone(subst, compiler.allocator());
+        const new_scope = init(old_symbol.scope, old_symbol.scope.uid_gen, compiler.allocator());
+        walker_.walk_type(cloned_type, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator())) catch {};
+        const cloned_decl = ast_.AST.create_decl(res.token(), res.clone(subst, compiler.allocator()), cloned_type, null, compiler.allocator());
+        const symbol = Symbol.init(
+            old_symbol.scope,
+            old_symbol.name,
+            cloned_decl,
+            old_symbol.kind,
+            old_symbol.storage,
+            compiler.allocator(),
+        );
+        cloned_decl.decl.name.set_symbol(symbol);
+        return cloned_decl.decl.name;
+    }
+    const cloned = res.clone(subst, compiler.allocator());
     if (res.* == .method_decl) {
         // The cloned signature can contain access-types like `[]T::Output` whose scope is lost
         // by cloning. Re-scope just the function type so the access can re-resolve
@@ -618,9 +628,12 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
 
     try compiler.validate_scope.validate_scope(new_scope);
 
-    // Set all method_decls to be monomorphed
+    // Set all method_defs and const_defs to be monomorphed
     for (new_impl.impl.method_defs.items) |method_def| {
         method_def.symbol().?.is_monomorphed = true;
+    }
+    for (new_impl.impl.const_defs.items) |const_def| {
+        const_def.binding.pattern.symbol().?.is_monomorphed = true;
     }
 
     // Store in the memo

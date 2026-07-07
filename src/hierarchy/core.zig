@@ -35,6 +35,7 @@ pub var file_io_context: *Type_AST = undefined;
 var core: ?*Scope = null;
 pub var core_symbol: ?*Symbol = null;
 pub var core_package_name: []const u8 = undefined;
+pub var core_initialized: bool = false;
 pub fn get_core_scope(compiler: *Compiler_Context) !*Scope {
     if (core == null) {
         try create_core(compiler);
@@ -44,11 +45,13 @@ pub fn get_core_scope(compiler: *Compiler_Context) !*Scope {
 
 pub fn deinit() void {
     core = null;
+    core_initialized = false;
 }
 
 fn create_core(compiler: *Compiler_Context) !void {
     // Create core scope
-    var uid_gen = UID_Gen.init();
+    const uid_gen = try compiler.allocator().create(UID_Gen);
+    uid_gen.* = UID_Gen.init();
 
     repo_.ensure_packages_dir_exists(compiler.allocator());
     core_package_name = repo_.get_repo_dir("core", compiler.allocator());
@@ -60,7 +63,7 @@ fn create_core(compiler: *Compiler_Context) !void {
     try core_module_abs_path.print("{s}{c}core.orng", .{ core_package_name, std.fs.path.sep });
 
     const module = try module_.Module.init(try core_module_abs_path.toOwnedSlice(), compiler.allocator());
-    core = Scope.init(compiler.prelude, &uid_gen, compiler.allocator());
+    core = Scope.init(compiler.prelude, uid_gen, compiler.allocator());
     core_symbol = Symbol.init(
         compiler.prelude,
         "core",
@@ -125,4 +128,6 @@ fn create_core(compiler: *Compiler_Context) !void {
     file_io_context = module_scope.lookup("File_IO", .{}).found.init_typedef().?;
 
     _ = module_scope.lookup("Requirement", .{}).found.init_typedef().?;
+
+    core_initialized = true;
 }

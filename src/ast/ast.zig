@@ -293,17 +293,11 @@ pub const AST = union(enum) {
         anytptr: bool = false, // When this is true, the addr_of should output as a void*, and should be cast whenever dereferenced
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
     },
-    sub_slice: struct { common: AST_Common, super: *AST, lower: ?*AST, upper: ?*AST },
-    range: struct { common: AST_Common, lower: *AST, upper: *AST },
     receiver: struct {
         common: AST_Common,
         kind: Receiver_Kind,
         _type: ?*Type_AST = null,
         value_derefd: bool = false,
-    },
-    default: struct {
-        common: AST_Common,
-        _type: *Type_AST,
     },
     size_of: struct {
         common: AST_Common,
@@ -638,13 +632,6 @@ pub const AST = union(enum) {
             AST{ .@"comptime" = .{ .common = _common, ._expr = _expr, .name = null } },
             allocator,
         );
-    }
-
-    pub fn create_default(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
-        return AST.box(AST{ .default = .{
-            .common = AST_Common{ ._token = _token },
-            ._type = _expr,
-        } }, allocator);
     }
 
     pub fn create_size_of(_token: Token, _expr: *Type_AST, allocator: std.mem.Allocator) *AST {
@@ -1064,36 +1051,6 @@ pub const AST = union(enum) {
             ._expr = _expr,
             .mut = _mut,
             .multiptr = multiptr,
-        } }, allocator);
-    }
-
-    pub fn create_sub_slice(
-        _token: Token,
-        super: *AST,
-        lower: ?*AST,
-        upper: ?*AST,
-        allocator: std.mem.Allocator,
-    ) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .sub_slice = .{
-            .common = _common,
-            .super = super,
-            .lower = lower,
-            .upper = upper,
-        } }, allocator);
-    }
-
-    pub fn create_range(
-        _token: Token,
-        lower: *AST,
-        upper: *AST,
-        allocator: std.mem.Allocator,
-    ) *AST {
-        const _common: AST_Common = .{ ._token = _token };
-        return AST.box(AST{ .range = .{
-            .common = _common,
-            .lower = lower,
-            .upper = upper,
         } }, allocator);
     }
 
@@ -1574,7 +1531,6 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .@"try" => return create_try(self.token(), self.expr().clone(substs, allocator), allocator),
-            .default => return create_default(self.token(), self.default._type.clone(substs, allocator), allocator),
             .size_of => return create_size_of(self.token(), self.size_of._type.clone(substs, allocator), allocator),
             .write => {
                 const cloned_args = clone_children(self.children().*, substs, allocator);
@@ -1917,19 +1873,6 @@ pub const AST = union(enum) {
                 self.addr_of.multiptr,
                 allocator,
             ),
-            .sub_slice => return create_sub_slice(
-                self.token(),
-                self.sub_slice.super.clone(substs, allocator),
-                if (self.sub_slice.lower) |lower| lower.clone(substs, allocator) else null,
-                if (self.sub_slice.upper) |upper| upper.clone(substs, allocator) else null,
-                allocator,
-            ),
-            .range => return create_range(
-                self.token(),
-                self.range.lower.clone(substs, allocator),
-                self.range.upper.clone(substs, allocator),
-                allocator,
-            ),
             .receiver => {
                 var retval = create_receiver(
                     self.token(),
@@ -2122,7 +2065,6 @@ pub const AST = union(enum) {
         return switch (self) {
             .as => self.as._type,
             .size_of => self.size_of._type,
-            .default => self.default._type,
             else => std.debug.panic("can't call type on {s}\n", .{@tagName(self)}),
         };
     }
@@ -2431,6 +2373,36 @@ pub const AST = union(enum) {
         return member.assert_ast_valid();
     }
 
+    pub fn create_range(_token: Token, lower: ?*AST, upper: ?*AST, allocator: std.mem.Allocator) !*AST {
+        var terms = std.array_list.Managed(*AST).init(allocator);
+        if (lower) |l| {
+            const member = create_enum_value(Token.init_simple_with_span("some", _token.span), allocator);
+            member.enum_value.init = l;
+            try terms.append(member);
+        } else {
+            try terms.append(create_enum_value(Token.init_simple_with_span("none", _token.span), allocator));
+        }
+        if (upper) |u| {
+            const member = create_enum_value(Token.init_simple_with_span("some", _token.span), allocator);
+            member.enum_value.init = u;
+            try terms.append(member);
+        } else {
+            try terms.append(create_enum_value(Token.init_simple_with_span("none", _token.span), allocator));
+        }
+
+        // core::Range[@typeof(u | l)](.some(l), .some(u))
+
+        const core_ident = create_identifier(Token.init_simple_with_span("core", _token.span), allocator);
+        const range_type = create_field(Token.init_simple_with_span("Range", _token.span), allocator);
+        var bracket_terms = std.array_list.Managed(GenericArg).init(allocator);
+        const typeof = Type_AST.create_type_of(Token.init_simple_with_span("Range", _token.span), lower orelse upper orelse return error.Bad, allocator);
+        try bracket_terms.append(GenericArg{ .type_arg = typeof });
+        const full_range_type = create_access(_token, core_ident, range_type, allocator);
+        const bracket = create_bracket(Token.init_simple_with_span("Range", _token.span), full_range_type, bracket_terms, allocator);
+
+        return create_call(_token, bracket, terms, allocator);
+    }
+
     pub fn create_core_trait_op(_token: Token, exp: *AST, other: *AST, trait_name: []const u8, method_name: []const u8, allocator: std.mem.Allocator) !*AST {
         const dispatch_expr = if (exp.* == .int or exp.* == .float) other else exp;
         const exp_type = Type_AST.create_type_of(_token, dispatch_expr, allocator);
@@ -2579,9 +2551,6 @@ pub const AST = union(enum) {
             .negate => try out.print("negate({f})", .{self.expr()}),
             .dereference => try out.print("dereference()", .{}),
             .@"try" => try out.print("try()", .{}),
-            .default => {
-                try out.print("default({f})", .{self.default._type});
-            },
             .size_of => try out.print("size_of({f})", .{self.type()}),
             .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
             .variant_name => try out.print("variant_name({f})", .{self.expr()}),
@@ -2760,8 +2729,6 @@ pub const AST = union(enum) {
 
             .as => try out.print("as({f}, {f})", .{ self.expr(), self.type() }),
             .addr_of => try out.print("addr_of({f})", .{self.expr()}),
-            .sub_slice => try out.print("sub_slice()", .{}),
-            .range => try out.print("range()", .{}),
             .receiver => try out.print("receiver({?f})", .{self.receiver._type}),
 
             .@"if" => try out.print("if()", .{}),

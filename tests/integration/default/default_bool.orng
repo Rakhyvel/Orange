@@ -1,6 +1,6 @@
 // 130
 fn main() -> Int {
-    let x: Bool
+    let x = Bool::default
     if not x {
         130
     } else {

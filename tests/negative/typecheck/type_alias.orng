@@ -1,3 +1,6 @@
+// type_alias.orng:5:19: error: unexpected type
+// const My_Int = Int
+//                  ^
 // 
 const My_Int = Int
 

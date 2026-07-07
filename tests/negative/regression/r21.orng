@@ -1,5 +1,11 @@
 // 
-fn main() -> Int { 
-    const x = while true { } // This should trip the timeout for the interpreter
+//
+fn lol() -> Int {
+    while true {}
     4
+}
+
+fn main() -> Int {
+    const x = comptime { lol() }
+    x
 } 

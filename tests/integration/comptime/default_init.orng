@@ -1,11 +1,15 @@
 // 245
 struct My_Type {
-    a: Int = add(200, 40)
-    b: Int = 5
+    a: Int
+    b: Int
+}
+
+impl core::Default for My_Type {
+    const default = My_Type(add(200, 40), 5)
 }
 
 fn main() -> Int {
-    let x: My_Type
+    let x = My_Type::default
     x.a + x.b
 }
 

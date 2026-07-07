@@ -79,6 +79,7 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
     defer failed_tests.deinit();
 
     var results = Results{ .passed = 0, .failed = 0 };
+    const start_millis = std.time.milliTimestamp();
     while (args.next()) |next| {
         if (next.len < 4 or !std.mem.eql(u8, next[next.len - 4 ..], "orng")) {
             continue;
@@ -111,10 +112,18 @@ fn parse_args(old_args: std.process.ArgIterator, mode: Test_Mode, comptime test_
         }
     }
 
+    const end_millis = std.time.milliTimestamp();
+
     if (mode == .regular) {
         try term_.outputColor(succeed_color, "[==============]\n", writer);
         try writer.print("Passed tests: {}\n", .{results.passed});
         try writer.print("Failed tests: {}\n", .{results.failed});
+        const total_tests = results.passed + results.failed;
+        const elapsed_millis = end_millis - start_millis;
+        try writer.print("Elapsed time: {}ms\n", .{elapsed_millis});
+        if (total_tests > 0) {
+            try writer.print("Average time per test: {}ms\n", .{@divTrunc(elapsed_millis, @as(i64, @intCast(total_tests)))});
+        }
 
         if (results.failed > 0) {
             try term_.outputColor(fail_color, "[ FAILED TESTS ]\n", writer);

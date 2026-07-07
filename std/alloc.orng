@@ -20,7 +20,7 @@ impl core::Allocator for Fixed_Buffer_Allocator {
         if nbytes + self.cursor > self.buf.length {
             return .none
         }
-        let retval = self.buf[self.cursor..].data
+        let retval = self.buf.>subslice(self.cursor..).data
         self.cursor += nbytes
         .some(retval)
     }

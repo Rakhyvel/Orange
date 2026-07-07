@@ -1,6 +1,6 @@
 // 246
 fn main() -> Int {
-    let mut x: [comptime { add(2, 2) }]Int
+    let mut x: [comptime { add(2, 2) }]Int = undefined
     x[3] = 0 * 1000
     x[2] = 2 * 100
     x[1] = 4 * 10

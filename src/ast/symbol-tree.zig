@@ -19,6 +19,7 @@ const unification_ = @import("../types/unification.zig");
 scope: *Scope,
 in_loop: bool,
 is_param_scope: bool,
+in_generic_impl: bool = false,
 defers: ?*std.array_list.Managed(*ast_.AST),
 errors: *errs_.Errors,
 allocator: std.mem.Allocator,
@@ -124,6 +125,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 self.allocator,
             );
             for (symbols.items) |symbol| {
+                symbol.in_generic_impl = self.in_generic_impl;
                 try ast.binding.decls.append(symbol.decl.?);
             }
             try self.scope.put_all_symbols(&symbols, self.errors);
@@ -264,7 +266,8 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
         // Create new scope, create anon trait, create and walk impl symbols/decls
         .impl => {
             // Impls get their own scope, actually
-            const new_self = self.new_scope(ast);
+            var new_self = self.new_scope(ast);
+            new_self.in_generic_impl = ast.impl._generic_params.items.len > 0;
 
             const self_type_decl = ast_.AST.create_type_alias(
                 ast.token(),
@@ -281,6 +284,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try walk_.walk_ast(self_type_decl, new_self);
 
+            // Substitute Self for the impl's for-type in methods
             for (ast.impl.method_defs.items, 0..) |method_def, i| {
                 var subst = unification_.Substitutions.init(self.allocator);
                 defer subst.deinit();
@@ -288,6 +292,16 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 try subst.put_type("Self", ast.impl._type);
 
                 ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
+            }
+
+            // Substitute Self for the impl's for-type in consts
+            for (ast.impl.const_defs.items, 0..) |const_def, i| {
+                var subst = unification_.Substitutions.init(self.allocator);
+                defer subst.deinit();
+
+                try subst.put_type("Self", ast.impl._type);
+
+                ast.impl.const_defs.items[i] = const_def.clone(&subst, self.allocator);
             }
 
             if (ast.impl.trait == null) {
