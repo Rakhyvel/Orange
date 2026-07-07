@@ -82,7 +82,7 @@ fn output_impls(self: *Self) CodeGen_Error!void {
         const trait_symbol = trait.symbol().?;
         const trait_decl = trait_symbol.decl.?;
         const trait_module = trait_symbol.scope.module.?;
-        if (impl.impl.num_virtual_methods == 0 and trait_decl.trait.super_traits.items.len == 0) {
+        if (trait_decl.trait.total_virtual_methods() == 0) {
             continue;
         }
         try self.writer.print("const struct vtable_{s}__{s}__{}_{s} {s}__{s}_{}__vtable = {{\n", .{

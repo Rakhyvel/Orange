@@ -140,7 +140,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
 
     for (self.module.traits.keys()) |trait| {
         // TODO: Too long
-        if (trait.trait.num_virtual_methods == 0 and trait.trait.super_traits.items.len == 0) {
+        if (trait.trait.total_virtual_methods() == 0) {
             continue;
         }
         // Generic trait templates are skipped, only their monomorphs are emitted with concrete types
@@ -203,7 +203,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
         for (trait.trait.super_traits.items, 0..) |super_trait, i| {
             const super_trait_symbol = super_trait.symbol().?;
             const super_trait_decl = super_trait_symbol.decl.?;
-            if (super_trait_decl.trait.num_virtual_methods == 0 and super_trait_decl.trait.super_traits.items.len == 0) continue;
+            if (super_trait_decl.trait.total_virtual_methods() == 0) continue;
             try self.writer.print("    const struct vtable_{s}__{s}__{}_{s} *_{};\n", .{
                 super_trait_symbol.scope.module.?.package_name,
                 super_trait_symbol.scope.module.?.name(),
@@ -231,15 +231,16 @@ fn output_impls(self: *Self) CodeGen_Error!void {
     }
 
     for (self.module.impls.items) |impl| {
-        if (impl.impl.num_virtual_methods == 0) {
-            // Skip impls if they dont have virtual methods (no vtable!)
-            continue;
-        }
         if (impl.impl._generic_params.items.len > 0) {
             // Skip generic impls, their monomorphed versions have the real methods
             continue;
         }
         const trait = impl.impl.trait.?;
+        const trait_decl = trait.symbol().?.decl.?;
+        if (trait_decl.trait.total_virtual_methods() == 0) {
+            // Skip impls if they dont have virtual methods (no vtable!)
+            continue;
+        }
         const trait_module = trait.symbol().?.scope.module.?;
         try self.writer.print("extern const struct vtable_{s}__{s}__{}_{s} {s}__{s}_{}__vtable;\n", .{
             trait_module.package_name,
