@@ -384,7 +384,7 @@ fn construct_obj_cc_cmd(
 
     // Add basic flags
     cc_cmd.appendSlice(&[_][]const u8{
-        "-std=c99",
+        "-std=c11",
         "-O0",
         "-g",
         std_include_path.items,
