@@ -32,8 +32,6 @@ uid_gen: *UID_Gen,
 function_depth: usize = 0,
 inner_function: ?*Symbol = null,
 
-var twenties: usize = 0;
-
 pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Self {
     var retval = allocator.create(Self) catch unreachable;
     retval.parent = parent;
@@ -43,12 +41,6 @@ pub fn init(parent: ?*Self, uid_gen: *UID_Gen, allocator: std.mem.Allocator) *Se
     retval.enums = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(allocator);
     retval.tests = std.array_list.Managed(*ast_.AST).init(allocator);
     retval.uid = uid_gen.uid();
-    if (retval.uid == 20) {
-        twenties += 1;
-        if (twenties == 2) {
-            // std.debug.panic("created the 20 scope\n", .{});
-        }
-    }
     retval.uid_gen = uid_gen;
     if (parent) |_parent| {
         _parent.children.append(retval) catch unreachable;
@@ -437,7 +429,6 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
     return null;
 }
 
-var count: usize = 0;
 fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), short_circuit: bool, compiler: *Compiler_Context) !void {
     if (self.module == null) return;
     const constraints = if (for_type.* == .identifier and for_type.symbol().?.decl.?.* == .type_param_decl)

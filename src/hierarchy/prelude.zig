@@ -112,8 +112,9 @@ fn create_prelude(compiler: *Compiler_Context) !void {
     byte_slice_type = Type_AST.create_slice_type(byte_type, false, compiler.allocator());
 
     // Create prelude scope
-    var uid_gen = UID_Gen.init();
-    prelude = Scope.init(null, &uid_gen, compiler.allocator());
+    const uid_gen = try compiler.allocator().create(UID_Gen);
+    uid_gen.* = UID_Gen.init();
+    prelude = Scope.init(null, uid_gen, compiler.allocator());
 
     // Create Symbols for primitives
     blackhole = create_prelude_symbol("_", unit_type, unit_value, compiler.allocator());
