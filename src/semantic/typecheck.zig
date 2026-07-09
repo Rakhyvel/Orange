@@ -1323,7 +1323,8 @@ fn method_fits(
     // Try unifying the return type with the expected return type, if its provided
     if (expected) |exp| {
         const actual = method_decl.decl_type().function._rhs;
-        unification_.unify(exp, actual, subst, .{ .allow_rigid = false }) catch {
+        try walk_.walk_type(actual, Decorate.new(self.ctx)); // Type might not be decorated yet!
+        unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
             return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
         };
     }
