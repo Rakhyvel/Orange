@@ -228,7 +228,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .type_access => {
-            const lhs_is_trait_ident = ast.type_access._lhs_type.* == .identifier and
+            const lhs_is_trait_ident = (ast.type_access._lhs_type.* == .identifier or ast.type_access._lhs_type.* == .generic_apply) and
                 ast.type_access._lhs_type.symbol() != null and
                 ast.type_access._lhs_type.symbol().?.kind == .trait;
 
@@ -384,18 +384,34 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (ast.lhs().* == .type_access) {
                 // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
                 const lhs_type_node = ast.lhs().type_access._lhs_type;
-                if (lhs_type_node.* == .identifier and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
-                    if (ast.children().items.len == 0) {
+                if ((lhs_type_node.* == .identifier or lhs_type_node.* == .access or lhs_type_node.* == .generic_apply) and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
+                    // Search for where the Self type should be extracted given the trait method decl
+                    const trait_decl = lhs_type_node.symbol().?.decl.?;
+                    const method_name = ast.lhs().rhs().token().data;
+                    const res = try find_self_type(trait_decl, method_name);
+                    if (res == null) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot select method implementation, trait method's signature does not mention `Self`" } });
+                        return error.CompileError;
+                    }
+
+                    if (res.? == .param and res.?.param >= ast.children().items.len) {
                         self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument" } });
                         return error.CompileError;
                     }
-                    const receiver_type = self.typecheck_AST(ast.children().items[0], null, subst) catch return error.CompileError;
+
+                    // Extract the receiver type based on where the trait told us it should be
+                    const receiver_type = if (res.? == .return_value) (if (expected) |exp|
+                        exp
+                    else {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer `Self` from call site without type annotation" } });
+                        return error.CompileError;
+                    }) else self.typecheck_AST(ast.children().items[res.?.param], null, subst) catch return error.CompileError;
+
                     // Strip as_trait (monomorphization wrapper) and addr_of (explicit &self receiver
                     // in FQS calls like Trait::method(&x, ...)) to reach the base type for impl lookup.
                     var concrete_type = receiver_type;
                     while (concrete_type.* == .as_trait) concrete_type = concrete_type.lhs();
                     if (concrete_type.* == .addr_of) concrete_type = concrete_type.child();
-                    const method_name = ast.lhs().rhs().token().data;
                     var candidate_methods = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                     defer candidate_methods.deinit();
                     var constraints_arr = [1]*Type_AST{lhs_type_node};
@@ -670,7 +686,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     }
                 }
             }
-            try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
+            try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
             const method_decl_type = method_decl.?.decl_type();
 
@@ -714,7 +730,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 }
             } else {
-                const impl = try ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
+                const impl = try Scope.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
                 if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
@@ -1014,7 +1030,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 _ = self.typecheck_AST(let, null, subst) catch return error.CompileError;
             }
             const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null, subst) catch return error.CompileError;
-            const impl = try ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
+            const impl = try Scope.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
             if (impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
@@ -1028,7 +1044,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.@"for".into_iter_into_iter_method_decl = Scope.search_impl(instantiated_impl, "into_iter").?;
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
 
-            const iterator_impl = try ast.scope().?.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
+            const iterator_impl = try Scope.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
             if (iterator_impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
@@ -1157,9 +1173,36 @@ pub fn binary_operator_open(
     return lhs_type;
 }
 
+const Self_Find_Result = union(enum) {
+    return_value,
+    param: usize,
+};
+fn find_self_type(trait_decl: *ast_.AST, method_name: []const u8) !?Self_Find_Result {
+    const method_decl: *ast_.AST = trait_decl.trait.find_method(method_name).?; // TODO: Throw error
+
+    // A receiver (`self`, `&self`, `&mut self`) is a Self-typed first argument
+    if (method_decl.method_decl.receiver != null) {
+        return .{ .param = 0 };
+    }
+
+    for (method_decl.children().items, 0..) |param_binding, i| {
+        const symbol = param_binding.binding.decls.items[0].decl.name.symbol().?;
+        if (symbol.type().refers_to_self()) {
+            return .{ .param = i };
+        }
+    }
+
+    if (method_decl.method_decl.ret_type.refers_to_self()) {
+        return .return_value;
+    }
+
+    return null;
+}
+
 fn select_method(
     self: *Self,
     ast: *ast_.AST,
+    expected: ?*Type_AST,
     candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
@@ -1171,7 +1214,7 @@ fn select_method(
     var rejection_reasons = std.array_list.Managed(errs_.Candidate).init(self.ctx.allocator());
 
     for (candidate_method_decls.keys()) |method_decl| {
-        switch (try self.method_fits(ast, method_decl, true_lhs_type, subst)) {
+        switch (try self.method_fits(ast, expected, method_decl, true_lhs_type, subst)) {
             .fits => |plan| {
                 try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
             },
@@ -1179,6 +1222,7 @@ fn select_method(
         }
     }
 
+    var chosen: ?Viable_Method = null;
     switch (viable.items.len) {
         0 => {
             // Type check for any genuine compile errors in the args that might've made it seem like there were no viable methods
@@ -1200,30 +1244,47 @@ fn select_method(
         },
         1 => {
             // One viable method = GOOD :)
-            rejection_reasons.deinit();
-            const choice = viable.items[0];
-            ast.invoke.method_decl = choice.method;
-            if (choice.plan.prepend) {
-                try ast.children().insert(0, choice.plan.receiver_expr.?);
-                ast.invoke.prepended = true;
-            }
+            chosen = viable.items[0];
         },
         else => {
-            // >1 viable methods = BAD! (ambiguous)
-            var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
-            for (viable.items) |candidate| {
-                try saved_viable.append(candidate.method);
+            // Prefer candidates whose return type matches the expected exactly, fallback to coercions
+            if (expected) |exp| {
+                var exact_count: usize = 0;
+                for (viable.items) |candidate| {
+                    const ret = candidate.method.decl_type().function._rhs;
+                    if (ret.types_match(exp) and exp.types_match(ret)) {
+                        chosen = candidate;
+                        exact_count += 1;
+                    }
+                }
+                if (exact_count != 1) chosen = null;
             }
-            self.ctx.errors.add_error(errs_.Error{
-                .ambiguous_methods = .{
-                    .span = ast.token().span,
-                    .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type.strip_addrs(),
-                    .viable = saved_viable.items,
-                },
-            });
-            return error.CompileError;
+
+            if (chosen == null) {
+                // >1 viable methods = BAD! (ambiguous)
+                var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
+                for (viable.items) |candidate| {
+                    try saved_viable.append(candidate.method);
+                }
+                self.ctx.errors.add_error(errs_.Error{
+                    .ambiguous_methods = .{
+                        .span = ast.token().span,
+                        .method_name = ast.rhs().token().data,
+                        ._type = true_lhs_type.strip_addrs(),
+                        .viable = saved_viable.items,
+                    },
+                });
+                return error.CompileError;
+            }
         },
+    }
+
+    rejection_reasons.deinit();
+    const choice = chosen.?;
+    ast.invoke.method_decl = choice.method;
+    if (choice.plan.prepend) {
+        try ast.children().insert(0, choice.plan.receiver_expr.?);
+        ast.invoke.prepended = true;
     }
 }
 
@@ -1238,6 +1299,7 @@ const Method_Result = union(enum) {
 fn method_fits(
     self: *Self,
     ast: *ast_.AST,
+    expected: ?*Type_AST,
     method_decl: *ast_.AST,
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
@@ -1274,6 +1336,15 @@ fn method_fits(
     if (args_validator.probe_type(subst, self.ctx)) |failure| {
         const expected_type = domain.items[failure.param_idx];
         return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = failure.param_idx, .expects = expected_type, .got = failure.arg_type } } };
+    }
+
+    // Try unifying the return type with the expected return type, if its provided
+    if (expected) |exp| {
+        const actual = method_decl.decl_type().function._rhs;
+        try walk_.walk_type(actual, Decorate.new(self.ctx)); // Type might not be decorated yet!
+        unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
+            return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+        };
     }
 
     return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };

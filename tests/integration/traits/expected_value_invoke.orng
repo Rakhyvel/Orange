@@ -1,0 +1,30 @@
+// 557
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[Float] for My_Type {
+    fn get(&self) -> Float { self.y }
+}
+
+fn main() -> Int {
+    let my_val = My_Type(500, 57.0)
+
+    let x: Int = my_val.>get()
+    let y: Float = my_val.>get()
+
+    if x == 500 and y == 57.0 {
+        557
+    } else {
+        unreachable
+    }
+}

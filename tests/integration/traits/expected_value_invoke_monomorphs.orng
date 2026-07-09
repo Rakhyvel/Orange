@@ -1,0 +1,32 @@
+// 558
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[Float] for My_Type {
+    fn get(&self) -> Float { self.y }
+}
+
+fn id[S, T: Get[S]](x: T) -> S { x.>get() }
+
+fn main() -> Int {
+    let my_val = My_Type(500, 58.0)
+
+    let a: Int = id[Int, My_Type](my_val)
+    let b: Float = id[Float, My_Type](my_val)
+
+    if b == 58.0 {
+        a + 58
+    } else {
+        unreachable
+    }
+}

@@ -1,0 +1,35 @@
+// expected_value_ambiguous.orng:33:21: error: multiple applicable members `get` for the type `My_Type`
+//     let a: Int = v.>get()
+//                    ^
+// expected_value_ambiguous.orng:24:7: note: candidate:
+//     fn get(&self) -> Int { self.x }
+//      ^
+// expected_value_ambiguous.orng:28:7: note: candidate:
+//     fn get(&self) -> Int { self.x + 1 }
+//      ^
+// 
+trait Get_A {
+    fn get(&self) -> Int
+}
+
+trait Get_B {
+    fn get(&self) -> Int
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Get_A for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get_B for My_Type {
+    fn get(&self) -> Int { self.x + 1 }
+}
+
+fn main() -> Int {
+    let v = My_Type(1)
+    let a: Int = v.>get()
+    a
+}

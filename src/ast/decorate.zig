@@ -451,7 +451,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         }
         stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
-            const res = try scope.?.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
+            const res = try Scope.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
             if (res.impl_ast) |impl_ast| {
                 const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
                 // Decorate the original member first so `Self::Output` etc resolve before any remap
@@ -465,7 +465,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
                 }
                 return decl.symbol().?;
             } else {
-                const decl = try scope.?.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
+                const decl = try Scope.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
                 return decl.?.symbol().?;
             }
         }

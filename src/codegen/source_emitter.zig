@@ -144,6 +144,9 @@ fn output_non_monomorphed_def(self: *Self, cfg: *CFG) CodeGen_Error!void {
     if (cfg.symbol.is_monomorphed or cfg.symbol.scope.module != self.module) {
         return;
     }
+    if (cfg.symbol.expanded_type().rhs().is_ident_type("Void")) {
+        return;
+    }
     try self.output_function_definition(cfg);
 }
 

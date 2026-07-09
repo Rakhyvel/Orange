@@ -273,6 +273,9 @@ pub fn output_forward_function(self: *Self, cfg: *CFG) CodeGen_Error!void {
     if (cfg.symbol.is_monomorphed) {
         return;
     }
+    if (cfg.symbol.expanded_type().rhs().is_ident_type("Void")) {
+        return;
+    }
     try self.emitter.output_function_prototype(cfg);
     try self.writer.print(";\n", .{});
 }

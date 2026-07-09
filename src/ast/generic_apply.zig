@@ -8,6 +8,7 @@ const Span = @import("../util/span.zig");
 const process_state_ = @import("../util/process_state.zig");
 const generic_arg_ = @import("../ast/generic_arg.zig");
 const GenericArg = generic_arg_.GenericArg;
+const unification_ = @import("../types/unification.zig");
 
 pub fn instantiate(generic_apply: anytype, ctx: *Compiler_Context) !void {
     if (@TypeOf(generic_apply) == *AST) {
@@ -58,6 +59,17 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
         return error.CompileError;
     }
 
+    // Constraints may reference sibling generic params, so substitute the given args into the constraints before checking them
+    var constraint_subst = unification_.Substitutions.init(ctx.allocator());
+    defer constraint_subst.deinit();
+    for (filtered_args.items, 0..) |arg, i| {
+        const param = params.items[i];
+        switch (arg) {
+            .type_arg => |ty| if (param.* == .type_param_decl) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
+            .const_arg => |v| if (param.* == .const_param_decl) constraint_subst.put_const(param.symbol().?.name, v) catch unreachable,
+        }
+    }
+
     for (filtered_args.items, 0..) |arg, i| {
         const param = params.items[i];
         switch (param.*) {
@@ -65,7 +77,13 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
                 const ty = arg.type_arg;
                 try ctx.validate_type.validate_type(ty);
 
-                const sat_res = try ty.satisfies_all_constraints(param.type_param_decl.constraints.items, null, sym.scope, ctx);
+                var substd_constraints = std.array_list.Managed(*Type_AST).init(ctx.allocator());
+                defer substd_constraints.deinit();
+                for (param.type_param_decl.constraints.items) |constraint| {
+                    substd_constraints.append(constraint.clone(&constraint_subst, ctx.allocator())) catch unreachable;
+                }
+
+                const sat_res = try ty.satisfies_all_constraints(substd_constraints.items, null, ctx);
                 switch (sat_res) {
                     .satisfies => {},
                     .not_impl => |unimpld| {

@@ -1,0 +1,15 @@
+// duplicate_constraint_generic.orng:13:26: error: duplicate constraint `Get`
+// fn func[T: Get[Int] + Get[Int]](t: T) {}
+//                         ^
+// 
+trait Get[T] {
+    fn get(self) -> T
+}
+
+impl Get[Int] for Int {
+    fn get(self) -> Int { self }
+}
+
+fn func[T: Get[Int] + Get[Int]](t: T) {}
+
+fn main() {}

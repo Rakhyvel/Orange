@@ -481,7 +481,7 @@
 - [ ] `Symbol` shouldn't hold pointer to `CFG`
 - [ ] Counter for how many impls/symbols/etc have been validated, ensure everything is validated before codegen
 - [ ] `AST.clone` preserves identifiers if not being substituted
-- [ ] Make test script more "TUI"-y, only re-write last line, newlines only for errors
+- [ ] Make test script more "TUI"-y, only re-write last line, newlines only for errors. Tell me how many tests passed/failed
 - [ ] Convert some recursive calls to iteration. Pipelines should be iterative. `walker.zig`, `scope_validate.zig`, should use a work queue, not recursion. Might be able to do validate_ast and lower_ast too, by splitting up the sequencing and the execution
 - [ ] Logger
 - [ ] rename files meant to be types to be their true Orange_Case

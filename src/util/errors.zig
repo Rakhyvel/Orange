@@ -17,6 +17,7 @@ pub const Candidate_Reason = union(enum) {
     receiver_mismatch,
     arity_mismatch: struct { expects: usize, got: usize },
     param_arg_mismatch: struct { param_idx: usize, expects: *const Type_AST, got: ?*const Type_AST },
+    ret_type_mismatch: struct { expected: *const Type_AST, got: *const Type_AST },
 };
 
 pub const Candidate = struct {
@@ -813,6 +814,9 @@ pub const Error = union(enum) {
                                 if (reason.got) |got| {
                                     writer.print(", invoke provides `{f}`", .{got}) catch unreachable;
                                 }
+                            },
+                            .ret_type_mismatch => |reason| {
+                                writer.print("candidate returns `{f}`, expected `{f}`", .{ reason.got, reason.expected }) catch unreachable;
                             },
                             .receiver_mismatch => {
                                 writer.print("receiver mutability mismatch", .{}) catch unreachable;

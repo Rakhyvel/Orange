@@ -1,0 +1,26 @@
+// 560
+trait Get[T] {
+    fn get(&mut self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Void] for My_Type {
+    fn get(&mut self) -> Void { self.x *= 4; unreachable }
+}
+
+impl Get[()] for My_Type {
+    fn get(&mut self) -> () { self.x *= 4 }
+}
+
+fn main() -> Int {
+    let mut my_val = My_Type(140, 57.0)
+
+    let x: () = my_val.>get()
+    _ = x
+
+    my_val.x
+}

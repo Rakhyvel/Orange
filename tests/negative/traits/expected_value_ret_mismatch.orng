@@ -1,0 +1,32 @@
+// expected_value_ret_mismatch.orng:30:22: error: the type `My_Type` does not contain the member `get`
+//     let b: Bool = v.>get()
+//                     ^
+// expected_value_ret_mismatch.orng:21:7: note: candidate not viable: candidate returns `Int`, expected `Bool`
+//     fn get(&self) -> Int { self.x }
+//      ^
+// expected_value_ret_mismatch.orng:25:7: note: candidate not viable: candidate returns `Float`, expected `Bool`
+//     fn get(&self) -> Float { self.y }
+//      ^
+// 
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[Float] for My_Type {
+    fn get(&self) -> Float { self.y }
+}
+
+fn main() -> Int {
+    let v = My_Type(1, 2.0)
+    let b: Bool = v.>get()
+    if b { 1 } else { 0 }
+}

@@ -1,0 +1,18 @@
+// 568
+trait My_From[T] {
+    fn from(other: T) -> Self
+}
+
+struct My_Type {
+    a: Int
+}
+
+impl My_From[Int] for My_Type {
+    fn from(other: Int) -> Self { My_Type(other) }
+}
+
+fn consume(v: My_Type) -> Int { v.a }
+
+fn main() -> Int {
+    consume(My_From[Int]::from(568))
+}

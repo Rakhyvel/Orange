@@ -111,7 +111,10 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 return error.CompileError;
             }
 
-            if (traits_used.contains(trait_symbol)) {
+            // Dedup by the instantiated constraint symbol, so different instantiations of the same
+            // generic trait (e.g. `T: Get[Int] + Get[Float]`) are distinct constraints
+            const constraint_symbol = try Decorate.symbol(constraint, self.ctx);
+            if (traits_used.contains(constraint_symbol)) {
                 self.ctx.errors.add_error(errs_.Error{ .duplicate = .{ .identifier = trait_symbol.name, .thing = "constraint", .first = null, .span = constraint.token().span } });
                 return error.CompileError;
             }
@@ -141,7 +144,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
                 }
             }
 
-            try traits_used.put(trait_symbol, void{});
+            try traits_used.put(constraint_symbol, void{});
         }
     }
 

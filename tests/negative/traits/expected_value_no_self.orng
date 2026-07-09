@@ -1,0 +1,15 @@
+// expected_value_no_self.orng:14:18: error: cannot select method implementation, trait method's signature does not mention `Self`
+//     Util::helper(5)
+//                 ^
+// 
+trait Util {
+    fn helper(x: Int) -> Int
+}
+
+impl Util for Int {
+    fn helper(x: Int) -> Int { x }
+}
+
+fn main() -> Int {
+    Util::helper(5)
+}
