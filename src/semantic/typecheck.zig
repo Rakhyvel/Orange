@@ -1222,6 +1222,7 @@ fn select_method(
         }
     }
 
+    var chosen: ?Viable_Method = null;
     switch (viable.items.len) {
         0 => {
             // Type check for any genuine compile errors in the args that might've made it seem like there were no viable methods
@@ -1243,30 +1244,47 @@ fn select_method(
         },
         1 => {
             // One viable method = GOOD :)
-            rejection_reasons.deinit();
-            const choice = viable.items[0];
-            ast.invoke.method_decl = choice.method;
-            if (choice.plan.prepend) {
-                try ast.children().insert(0, choice.plan.receiver_expr.?);
-                ast.invoke.prepended = true;
-            }
+            chosen = viable.items[0];
         },
         else => {
-            // >1 viable methods = BAD! (ambiguous)
-            var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
-            for (viable.items) |candidate| {
-                try saved_viable.append(candidate.method);
+            // Prefer candidates whose return type matches the expected exactly, fallback to coercions
+            if (expected) |exp| {
+                var exact_count: usize = 0;
+                for (viable.items) |candidate| {
+                    const ret = candidate.method.decl_type().function._rhs;
+                    if (ret.types_match(exp) and exp.types_match(ret)) {
+                        chosen = candidate;
+                        exact_count += 1;
+                    }
+                }
+                if (exact_count != 1) chosen = null;
             }
-            self.ctx.errors.add_error(errs_.Error{
-                .ambiguous_methods = .{
-                    .span = ast.token().span,
-                    .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type.strip_addrs(),
-                    .viable = saved_viable.items,
-                },
-            });
-            return error.CompileError;
+
+            if (chosen == null) {
+                // >1 viable methods = BAD! (ambiguous)
+                var saved_viable = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
+                for (viable.items) |candidate| {
+                    try saved_viable.append(candidate.method);
+                }
+                self.ctx.errors.add_error(errs_.Error{
+                    .ambiguous_methods = .{
+                        .span = ast.token().span,
+                        .method_name = ast.rhs().token().data,
+                        ._type = true_lhs_type.strip_addrs(),
+                        .viable = saved_viable.items,
+                    },
+                });
+                return error.CompileError;
+            }
         },
+    }
+
+    rejection_reasons.deinit();
+    const choice = chosen.?;
+    ast.invoke.method_decl = choice.method;
+    if (choice.plan.prepend) {
+        try ast.children().insert(0, choice.plan.receiver_expr.?);
+        ast.invoke.prepended = true;
     }
 }
 
