@@ -17,6 +17,7 @@ pub const Candidate_Reason = union(enum) {
     receiver_mismatch,
     arity_mismatch: struct { expects: usize, got: usize },
     param_arg_mismatch: struct { param_idx: usize, expects: *const Type_AST, got: ?*const Type_AST },
+    ret_type_mismatch: struct { expected: *const Type_AST, got: *const Type_AST },
 };
 
 pub const Candidate = struct {
@@ -814,6 +815,9 @@ pub const Error = union(enum) {
                                     writer.print(", invoke provides `{f}`", .{got}) catch unreachable;
                                 }
                             },
+                            .ret_type_mismatch => |reason| {
+                                writer.print("candidate returns `{f}`, expected `{f}`", .{ reason.got, reason.expected }) catch unreachable;
+                            },
                             .receiver_mismatch => {
                                 writer.print("receiver mutability mismatch", .{}) catch unreachable;
                             },
@@ -893,7 +897,7 @@ pub const Errors = struct {
     pub fn add_error(self: *Errors, err: Error) void {
         if (self.record_errors) {
             self.errors_list.append(err) catch unreachable;
-            std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+            // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
         }
     }
 

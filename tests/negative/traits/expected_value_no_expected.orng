@@ -1,0 +1,20 @@
+// expected_value_no_expected.orng:18:32: error: cannot infer `Self` from call site without type annotation
+//     let x = My_From[Int]::from(5)
+//                               ^
+// 
+trait My_From[T] {
+    fn from(other: T) -> Self
+}
+
+struct My_Type {
+    a: Int
+}
+
+impl My_From[Int] for My_Type {
+    fn from(other: Int) -> Self { My_Type(other) }
+}
+
+fn main() -> Int {
+    let x = My_From[Int]::from(5)
+    x.a
+}

@@ -390,7 +390,12 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     const method_name = ast.lhs().rhs().token().data;
                     const res = try find_self_type(trait_decl, method_name);
                     if (res == null) {
-                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "aint nebdy referin to self here" } });
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot select method implementation, trait method's signature does not mention `Self`" } });
+                        return error.CompileError;
+                    }
+
+                    if (res.? == .param and res.?.param >= ast.children().items.len) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument" } });
                         return error.CompileError;
                     }
 
@@ -398,7 +403,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     const receiver_type = if (res.? == .return_value) (if (expected) |exp|
                         exp
                     else {
-                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "gotta gimme an expected" } });
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer `Self` from call site without type annotation" } });
                         return error.CompileError;
                     }) else self.typecheck_AST(ast.children().items[res.?.param], null, subst) catch return error.CompileError;
 
@@ -1319,7 +1324,7 @@ fn method_fits(
     if (expected) |exp| {
         const actual = method_decl.decl_type().function._rhs;
         unification_.unify(exp, actual, subst, .{ .allow_rigid = false }) catch {
-            return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = 10000, .expects = exp, .got = actual } } };
+            return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
         };
     }
 
