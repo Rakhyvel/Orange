@@ -670,7 +670,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     }
                 }
             }
-            try self.select_method(ast, &candidate_method_decls, true_lhs_type, subst);
+            try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
             const method_decl_type = method_decl.?.decl_type();
 
@@ -1160,6 +1160,7 @@ pub fn binary_operator_open(
 fn select_method(
     self: *Self,
     ast: *ast_.AST,
+    expected: ?*Type_AST,
     candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
@@ -1171,7 +1172,7 @@ fn select_method(
     var rejection_reasons = std.array_list.Managed(errs_.Candidate).init(self.ctx.allocator());
 
     for (candidate_method_decls.keys()) |method_decl| {
-        switch (try self.method_fits(ast, method_decl, true_lhs_type, subst)) {
+        switch (try self.method_fits(ast, expected, method_decl, true_lhs_type, subst)) {
             .fits => |plan| {
                 try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
             },
@@ -1238,6 +1239,7 @@ const Method_Result = union(enum) {
 fn method_fits(
     self: *Self,
     ast: *ast_.AST,
+    expected: ?*Type_AST,
     method_decl: *ast_.AST,
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
@@ -1274,6 +1276,14 @@ fn method_fits(
     if (args_validator.probe_type(subst, self.ctx)) |failure| {
         const expected_type = domain.items[failure.param_idx];
         return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = failure.param_idx, .expects = expected_type, .got = failure.arg_type } } };
+    }
+
+    // Try unifying the return type with the expected return type, if its provided
+    if (expected) |exp| {
+        const actual = method_decl.decl_type().function._rhs;
+        unification_.unify(exp, actual, subst, .{}) catch {
+            return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = 10000, .expects = exp, .got = actual } } };
+        };
     }
 
     return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
