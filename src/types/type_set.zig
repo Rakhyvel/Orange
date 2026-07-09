@@ -5,6 +5,7 @@ const std = @import("std");
 const Dependency_Node = @import("dependency_node.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Canonical_Type_Fmt = @import("../types/canonical_type_fmt.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self = @This();
 
@@ -58,6 +59,9 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
 
 /// Adds a function type to the type set
 fn add_function(self: *Self, function_type_ast: *Type_AST) ?*Dependency_Node {
+    if (function_type_ast.rhs().is_ident_type("Void")) {
+        return null;
+    }
     var dag = self.add_dependency_node(function_type_ast);
     for (function_type_ast.function.args.items) |arg| {
         if (self.add_internal(arg, true)) |domain| {

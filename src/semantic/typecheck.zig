@@ -228,7 +228,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .type_access => {
-            const lhs_is_trait_ident = ast.type_access._lhs_type.* == .identifier and
+            const lhs_is_trait_ident = (ast.type_access._lhs_type.* == .identifier or ast.type_access._lhs_type.* == .generic_apply) and
                 ast.type_access._lhs_type.symbol() != null and
                 ast.type_access._lhs_type.symbol().?.kind == .trait;
 
@@ -384,18 +384,27 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (ast.lhs().* == .type_access) {
                 // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
                 const lhs_type_node = ast.lhs().type_access._lhs_type;
-                if (lhs_type_node.* == .identifier and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
-                    if (ast.children().items.len == 0) {
-                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "trait method call requires at least one argument" } });
+                if ((lhs_type_node.* == .identifier or lhs_type_node.* == .access or lhs_type_node.* == .generic_apply) and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
+                    const trait_decl = lhs_type_node.symbol().?.decl.?;
+                    const method_name = ast.lhs().rhs().token().data;
+                    const res = try find_self_type(trait_decl, method_name);
+                    if (res == null) {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "aint nebdy referin to self here" } });
                         return error.CompileError;
                     }
-                    const receiver_type = self.typecheck_AST(ast.children().items[0], null, subst) catch return error.CompileError;
+
+                    const receiver_type = if (res.? == .return_value) (if (expected) |exp|
+                        exp
+                    else {
+                        self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "gotta gimme an expected" } });
+                        return error.CompileError;
+                    }) else self.typecheck_AST(ast.children().items[res.?.param], null, subst) catch return error.CompileError;
+
                     // Strip as_trait (monomorphization wrapper) and addr_of (explicit &self receiver
                     // in FQS calls like Trait::method(&x, ...)) to reach the base type for impl lookup.
                     var concrete_type = receiver_type;
                     while (concrete_type.* == .as_trait) concrete_type = concrete_type.lhs();
                     if (concrete_type.* == .addr_of) concrete_type = concrete_type.child();
-                    const method_name = ast.lhs().rhs().token().data;
                     var candidate_methods = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                     defer candidate_methods.deinit();
                     var constraints_arr = [1]*Type_AST{lhs_type_node};
@@ -714,7 +723,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 }
             } else {
-                const impl = try ast.scope().?.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
+                const impl = try Scope.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
                 if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                         .span = ast.token().span,
@@ -1014,7 +1023,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 _ = self.typecheck_AST(let, null, subst) catch return error.CompileError;
             }
             const into_iter_type = self.typecheck_AST(ast.@"for".into_iter, null, subst) catch return error.CompileError;
-            const impl = try ast.scope().?.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
+            const impl = try Scope.impl_trait_lookup(into_iter_type, core_.into_iterator_trait, self.ctx);
             if (impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
@@ -1028,7 +1037,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             ast.@"for".into_iter_into_iter_method_decl = Scope.search_impl(instantiated_impl, "into_iter").?;
             const iterator_type = ast.@"for".into_iter_into_iter_method_decl.?.method_decl.ret_type;
 
-            const iterator_impl = try ast.scope().?.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
+            const iterator_impl = try Scope.impl_trait_lookup(iterator_type, core_.iterator_trait, self.ctx);
             if (iterator_impl.impl_ast == null) {
                 self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                     .span = ast.token().span,
@@ -1157,6 +1166,27 @@ pub fn binary_operator_open(
     return lhs_type;
 }
 
+const Self_Find_Result = union(enum) {
+    return_value,
+    param: usize,
+};
+fn find_self_type(trait_decl: *ast_.AST, method_name: []const u8) !?Self_Find_Result {
+    const method_decl: *ast_.AST = trait_decl.trait.find_method(method_name).?; // TODO: Throw error
+
+    for (method_decl.children().items, 0..) |param_binding, i| {
+        const symbol = param_binding.binding.decls.items[0].decl.name.symbol().?;
+        if (symbol.type().refers_to_self()) {
+            return .{ .param = i };
+        }
+    }
+
+    if (method_decl.method_decl.ret_type.refers_to_self()) {
+        return .return_value;
+    }
+
+    return null;
+}
+
 fn select_method(
     self: *Self,
     ast: *ast_.AST,
@@ -1281,7 +1311,7 @@ fn method_fits(
     // Try unifying the return type with the expected return type, if its provided
     if (expected) |exp| {
         const actual = method_decl.decl_type().function._rhs;
-        unification_.unify(exp, actual, subst, .{}) catch {
+        unification_.unify(exp, actual, subst, .{ .allow_rigid = false }) catch {
             return .{ .not_viable = .{ .param_arg_mismatch = .{ .param_idx = 10000, .expects = exp, .got = actual } } };
         };
     }

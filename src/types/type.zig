@@ -1321,13 +1321,13 @@ pub const Type_AST = union(enum) {
         },
     };
 
-    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, _scope: *Scope, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
+    pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
         const Decorate = @import("../ast/decorate.zig");
         for (constraints) |constraint| {
             if (constraint.base_symbol() == null) _ = Decorate.symbol(constraint, ctx) catch {}; // Resolve symbols first
             if (constraint.base_symbol() != null) {
                 const trait = try Decorate.symbol(constraint, ctx);
-                const res = try _scope.impl_trait_lookup(self, trait, ctx);
+                const res = try Scope.impl_trait_lookup(self, trait, ctx);
                 if (res.count == 0) {
                     return .{ .not_impl = trait };
                 }

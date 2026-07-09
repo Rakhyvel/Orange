@@ -90,7 +90,7 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     // Check that super traits are implemented
     for (trait_ast.trait.super_traits.items) |super_trait| {
         const super_trait_symbol = super_trait.symbol().?;
-        const super_lookup_res = try impl.scope().?.impl_trait_lookup(impl.impl._type, super_trait_symbol, self.ctx);
+        const super_lookup_res = try Scope.impl_trait_lookup(impl.impl._type, super_trait_symbol, self.ctx);
         if (super_lookup_res.count == 0) {
             self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
                 ._type = impl.impl._type,
@@ -221,8 +221,7 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
 
         // Check that contraints match
         try walk_.walk_type(typedef.decl_typedef().?, Decorate.new(self.ctx));
-        const scope_to_use = if (impl.impl._type.has_symbol()) impl.impl._type.symbol().?.scope else impl.scope().?;
-        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.impl.type_defs.items, scope_to_use, self.ctx);
+        const sat_res = try typedef.decl_typedef().?.satisfies_all_constraints(trait_type_decl.?.type_param_decl.constraints.items, impl.impl.type_defs.items, self.ctx);
         switch (sat_res) {
             .satisfies => {},
             .not_impl => |unimpld| {

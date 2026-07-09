@@ -235,7 +235,7 @@ fn create_prelude(compiler: *Compiler_Context) !void {
         .int,
         .unsigned_integer,
         default_int,
-        2,
+        1,
         compiler.allocator(),
     );
     create_info(

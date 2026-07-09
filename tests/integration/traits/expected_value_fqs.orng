@@ -1,0 +1,19 @@
+// 559
+trait My_From[T] {
+    fn from(other: T) -> Self
+}
+
+struct My_Type {
+    a: Int
+    b: Float
+}
+
+impl My_From[(Int, Float)] for My_Type {
+    fn from(other: (Int, Float)) -> Self { Self(other.[0], other.[1]) }
+}
+
+fn main() -> Int {
+    let x = (559, 4.0)
+    let y: My_Type = My_From[(Int, Float)]::from(x)
+    y.a
+}

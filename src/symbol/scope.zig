@@ -148,9 +148,7 @@ pub const Impl_Trait_Lookup_Result = struct {
 };
 
 /// Returns the number of impls found for a given type-trait pair, and the impl ast. The impl is unique if count == 1.
-pub fn impl_trait_lookup(self: *Self, for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
-    _ = self;
-
+pub fn impl_trait_lookup(for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!Impl_Trait_Lookup_Result {
     try ctx.validate_type.validate_type(for_type);
 
     if (for_type.* == .identifier or for_type.* == .generic_apply or for_type.* == .access) {
@@ -280,12 +278,12 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
         };
 
         if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, original_scope, ctx) catch continue;
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, ctx) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         if (is_type_param) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, original_scope, ctx) catch continue;
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, ctx) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
@@ -302,11 +300,10 @@ fn impl_trait_lookup_inner(self: *Self, original_scope: *Self, for_type: *Type_A
 pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []const u8, matches: *std.array_hash_map.AutoArrayHashMap(*ast_.AST, void), ctx: *Compiler_Context) !void {
     try ctx.validate_type.validate_type(for_type);
     for (traits) |constraint| {
-        const scope = constraint.scope().?;
         const constraint_symbol = try Decorate.symbol(constraint, ctx);
         const trait_decl = constraint_symbol.decl.?;
         if (trait_decl.* != .trait) continue; // a non-trait constraint has no members to dispatch through
-        const res = try scope.impl_trait_lookup(for_type, constraint_symbol, ctx);
+        const res = try impl_trait_lookup(for_type, constraint_symbol, ctx);
         if (res.count > 0) {
             if (res.impl_ast) |impl_ast| {
                 if (search_impl(impl_ast, name)) |method| {
@@ -315,7 +312,7 @@ pub fn as_trait_member_lookup(for_type: *Type_AST, traits: []*Type_AST, name: []
             } else {
                 // Type parameter satisfies the trait but no concrete impl exists yet.
                 // Fall back to the abstract method_decl with Self substituted with for_type
-                if (try scope.lookup_member_in_trait(trait_decl, for_type, name, ctx)) |method| {
+                if (try lookup_member_in_trait(trait_decl, for_type, name, ctx)) |method| {
                     try matches.put(method, void{});
                 }
             }
@@ -334,10 +331,10 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, ma
         const type_param_decl = for_type.symbol().?.decl.?;
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
-            if (try self.lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
+            if (try lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
             if (mut_short_circuit and matches.keys().len > 0) return;
             for (trait_decl.trait.super_traits.items) |super_trait| {
-                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| try matches.put(res, void{});
+                if (try lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| try matches.put(res, void{});
                 if (mut_short_circuit and matches.keys().len > 0) return;
             }
         }
@@ -370,9 +367,7 @@ fn lookup_impl_member_in_modules(self: *Self, for_type: *Type_AST, name: []const
     }
 }
 
-pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
-    if (self.parent == null) return null;
-
+pub fn lookup_member_in_trait(trait_decl: *ast_.AST, for_type: *Type_AST, name: []const u8, compiler: *Compiler_Context) !?*ast_.AST {
     // TODO: (for next release) De-duplicate this
     for (trait_decl.trait.method_decls.items) |method_decl| {
         if (!std.mem.eql(u8, method_decl.method_decl.name.token().data, name)) continue;
@@ -381,7 +376,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         defer subst.deinit();
         subst.put_type("Self", for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
-        const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, self.uid_gen, compiler.allocator());
+        const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, method_decl.symbol().?.scope.uid_gen, compiler.allocator());
         // new_scope skips the trait scope, so re-bind the trait's generic params so a default body referencing them still resolves
         // They stay generic and monomorphize per instantiation
         for (trait_decl.trait._generic_params.items) |param| {
@@ -416,7 +411,7 @@ pub fn lookup_member_in_trait(self: *Self, trait_decl: *ast_.AST, for_type: *Typ
         // Parent at the const's declaring (module) scope, not the call site, so re-registering the
         // cloned const does not collide with the same-named const already visible at the call site
         const const_scope = const_decl.binding.decls.items[0].decl.name.symbol().?.scope;
-        const new_scope = init(const_scope.parent.?, self.uid_gen, compiler.allocator());
+        const new_scope = init(const_scope.parent.?, const_scope.parent.?.uid_gen, compiler.allocator());
         try walker_.walk_ast(cloned, Symbol_Tree.new(new_scope, &compiler.errors, compiler.allocator()));
         try walker_.walk_ast(cloned, Decorate.new(compiler));
         // Return the pattern, which carries the symbol, matching what search_impl returns for consts
@@ -454,12 +449,12 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         };
 
         if (impl.impl._type.* == .identifier and impl.impl._type.symbol().?.decl.?.* == .type_param_decl) {
-            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, self, compiler) catch continue;
+            const sat_res = for_type.satisfies_all_constraints(impl.impl._type.symbol().?.decl.?.type_param_decl.constraints.items, null, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
         if (is_type_param) {
-            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, self, compiler) catch continue;
+            const sat_res = impl.impl._type.satisfies_all_constraints(constraints, null, compiler) catch continue;
             if (sat_res != .satisfies) continue;
         }
 
@@ -554,7 +549,7 @@ fn lookup_impl_member_super_impls(self: *Self, for_type: *Type_AST, name: []cons
             for (trait.symbol().?.decl.?.trait.super_traits.items) |super_trait| {
                 // Decorate the super-trait on-demand, since it may be reached before its own decl is decorated
                 if (super_trait.symbol() == null) try walker_.walk_type(super_trait, Decorate.new(compiler));
-                if (try self.lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
+                if (try lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| return res;
             }
         }
     }
