@@ -1,0 +1,22 @@
+// 565
+trait Get[T] {
+    virtual fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Get[Int] for My_Type {
+    virtual fn get(&self) -> Int { self.x }
+}
+
+fn extract(u: &dyn Get[Int]) -> Int {
+    let x: Int = u.>get()
+    x
+}
+
+fn main() -> Int {
+    let v = My_Type(565)
+    extract(&v)
+}

@@ -1,0 +1,32 @@
+// 566
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[Float] for My_Type {
+    fn get(&self) -> Float { self.y }
+}
+
+fn pick[T: Get[Int] + Get[Float]](v: T) -> Int {
+    let a: Int = v.>get()
+    let b: Float = v.>get()
+    if b == 60.0 {
+        a
+    } else {
+        unreachable
+    }
+}
+
+fn main() -> Int {
+    let my_val = My_Type(566, 60.0)
+    pick[My_Type](my_val)
+}

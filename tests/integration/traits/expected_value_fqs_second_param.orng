@@ -1,0 +1,18 @@
+// 560
+trait Scale {
+    fn scale(factor: Int, value: Self) -> Self
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Scale for My_Type {
+    fn scale(factor: Int, value: Self) -> Self { My_Type(value.x * factor) }
+}
+
+fn main() -> Int {
+    let v = My_Type(280)
+    let s = Scale::scale(2, v)
+    s.x
+}

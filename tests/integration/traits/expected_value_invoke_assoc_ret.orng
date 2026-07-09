@@ -1,0 +1,22 @@
+// 562
+trait Container {
+    type Item
+
+    fn item(&self) -> Self::Item
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Container for My_Type {
+    type Item = Int
+
+    fn item(&self) -> Self::Item { self.x }
+}
+
+fn main() -> Int {
+    let v = My_Type(562)
+    let i: Int = v.>item()
+    i
+}

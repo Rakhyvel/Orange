@@ -1,0 +1,18 @@
+// 569
+trait Try_Dup {
+    fn try_dup(&self) -> ?Self
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Try_Dup for My_Type {
+    fn try_dup(&self) -> ?Self { .some(My_Type(self.x * 2)) }
+}
+
+fn main() -> Int {
+    let v = My_Type(280)
+    let d: ?My_Type = v.>try_dup()
+    (d orelse My_Type(9)).x + 9
+}

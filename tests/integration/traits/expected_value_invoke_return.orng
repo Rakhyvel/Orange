@@ -1,0 +1,30 @@
+// 564
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+    y: Float
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[Float] for My_Type {
+    fn get(&self) -> Float { self.y }
+}
+
+fn grab(v: &My_Type) -> Float {
+    return v.>get()
+}
+
+fn main() -> Int {
+    let my_val = My_Type(500, 64.0)
+    if grab(&my_val) == 64.0 {
+        564
+    } else {
+        unreachable
+    }
+}

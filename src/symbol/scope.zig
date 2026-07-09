@@ -329,15 +329,15 @@ pub fn lookup_impl_member(self: *Self, for_type: *Type_AST, name: []const u8, ma
     if (for_type.* == .identifier and for_type.symbol() != null and for_type.symbol().?.decl.?.* == .type_param_decl) {
         mut_short_circuit = true;
         const type_param_decl = for_type.symbol().?.decl.?;
+        // Collect matches from all constraints, so several constraints providing the same member can be disambiguated by args/expected type later
         for (type_param_decl.type_param_decl.constraints.items) |constraint| {
             const trait_decl = (try Decorate.symbol(constraint, compiler)).decl.?;
             if (try lookup_member_in_trait(trait_decl, for_type, name, compiler)) |res| try matches.put(res, void{});
-            if (mut_short_circuit and matches.keys().len > 0) return;
             for (trait_decl.trait.super_traits.items) |super_trait| {
                 if (try lookup_member_in_trait(super_trait.symbol().?.decl.?, for_type, name, compiler)) |res| try matches.put(res, void{});
-                if (mut_short_circuit and matches.keys().len > 0) return;
             }
         }
+        if (matches.keys().len > 0) return;
     }
 
     // Search this module and its transitive imports as a module graph

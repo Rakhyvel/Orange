@@ -1,0 +1,22 @@
+// 570
+trait Get[T] {
+    fn get(&self) -> T
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Get[Int] for My_Type {
+    fn get(&self) -> Int { self.x }
+}
+
+impl Get[(Int, Int)] for My_Type {
+    fn get(&self) -> (Int, Int) { (self.x, 5) }
+}
+
+fn main() -> Int {
+    let v = My_Type(565)
+    let t: (Int, Int) = v.>get()
+    t.[0] + t.[1]
+}

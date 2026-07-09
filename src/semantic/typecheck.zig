@@ -385,6 +385,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
                 const lhs_type_node = ast.lhs().type_access._lhs_type;
                 if ((lhs_type_node.* == .identifier or lhs_type_node.* == .access or lhs_type_node.* == .generic_apply) and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
+                    // Search for where the Self type should be extracted given the trait method decl
                     const trait_decl = lhs_type_node.symbol().?.decl.?;
                     const method_name = ast.lhs().rhs().token().data;
                     const res = try find_self_type(trait_decl, method_name);
@@ -393,6 +394,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         return error.CompileError;
                     }
 
+                    // Extract the receiver type based on where the trait told us it should be
                     const receiver_type = if (res.? == .return_value) (if (expected) |exp|
                         exp
                     else {
@@ -1172,6 +1174,11 @@ const Self_Find_Result = union(enum) {
 };
 fn find_self_type(trait_decl: *ast_.AST, method_name: []const u8) !?Self_Find_Result {
     const method_decl: *ast_.AST = trait_decl.trait.find_method(method_name).?; // TODO: Throw error
+
+    // A receiver (`self`, `&self`, `&mut self`) is a Self-typed first argument
+    if (method_decl.method_decl.receiver != null) {
+        return .{ .param = 0 };
+    }
 
     for (method_decl.children().items, 0..) |param_binding, i| {
         const symbol = param_binding.binding.decls.items[0].decl.name.symbol().?;

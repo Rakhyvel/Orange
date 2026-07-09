@@ -1,0 +1,18 @@
+// 561
+trait Doubler {
+    fn doubled(&self) -> Self
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl Doubler for My_Type {
+    fn doubled(&self) -> Self { My_Type(self.x * 2) }
+}
+
+fn main() -> Int {
+    let v = My_Type(280)
+    let d: My_Type = v.>doubled()
+    d.x + 1
+}

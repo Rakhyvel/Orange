@@ -1,0 +1,17 @@
+// 372
+trait My_Default {
+    fn default() -> Self
+}
+
+struct My_Type {
+    x: Int
+}
+
+impl My_Default for My_Type {
+    fn default() -> Self { My_Type(372) }
+}
+
+fn main() -> Int {
+    let d: My_Type = My_Default::default()
+    d.x
+}
