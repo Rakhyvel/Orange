@@ -932,9 +932,15 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (std.mem.eql(u8, token.data, "variant_name")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
         return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
-    } else if (std.mem.eql(u8, token.data, "ptr_cast")) {
+    } else if (std.mem.eql(u8, token.data, "addr_cast")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
         return ast_.AST.create_ptr_cast(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "addr_from_word64")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_ptr_from_int(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "word64_from_addr")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_int_from_ptr(token, args.items[0], self.allocator);
     } else if (std.mem.eql(u8, token.data, "primitive_cast")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
         return ast_.AST.create_primitive_cast(token, args.items[0], self.allocator);

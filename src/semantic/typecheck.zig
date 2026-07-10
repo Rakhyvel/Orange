@@ -833,11 +833,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .as => {
-            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
-            if (!child_type.convertible_to(ast.type())) {
-                self.ctx.errors.add_error(errs_.Error{ .non_convertible = .{ .span = ast.token().span, .from = child_type, .to = ast.type() } });
-                return error.CompileError;
-            }
+            _ = try self.typecheck_AST(ast.expr(), ast.type(), subst);
             return ast.type();
         },
         .addr_of => {
@@ -912,7 +908,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             return prelude_.string_type;
         },
-        .ptr_cast => {
+        .addr_cast => {
             const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
 
             if (expected == null) {
@@ -924,10 +920,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const to_type = expected.?.expand_identifier();
 
             if (to_type.* != .addr_of) {
-                return typing_.throw_wrong_from("address type", "ptr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
+                return typing_.throw_wrong_from("address type", "addr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
             }
             if (child_type.* != .addr_of) {
-                return typing_.throw_wrong_from("address type", "ptr_cast", child_type, ast.token().span, &self.ctx.errors);
+                return typing_.throw_wrong_from("address type", "addr_cast", child_type, ast.token().span, &self.ctx.errors);
             }
 
             if (to_type.addr_of.mut and !from_type.addr_of.mut) {
@@ -935,6 +931,32 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 // Cast to Word64 first like a normal person
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away immutability" } });
                 return error.CompileError;
+            }
+
+            return expected.?;
+        },
+        .word64_from_addr => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            const from_type = child_type.expand_identifier();
+
+            if (from_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "word64_from_addr", from_type, ast.token().span, &self.ctx.errors);
+            }
+            return prelude_.word64_type;
+        },
+        .addr_from_word64 => {
+            _ = try self.typecheck_AST(ast.expr(), prelude_.word64_type, subst);
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const to_type = expected.?.expand_identifier();
+
+            if (to_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "addr_from_word64", to_type, ast.expr().token().span, &self.ctx.errors);
             }
 
             return expected.?;
@@ -951,7 +973,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const to_expanded = expected.?.expand_identifier();
 
             if (from_expanded.* == .addr_of or to_expanded.* == .addr_of) {
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast between pointers, try using `@ptr_cast` instead" } });
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast between pointers, try using `@addr_cast` instead" } });
                 return error.CompileError;
             }
 

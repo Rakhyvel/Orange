@@ -16,8 +16,8 @@ impl Default for Float64 { const default = 0.0 as Self }
 impl Default for () { const default: Self = {} }
 impl[T] Default for ?T { const default: ?T = .none }
 impl[Err, Ok: Default] Default for Err!Ok { const default: Self = .ok((Ok as Default)::default) }
-impl[T] Default for []T { const default: Self = Self::from_parts(0 as [*]T, 0) }
-impl[T] Default for [mut]T { const default: Self = Self::from_parts(0 as [*mut]T, 0) }
+impl[T] Default for []T { const default: Self = Self::from_parts(@addr_from_word64(0), 0) }
+impl[T] Default for [mut]T { const default: Self = Self::from_parts(@addr_from_word64(0), 0) }
 impl[const n: Int, T: Default] Default for [n]T { 
     const default: Self = {
         let t_default = (T as Default)::default
@@ -35,85 +35,85 @@ trait From[T] {
 
 // Int64 From impls
 impl From[Int8] for Int64 {
-    fn from(t: Int8) -> Self { t as Self }
+    fn from(t: Int8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Int16] for Int64 {
-    fn from(t: Int16) -> Self { t as Self }
+    fn from(t: Int16) -> Self { @primitive_cast(t) }
 }
 
 impl From[Int32] for Int64 {
-    fn from(t: Int32) -> Self { t as Self }
+    fn from(t: Int32) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word8] for Int64 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word16] for Int64 {
-    fn from(t: Word16) -> Self { t as Self }
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word32] for Int64 {
-    fn from(t: Word32) -> Self { t as Self }
+    fn from(t: Word32) -> Self { @primitive_cast(t) }
 }
 
 // Int32 From impls
 impl From[Int8] for Int32 {
-    fn from(t: Int8) -> Self { t as Self }
+    fn from(t: Int8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Int16] for Int32 {
-    fn from(t: Int16) -> Self { t as Self }
+    fn from(t: Int16) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word8] for Int32 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word16] for Int32 {
-    fn from(t: Word16) -> Self { t as Self }
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
 }
 
 // Int16 From impls
 impl From[Int8] for Int16 {
-    fn from(t: Int8) -> Self { t as Self }
+    fn from(t: Int8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word8] for Int16 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 // Word64 From impls
 impl From[Word8] for Word64 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word16] for Word64 {
-    fn from(t: Word16) -> Self { t as Self }
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word32] for Word64 {
-    fn from(t: Word32) -> Self { t as Self }
+    fn from(t: Word32) -> Self { @primitive_cast(t) }
 }
 
 // Word32 From impls
 impl From[Word8] for Word32 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 impl From[Word16] for Word32 {
-    fn from(t: Word16) -> Self { t as Self }
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
 }
 
 // Word16 From impls
 impl From[Word8] for Int16 {
-    fn from(t: Word8) -> Self { t as Self }
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
 }
 
 // Float64 From impls
 impl From[Float32] for Float64 {
-    fn from(t: Float32) -> Self { t as Self }
+    fn from(t: Float32) -> Self { @primitive_cast(t) }
 }
 
 trait Into[U] {
@@ -670,7 +670,7 @@ impl[T] for []T {
         if start > self.length { unreachable }
         if end > self.length { unreachable }
 
-        Self::from_parts(&self.data[start] as [*]T, end - start)
+        Self::from_parts(@addr_cast(&self.data[start]), end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
@@ -705,7 +705,7 @@ impl[T] for [mut]T {
         if start > self.length { unreachable }
         if end > self.length { unreachable }
 
-        Self::from_parts(&mut self.data[start] as [*mut]T, end - start)
+        Self::from_parts(@addr_cast(&mut self.data[start]), end - start)
     }
 
     fn split_at(self, i: Int) -> (Self, Self) {
@@ -807,7 +807,7 @@ impl Hash for String {
         const prime: Word64 = 1099511628211
 
         while let mut i = 0; i < self.length; i += 1 {
-            h ~= (self[i] as Word64) * prime
+            h ~= @primitive_cast(self[i]) as Word64 * prime
         }
 
         h

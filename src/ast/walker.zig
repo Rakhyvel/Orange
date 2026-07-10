@@ -120,7 +120,9 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .cinclude,
         .variant_tag,
         .variant_name,
-        .ptr_cast,
+        .addr_cast,
+        .addr_from_word64,
+        .word64_from_addr,
         .primitive_cast,
         => try walk_ast(ast.expr(), new_context),
 
