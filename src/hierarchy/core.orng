@@ -35,85 +35,85 @@ trait From[T] {
 
 // Int64 From impls
 impl From[Int8] for Int64 {
-    fn from(t: Int8) -> Self { @primitive_cast(t) }
+    fn from(t: Int8) -> Self { @widen(t) }
 }
 
 impl From[Int16] for Int64 {
-    fn from(t: Int16) -> Self { @primitive_cast(t) }
+    fn from(t: Int16) -> Self { @widen(t) }
 }
 
 impl From[Int32] for Int64 {
-    fn from(t: Int32) -> Self { @primitive_cast(t) }
+    fn from(t: Int32) -> Self { @widen(t) }
 }
 
 impl From[Word8] for Int64 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 impl From[Word16] for Int64 {
-    fn from(t: Word16) -> Self { @primitive_cast(t) }
+    fn from(t: Word16) -> Self { @widen(t) }
 }
 
 impl From[Word32] for Int64 {
-    fn from(t: Word32) -> Self { @primitive_cast(t) }
+    fn from(t: Word32) -> Self { @widen(t) }
 }
 
 // Int32 From impls
 impl From[Int8] for Int32 {
-    fn from(t: Int8) -> Self { @primitive_cast(t) }
+    fn from(t: Int8) -> Self { @widen(t) }
 }
 
 impl From[Int16] for Int32 {
-    fn from(t: Int16) -> Self { @primitive_cast(t) }
+    fn from(t: Int16) -> Self { @widen(t) }
 }
 
 impl From[Word8] for Int32 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 impl From[Word16] for Int32 {
-    fn from(t: Word16) -> Self { @primitive_cast(t) }
+    fn from(t: Word16) -> Self { @widen(t) }
 }
 
 // Int16 From impls
 impl From[Int8] for Int16 {
-    fn from(t: Int8) -> Self { @primitive_cast(t) }
+    fn from(t: Int8) -> Self { @widen(t) }
 }
 
 impl From[Word8] for Int16 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 // Word64 From impls
 impl From[Word8] for Word64 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 impl From[Word16] for Word64 {
-    fn from(t: Word16) -> Self { @primitive_cast(t) }
+    fn from(t: Word16) -> Self { @widen(t) }
 }
 
 impl From[Word32] for Word64 {
-    fn from(t: Word32) -> Self { @primitive_cast(t) }
+    fn from(t: Word32) -> Self { @widen(t) }
 }
 
 // Word32 From impls
 impl From[Word8] for Word32 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 impl From[Word16] for Word32 {
-    fn from(t: Word16) -> Self { @primitive_cast(t) }
+    fn from(t: Word16) -> Self { @widen(t) }
 }
 
 // Word16 From impls
 impl From[Word8] for Int16 {
-    fn from(t: Word8) -> Self { @primitive_cast(t) }
+    fn from(t: Word8) -> Self { @widen(t) }
 }
 
 // Float64 From impls
 impl From[Float32] for Float64 {
-    fn from(t: Float32) -> Self { @primitive_cast(t) }
+    fn from(t: Float32) -> Self { @widen(t) }
 }
 
 trait Into[U] {
@@ -807,7 +807,7 @@ impl Hash for String {
         const prime: Word64 = 1099511628211
 
         while let mut i = 0; i < self.length; i += 1 {
-            h ~= @primitive_cast(self[i]) as Word64 * prime
+            h ~= @widen(self[i]) as Word64 * prime
         }
 
         h

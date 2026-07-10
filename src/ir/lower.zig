@@ -143,7 +143,7 @@ fn lower_AST_inner(
         .false => return self.lval_from_int(0, self.ctx.typecheck.typeof(ast), ast.token().span),
         // Unary operators
         .not, .negate, .addr_of, .bit_not => return try self.unop(ast, labels),
-        .as, .addr_cast, .addr_from_word64, .word64_from_addr, .primitive_cast => {
+        .as, .addr_cast, .addr_from_word64, .word64_from_addr, .widen => {
             const expr = try self.lower_AST(ast.expr(), labels) orelse return null;
             const expanded_type = self.ctx.typecheck.typeof(ast).expand_identifier();
             const temp = self.create_temp_lvalue(expanded_type);

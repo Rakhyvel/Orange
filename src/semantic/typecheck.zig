@@ -961,7 +961,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
             return expected.?;
         },
-        .primitive_cast => {
+        .widen => {
             const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
 
             if (expected == null) {
@@ -981,9 +981,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const to_info = prelude_.info_from_ast(to_expanded);
 
             if (from_info) |_from_info| {
-                if (_from_info.type_class == .int and to_expanded.* == .addr_of and to_expanded.addr_of.multiptr) {
-                    return expected.?;
-                } else if (to_info) |_to_info| {
+                if (to_info) |_to_info| {
                     if (_from_info.type_class == _to_info.type_class) {
                         return expected.?;
                     }
