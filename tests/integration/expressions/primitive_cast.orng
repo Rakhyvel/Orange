@@ -1,0 +1,6 @@
+// 562
+fn main() -> Int16 {
+    let x: Int = 562
+    let y: Int16 = @primitive_cast(x)
+    y
+}

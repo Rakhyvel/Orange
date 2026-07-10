@@ -121,6 +121,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .variant_tag,
         .variant_name,
         .ptr_cast,
+        .primitive_cast,
         => try walk_ast(ast.expr(), new_context),
 
         .as => {

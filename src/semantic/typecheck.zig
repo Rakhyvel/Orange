@@ -934,9 +934,42 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 // Casting away mutability directly is never allowed
                 // Cast to Word64 first like a normal person
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away immutability" } });
+                return error.CompileError;
             }
 
             return expected.?;
+        },
+        .primitive_cast => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const from_expanded = child_type.expand_identifier();
+            const to_expanded = expected.?.expand_identifier();
+
+            if (from_expanded.* == .addr_of or to_expanded.* == .addr_of) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast between pointers, try using `@ptr_cast` instead" } });
+                return error.CompileError;
+            }
+
+            const from_info = prelude_.info_from_ast(from_expanded);
+            const to_info = prelude_.info_from_ast(to_expanded);
+
+            if (from_info) |_from_info| {
+                if (_from_info.type_class == .int and to_expanded.* == .addr_of and to_expanded.addr_of.multiptr) {
+                    return expected.?;
+                } else if (to_info) |_to_info| {
+                    if (_from_info.type_class == _to_info.type_class) {
+                        return expected.?;
+                    }
+                }
+            }
+
+            self.ctx.errors.add_error(errs_.Error{ .non_convertible = .{ .span = ast.token().span, .from = child_type, .to = ast.type() } });
+            return error.CompileError;
         },
         .enum_value => {
             if (ast.enum_value.base == null and expected == null) {
