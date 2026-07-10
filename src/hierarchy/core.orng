@@ -29,6 +29,20 @@ impl[const n: Int, T: Default] Default for [n]T {
     }
 }
 
+trait From[T] {
+    fn from(t: T) -> Self
+}
+
+trait Into[U] {
+    fn into(self) -> U
+}
+
+impl[T, U: From[T]] Into[U] for T {
+    fn into(self) -> U {
+        (U as From[T])::from(self)
+    }
+}
+
 struct Package {
     root: String
     kind: Package_Kind
