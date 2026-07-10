@@ -1,0 +1,6 @@
+// 560
+fn main() -> Int {
+    let x = 560
+    let y = @ptr_cast(&x) as [*]Int
+    y[0]
+}

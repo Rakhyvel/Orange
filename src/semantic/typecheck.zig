@@ -924,7 +924,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const to_type = expected.?.expand_identifier();
 
             if (to_type.* != .addr_of) {
-                return typing_.throw_wrong_from("address type", "ptr_cast", child_type, ast.token().span, &self.ctx.errors);
+                return typing_.throw_wrong_from("address type", "ptr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
             }
             if (child_type.* != .addr_of) {
                 return typing_.throw_wrong_from("address type", "ptr_cast", child_type, ast.token().span, &self.ctx.errors);
@@ -933,7 +933,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (to_type.addr_of.mut and !from_type.addr_of.mut) {
                 // Casting away mutability directly is never allowed
                 // Cast to Word64 first like a normal person
-                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away mutability" } });
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away immutability" } });
             }
 
             return expected.?;

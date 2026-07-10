@@ -1,0 +1,8 @@
+// ptr_cast_no_context.orng:7:22: error: cannot infer type to cast to, try using `as`
+//     let y = @ptr_cast(x)
+//                     ^
+// 
+fn main() -> Int {
+    let x = 4
+    let y = @ptr_cast(x)
+}
