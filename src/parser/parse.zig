@@ -412,7 +412,7 @@ fn prefix_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             const args = try self.call_validate_args_range(Type_AST, call_type_args, 1, 1);
             return Type_AST.create_untagged_sum_type(token, args.items[0], self.allocator);
         } else {
-            self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
+            self.errors.add_error(errs_.Error{ .unknown_builtin = .{ .span = token.span, .builtin_name = token.data } });
             return error.ParseError;
         }
     } else if (self.accept(.left_square)) |token| {
@@ -932,8 +932,11 @@ fn builtin_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     } else if (std.mem.eql(u8, token.data, "variant_name")) {
         const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
         return ast_.AST.create_variant_name(token, args.items[0], self.allocator);
+    } else if (std.mem.eql(u8, token.data, "ptr_cast")) {
+        const args = try self.call_validate_args_range(ast_.AST, call_args, 1, 1);
+        return ast_.AST.create_ptr_cast(token, args.items[0], self.allocator);
     } else {
-        self.errors.add_error(errs_.Error{ .basic = .{ .msg = "unknown built-in function", .span = token.span } }); // TODO: Unique error message that says the builtin function name
+        self.errors.add_error(errs_.Error{ .unknown_builtin = .{ .span = token.span, .builtin_name = token.data } });
         return error.ParseError;
     }
 }

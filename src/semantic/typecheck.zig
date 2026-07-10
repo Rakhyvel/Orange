@@ -912,6 +912,32 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             return prelude_.string_type;
         },
+        .ptr_cast => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const from_type = child_type.expand_identifier();
+            const to_type = expected.?.expand_identifier();
+
+            if (to_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "ptr_cast", child_type, ast.token().span, &self.ctx.errors);
+            }
+            if (child_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "ptr_cast", child_type, ast.token().span, &self.ctx.errors);
+            }
+
+            if (to_type.addr_of.mut and !from_type.addr_of.mut) {
+                // Casting away mutability directly is never allowed
+                // Cast to Word64 first like a normal person
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away mutability" } });
+            }
+
+            return expected.?;
+        },
         .enum_value => {
             if (ast.enum_value.base == null and expected == null) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type for initializer" } });
