@@ -564,6 +564,13 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     const subst_contains_generics = unification_.substitution_contains_generics(subst);
     if (subst_contains_generics) return impl;
 
+    // A param not covered by the subst (e.g. Into's U, absent from the for-type)
+    // means this impl can't be instantiated yet - return the template
+    for (impl.impl._generic_params.items) |param| {
+        if (param.* == .type_param_decl and subst.get_type(param.symbol().?.name) == null) return impl;
+        if (param.* == .const_param_decl and subst.get_const(param.symbol().?.name) == null) return impl;
+    }
+
     // Already instantiated, return the memoized impl
     const generic_arg_list = unification_.generic_arg_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(generic_arg_list)) |instantiated| return instantiated;

@@ -120,6 +120,13 @@ pub const Error = union(enum) {
         _type: *Type_AST,
         candidates: ?[]Candidate,
     },
+    as_trait_type_not_impl_method: struct { // TODO: This should take in an enum to determine if the name is of a method or of a member
+        span: Span,
+        method_name: []const u8,
+        _type: *Type_AST,
+        traits: []*Type_AST,
+        candidates: ?[]Candidate,
+    },
     ambiguous_methods: struct {
         span: Span,
         method_name: []const u8,
@@ -366,6 +373,7 @@ pub const Error = union(enum) {
 
             .reimpl => return self.reimpl.redefined_span,
             .type_not_impl_method => return self.type_not_impl_method.span,
+            .as_trait_type_not_impl_method => return self.as_trait_type_not_impl_method.span,
             .ambiguous_methods => return self.ambiguous_methods.span,
             .type_not_impl_trait => return self.type_not_impl_trait.span,
             .method_not_in_trait => return self.method_not_in_trait.method_span,
@@ -492,6 +500,13 @@ pub const Error = union(enum) {
                 writer.print("the type `", .{}) catch unreachable;
                 err.type_not_impl_method._type.print_type(writer) catch unreachable;
                 writer.print("` does not contain the member `{s}`\n", .{err.type_not_impl_method.method_name}) catch unreachable;
+            },
+            .as_trait_type_not_impl_method => {
+                writer.print("the type `(", .{}) catch unreachable;
+                err.as_trait_type_not_impl_method._type.print_type(writer) catch unreachable;
+                writer.print(" as ", .{}) catch unreachable;
+                err.as_trait_type_not_impl_method.traits[0].print_type(writer) catch unreachable;
+                writer.print(")` does not contain the member `{s}`\n", .{err.as_trait_type_not_impl_method.method_name}) catch unreachable;
             },
             .ambiguous_methods => {
                 writer.print("multiple applicable members `{s}` for the type `", .{err.ambiguous_methods.method_name}) catch unreachable;
@@ -903,7 +918,7 @@ pub const Errors = struct {
     pub fn add_error(self: *Errors, err: Error) void {
         if (self.record_errors) {
             self.errors_list.append(err) catch unreachable;
-            // std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
+            std.debug.dumpCurrentStackTrace(null); // uncomment if you want to see where errors come from TODO: Make this a cmd line flag
         }
     }
 

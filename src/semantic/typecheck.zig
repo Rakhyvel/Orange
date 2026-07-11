@@ -447,11 +447,12 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
-                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait(s)`?
-                        .type_not_impl_method = .{
+                    self.ctx.errors.add_error(errs_.Error{
+                        .as_trait_type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = method_name,
                             ._type = for_type,
+                            .traits = as_trait_node.as_trait.constraints.items,
                             .candidates = null,
                         },
                     });
@@ -686,19 +687,24 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     }
                 }
             }
-            try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
+            // Try to find the method that fits, and get the impl substitutions needed to make it work
+            const sel_subst = try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            const method_decl_type = method_decl.?.decl_type();
+            var method_decl_type = method_decl.?.decl_type();
+            if (sel_subst != subst) {
+                // The impl required substitutions, make them to the method type
+                method_decl_type = method_decl_type.clone(sel_subst, self.ctx.allocator());
+            }
 
-            const domain = method_decl.?.decl_type().function.args;
+            const domain = method_decl_type.function.args;
             try self.validate_context(method_decl_type, ast);
 
             var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             ast.set_children(try args_validator.fill_default_args());
             try args_validator.validate_arity();
-            try args_validator.validate_type(subst, self.ctx);
+            try args_validator.validate_type(sel_subst, self.ctx);
 
-            return ast.invoke.method_decl.?.method_decl.ret_type;
+            return method_decl_type.function._rhs;
         },
         .dyn_value => {
             var expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
@@ -1275,7 +1281,7 @@ fn select_method(
     candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
-) !void {
+) !*unification_.Substitutions {
     const Viable_Method = struct { method: *ast_.AST, plan: Receiver_Plan };
     var viable = std.array_list.Managed(Viable_Method).init(self.ctx.allocator());
     defer viable.deinit();
@@ -1350,16 +1356,35 @@ fn select_method(
 
     rejection_reasons.deinit();
     const choice = chosen.?;
-    ast.invoke.method_decl = choice.method;
+    var sel_subst: *unification_.Substitutions = subst;
+    if (choice.plan.impl_subst) |isub| {
+        // Candidate came from a generic impl, instantiate a clone of it with the solved params
+        const instantiated = try ast.scope().?.instantiate_generic_impl(choice.method.method_decl.impl.?, isub, self.ctx);
+        ast.invoke.method_decl = Scope.search_impl(instantiated, ast.rhs().token().data).?;
+        // Inject the caller's bindings with the impl solution
+        var t_it = subst.type_subst.iterator();
+        while (t_it.next()) |entry| {
+            if (isub.get_type(entry.key_ptr.*) == null) isub.put_type(entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
+        }
+        var c_it = subst.const_subst.iterator();
+        while (c_it.next()) |entry| {
+            if (isub.get_const(entry.key_ptr.*) == null) isub.put_const(entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
+        }
+        sel_subst = isub;
+    } else {
+        ast.invoke.method_decl = choice.method;
+    }
     if (choice.plan.prepend) {
         try ast.children().insert(0, choice.plan.receiver_expr.?);
         ast.invoke.prepended = true;
     }
+    return sel_subst;
 }
 
 const Receiver_Plan = struct {
     prepend: bool,
     receiver_expr: ?*ast_.AST,
+    impl_subst: ?*unification_.Substitutions = null,
 };
 const Method_Result = union(enum) {
     fits: Receiver_Plan,
@@ -1376,7 +1401,27 @@ fn method_fits(
     var new_self = try self.clone();
     defer new_self.deinit();
 
-    const domain: std.array_list.Managed(*Type_AST) = method_decl.decl_type().function.args;
+    const enclosing_impl = method_decl.method_decl.impl;
+    const is_template = enclosing_impl != null and enclosing_impl.?.impl._generic_params.items.len > 0;
+    var impl_subst: ?*unification_.Substitutions = null;
+    var method_type = method_decl.decl_type();
+
+    // Try to unify the method's impl's for type with the true lhs type, if generic
+    if (is_template) {
+        var stripped_lhs = true_lhs_type;
+        while (stripped_lhs.* == .as_trait) stripped_lhs = stripped_lhs.lhs();
+        if (stripped_lhs.* == .addr_of and !stripped_lhs.addr_of.multiptr) stripped_lhs = stripped_lhs.child();
+
+        const scratch = self.ctx.allocator().create(unification_.Substitutions) catch unreachable;
+        scratch.* = unification_.Substitutions.init(self.ctx.allocator());
+        scratch.put_type("Self", stripped_lhs) catch unreachable;
+        unification_.unify(enclosing_impl.?.impl._type, stripped_lhs, scratch, .{}) catch
+            return .{ .not_viable = .receiver_mismatch };
+        impl_subst = scratch;
+        method_type = method_decl.decl_type().clone(scratch, self.ctx.allocator());
+    }
+
+    const domain: std.array_list.Managed(*Type_AST) = method_type.function.args;
 
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
     defer temp_args.deinit();
@@ -1409,14 +1454,29 @@ fn method_fits(
 
     // Try unifying the return type with the expected return type, if its provided
     if (expected) |exp| {
-        const actual = method_decl.decl_type().function._rhs;
+        const actual = method_type.function._rhs;
         try walk_.walk_type(actual, Decorate.new(self.ctx)); // Type might not be decorated yet!
-        unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
-            return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
-        };
+        if (impl_subst) |is| {
+            // Impl was generic, try to unify return type with the substitutions
+            unification_.unify(actual, exp, is, .{}) catch
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+        } else {
+            // Impl wasn't generic, use the surrounding context's subst
+            unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+            };
+        }
     }
 
-    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
+    // A template is only viable if every impl param got solved
+    if (impl_subst) |is| {
+        for (enclosing_impl.?.impl._generic_params.items) |param| {
+            if (param.* == .type_param_decl and is.get_type(param.symbol().?.name) == null)
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
+        }
+    }
+
+    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver, .impl_subst = impl_subst } };
 }
 
 fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lhs_type: *Type_AST) !?*ast_.AST {

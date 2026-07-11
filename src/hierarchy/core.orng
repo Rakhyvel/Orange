@@ -116,6 +116,47 @@ impl From[Float32] for Float64 {
     fn from(t: Float32) -> Self { @primitive_cast(t) }
 }
 
+impl From[Int8] for Float64 {
+    fn from(t: Int8) -> Self { @primitive_cast(t) }
+}
+
+impl From[Int16] for Float64 {
+    fn from(t: Int16) -> Self { @primitive_cast(t) }
+}
+
+impl From[Int32] for Float64 {
+    fn from(t: Int32) -> Self { @primitive_cast(t) }
+}
+
+impl From[Word8] for Float64 {
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
+}
+
+impl From[Word16] for Float64 {
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
+}
+
+impl From[Word32] for Float64 {
+    fn from(t: Word32) -> Self { @primitive_cast(t) }
+}
+
+// Float32 From impls
+impl From[Int8] for Float32 {
+    fn from(t: Int8) -> Self { @primitive_cast(t) }
+}
+
+impl From[Int16] for Float32 {
+    fn from(t: Int16) -> Self { @primitive_cast(t) }
+}
+
+impl From[Word8] for Float32 {
+    fn from(t: Word8) -> Self { @primitive_cast(t) }
+}
+
+impl From[Word16] for Float32 {
+    fn from(t: Word16) -> Self { @primitive_cast(t) }
+}
+
 trait Into[U] {
     fn into(self) -> U
 }

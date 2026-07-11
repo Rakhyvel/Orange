@@ -1,0 +1,5 @@
+// 560.000000
+fn main() -> Float32 {
+    let x: Int16 = 560
+    x.>into()
+}
