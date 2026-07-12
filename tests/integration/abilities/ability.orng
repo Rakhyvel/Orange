@@ -1,5 +1,5 @@
 // 360
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn main() -> Int {
     with My_Ability(356) {

@@ -1,5 +1,5 @@
 // 584
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn main() -> Int {
     with My_Ability(2) {
@@ -7,7 +7,7 @@ fn main() -> Int {
     }
 }
 
-fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }
 

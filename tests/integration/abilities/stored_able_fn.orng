@@ -6,10 +6,10 @@ fn main() -> Int {
     }
 }
 
-struct Doer[T, abilityC] {
+struct Doer[T, ability C] {
     f: T -> T with C
 }
 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

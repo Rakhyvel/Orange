@@ -5,14 +5,14 @@ fn main() -> Int {
     }
 }
 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn scale(x: Int) -> Int with My_Ability { x * My_Ability }
 
-fn outer[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn outer[T, ability C](f: T -> T with C, x: T) -> T with C {
     do_twice[T, C](f, x)
 }
 
-fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }

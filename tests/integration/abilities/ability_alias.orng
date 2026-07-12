@@ -7,7 +7,7 @@ fn main() -> Int {
 
 type Ctx_Alias = My_Ability
 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn use_direct() -> Int with My_Ability { My_Ability * 50 }
 
@@ -15,6 +15,6 @@ fn use_alias() -> Int with Ctx_Alias { Ctx_Alias * 51 }
 
 fn scale(v: Int) -> Int with My_Ability { v * My_Ability }
 
-fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }

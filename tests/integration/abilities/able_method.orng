@@ -1,6 +1,6 @@
 // 366
 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 trait Contexual {
     virtual fn virt_contexual(self) -> Int with My_Ability

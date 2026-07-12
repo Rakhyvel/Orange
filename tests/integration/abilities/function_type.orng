@@ -1,5 +1,5 @@
 // 364
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn main() -> Int {
     let func: () -> Int with My_Ability = add_four

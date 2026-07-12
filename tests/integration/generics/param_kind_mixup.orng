@@ -8,9 +8,9 @@ fn main() -> Int {
     arr[2]
 }
 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
-fn map_array[T, const n: Int, abilityC](f: T -> T with C, xs: &mut [n]T) with C {
+fn map_array[T, const n: Int, ability C](f: T -> T with C, xs: &mut [n]T) with C {
     for i in 0..n {
         xs[i] = f(xs[i])
     }

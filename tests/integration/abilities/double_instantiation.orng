@@ -10,10 +10,10 @@ fn main() -> Int {
 fn a(x: Int) -> Int with Ctx_A { x + Ctx_A }
 fn b(x: Int) -> Int with Ctx_B { x * Ctx_B }
 
-abilityCtx_A = Int
+ability Ctx_A = Int
 
-abilityCtx_B = Int
+ability Ctx_B = Int
 
-fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }

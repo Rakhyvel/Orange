@@ -13,7 +13,7 @@ impl Give_Num for Impler {
     }
 }
 
-abilityNum = &mut dyn Give_Num
+ability Num = &mut dyn Give_Num
 
 fn get_num[T](x: Int) -> Int with Num {
     x + Num.>get_num()
