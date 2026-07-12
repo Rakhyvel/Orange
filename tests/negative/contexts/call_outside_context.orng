@@ -1,15 +1,13 @@
-// call_outside_context.orng:10:14: error: missing context `My_Context`
+// call_outside_context.orng:8:14: error: missing context `My_Context`
 //     get_four()
 //             ^
 // 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn main() -> Int {
     get_four()
 }
 
 fn get_four() -> Int with My_Context {
-    My_Context.x
+    My_Context
 }

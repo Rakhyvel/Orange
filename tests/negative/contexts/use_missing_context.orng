@@ -1,11 +1,9 @@
-// use_missing_context.orng:10:16: error: missing context `My_Context`
-//     My_Context.x
-//               ^
+// use_missing_context.orng:8:15: error: missing context `My_Context`
+//     My_Context
+//              ^
 // 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn main() -> Int {
-    My_Context.x
+    My_Context
 }

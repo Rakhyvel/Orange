@@ -2,10 +2,10 @@
 // t
 // ^
 // 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     .ok
 }
 
-fn print_anything[T](t: T) -> ()!() with core::IO {
+fn print_anything[T](t: T) -> ()!() with core::Writing {
     @print("{t}")
 }

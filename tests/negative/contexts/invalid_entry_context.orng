@@ -1,11 +1,9 @@
-// invalid_entry_context.orng:9:33: error: can't request this context
+// invalid_entry_context.orng:7:33: error: can't request this context
 // fn main() -> Int with My_Context {
 //                                ^
 // 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn main() -> Int with My_Context {
-    My_Context.x
+    My_Context
 }
