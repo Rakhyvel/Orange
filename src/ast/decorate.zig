@@ -347,10 +347,10 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         .print => {
             const scope = ast.scope().?;
-            const context_val_symbol = try ast.scope().?.context_lookup(core_.io_context, self.ctx) orelse {
+            const context_val_symbol = try ast.scope().?.context_lookup(core_.writing_context, self.ctx) orelse {
                 self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                     .span = ast.token().span,
-                    .context = Type_AST.create_type_identifier(core_.io_context.token(), self.ctx.allocator()),
+                    .context = Type_AST.create_type_identifier(core_.writing_context.token(), self.ctx.allocator()),
                 } });
                 return error.CompileError;
             };
@@ -358,12 +358,12 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             // Append writer to the call args
             var writer_token = ast.token();
             writer_token.data = context_val_symbol.name;
-            const io_context = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
-            io_context.set_symbol(context_val_symbol);
+            const writing_context = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
+            writing_context.set_symbol(context_val_symbol);
             var writer_field_token = ast.token();
             writer_field_token.data = "writer";
             const writer_field = ast_.AST.create_field(writer_field_token, self.ctx.allocator());
-            const writer = ast_.AST.create_select(writer_token, io_context, writer_field, self.ctx.allocator());
+            const writer = ast_.AST.create_select(writer_token, writing_context, writer_field, self.ctx.allocator());
 
             const format_all_call = try self.create_format_all_call(ast, writer);
             ast.* = format_all_call.*;

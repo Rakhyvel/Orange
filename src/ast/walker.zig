@@ -194,7 +194,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
 
         .context_value => {
-            try walk_asts(ast.children(), new_context);
+            try walk_ast(ast.expr(), new_context);
             try walk_type(ast.context_value.parent, new_context);
         },
 
@@ -393,6 +393,7 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
         .dyn_type,
         .index,
         .domain_of,
+        .context_type,
         => {
             try walk_type(_type.child(), new_context);
         },
@@ -403,7 +404,6 @@ pub fn walk_type(maybe_type: ?*Type_AST, context: anytype) Error!void {
             try walk_types(&_type.function.contexts, new_context);
         },
 
-        .context_type,
         .enum_type,
         .struct_type,
         .tuple_type,

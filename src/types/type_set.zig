@@ -41,7 +41,11 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
     // Type wasn't in the set, so we'll need to create a Dependency_Node for it and its children
     switch (ast.*) {
         .function => return self.add_function(ast),
-        .struct_type, .tuple_type, .enum_type, .untagged_sum_type, .context_type => return self.add_aggregate(ast),
+        .struct_type,
+        .tuple_type,
+        .enum_type,
+        .untagged_sum_type,
+        => return self.add_aggregate(ast),
         .dyn_type => return self.add_dependency_node(ast),
         .addr_of => {
             const retval = self.add_type(ast.child());
@@ -51,6 +55,7 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
                 return null;
             }
         },
+        .context_type => return self.add_internal(ast.child(), from_function),
         .array_of => return self.add_array(ast),
         .identifier, .unit_type, .anyptr_type => return null, // Do not add to Dependency_Node
         else => std.debug.panic("error: cannot add unknown typekind `{t}` to set", .{ast.*}),
@@ -72,7 +77,7 @@ fn add_function(self: *Self, function_type_ast: *Type_AST) ?*Dependency_Node {
         dag.add_dependency(codomain);
     }
     for (function_type_ast.function.contexts.items) |ctx| {
-        if (self.add_type(ctx.child())) |context_node| {
+        if (self.add_type(ctx)) |context_node| {
             dag.add_dependency(context_node);
         }
     }

@@ -28,7 +28,8 @@ pub var iterator_trait: *Symbol = undefined;
 
 // Contexts
 pub var allocating_context: *Type_AST = undefined;
-pub var io_context: *Type_AST = undefined;
+pub var writing_context: *Type_AST = undefined;
+pub var reading_context: *Type_AST = undefined;
 pub var args_context: *Type_AST = undefined;
 pub var file_io_context: *Type_AST = undefined;
 
@@ -123,7 +124,8 @@ fn create_core(compiler: *Compiler_Context) !void {
     file_system_trait = module_scope.lookup("File_System", .{}).found.decl.?;
 
     allocating_context = module_scope.lookup("Allocating", .{}).found.init_typedef().?;
-    io_context = module_scope.lookup("IO", .{}).found.init_typedef().?;
+    writing_context = module_scope.lookup("Writing", .{}).found.init_typedef().?;
+    reading_context = module_scope.lookup("Reading", .{}).found.init_typedef().?;
     args_context = module_scope.lookup("Args", .{}).found.init_typedef().?;
     file_io_context = module_scope.lookup("File_IO", .{}).found.init_typedef().?;
 

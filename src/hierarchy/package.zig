@@ -505,30 +505,45 @@ fn link_executable(self: *Package, obj_files: std.StringArrayHashMap(void), pack
 
 fn invoke_cmd(self: *Package, cmd: std.array_list.Managed([]const u8), allocator: std.mem.Allocator) !void {
     var cwd_string = std.array_list.Managed(u8).init(allocator);
-    cwd_string.print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep }) catch unreachable;
+    defer cwd_string.deinit();
+
+    try cwd_string.writer().print("{s}{c}build", .{ self.absolute_path, std.fs.path.sep });
 
     print_cmd(&cmd);
-    const run_res = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = cmd.items,
-        .cwd = cwd_string.items,
-        .max_output_bytes = 1024 * 1024,
-    }) catch |err| switch (err) {
-        else => std.debug.panic("compile error: on cmd invoke: {}", .{err}),
-    };
 
-    var retcode: u8 = 0;
-    switch (run_res.term) {
-        .Exited => |c| {
-            retcode = c;
+    var child = std.process.Child.init(cmd.items, allocator);
+    child.cwd = cwd_string.items;
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+
+    try child.spawn();
+
+    var stderr_buf = std.ArrayList(u8).empty;
+    // defer stderr_buf.deinit();
+
+    var stdout_buf = std.ArrayList(u8).empty;
+    // defer stdout_buf.deinit();
+
+    try child.collectOutput(
+        allocator,
+        &stdout_buf,
+        &stderr_buf,
+        1024 * 1024 * 1024,
+    );
+
+    const term = try child.wait();
+
+    switch (term) {
+        .Exited => |code| {
+            if (code != 0) {
+                std.debug.print("compiler failed:\n{s}\n", .{
+                    stderr_buf.items,
+                });
+            }
         },
         else => {
-            std.debug.panic("{s}\n", .{run_res.stderr});
+            std.debug.print("compiler terminated unexpectedly\n", .{});
         },
-    }
-
-    if (retcode != 0) {
-        std.debug.panic("err:{s}\n", .{run_res.stderr});
     }
 }
 

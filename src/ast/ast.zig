@@ -262,7 +262,7 @@ pub const AST = union(enum) {
     context_value: struct {
         common: AST_Common,
         parent: *Type_AST,
-        _terms: std.array_list.Managed(*AST),
+        _expr: *AST,
     },
     struct_value: struct {
         common: AST_Common,
@@ -461,9 +461,8 @@ pub const AST = union(enum) {
     context_decl: struct {
         common: AST_Common,
         name: *AST,
-        fields: std.array_list.Managed(*Type_AST),
-        // TODO: generic params?
         _type: *Type_AST,
+        // TODO: generic params?
         _symbol: ?*Symbol = null,
         _scope: ?*Scope = null,
     },
@@ -1053,11 +1052,11 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_context_value(_token: Token, parent: *Type_AST, terms: std.array_list.Managed(*AST), allocator: std.mem.Allocator) *AST {
+    pub fn create_context_value(_token: Token, parent: *Type_AST, _expr: *AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .context_value = .{
             .common = AST_Common{ ._token = _token },
             .parent = parent,
-            ._terms = terms,
+            ._expr = _expr,
         } }, allocator);
     }
 
@@ -1369,14 +1368,13 @@ pub const AST = union(enum) {
     pub fn create_context_decl(
         _token: Token,
         name: *AST,
-        fields: std.array_list.Managed(*Type_AST),
+        init: *Type_AST,
         allocator: std.mem.Allocator,
     ) *AST {
         return AST.box(AST{ .context_decl = .{
             .common = AST_Common{ ._token = _token },
             .name = name,
-            .fields = fields,
-            ._type = Type_AST.create_context_type(_token, fields, allocator),
+            ._type = Type_AST.create_context_type(_token, init, allocator),
         } }, allocator);
     }
 
@@ -1878,7 +1876,7 @@ pub const AST = union(enum) {
             .context_value => return create_context_value(
                 self.token(),
                 self.context_value.parent.clone(substs, allocator),
-                clone_children(self.context_value._terms, substs, allocator),
+                self.context_value._expr.clone(substs, allocator),
                 allocator,
             ),
             .context_value_decl => return create_context_value_decl(
@@ -1888,11 +1886,10 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .context_decl => {
-                const cloned_terms = Type_AST.clone_types(self.context_decl.fields, substs, allocator);
                 const retval = create_context_decl(
                     self.token(),
                     self.context_decl.name.clone(substs, allocator),
-                    cloned_terms,
+                    self.context_decl._type.clone(substs, allocator),
                     allocator,
                 );
                 return retval;
@@ -2176,7 +2173,6 @@ pub const AST = union(enum) {
     pub fn children(self: *AST) *std.array_list.Managed(*AST) {
         return switch (self.*) {
             .call => &self.call._args,
-            .context_value => &self.context_value._terms,
             .struct_value => &self.struct_value._terms,
             .tuple_value => &self.tuple_value._terms,
             .array_value => &self.array_value._terms,
@@ -2196,7 +2192,6 @@ pub const AST = union(enum) {
     pub fn set_children(self: *AST, val: std.array_list.Managed(*AST)) void {
         switch (self.*) {
             .call => self.call._args = val,
-            .context_value => self.context_value._terms = val,
             .struct_value => self.struct_value._terms = val,
             .tuple_value => self.tuple_value._terms = val,
             .array_value => self.array_value._terms = val,
@@ -2767,7 +2762,7 @@ pub const AST = union(enum) {
             .context_decl => {
                 try out.print("context_decl(\n", .{});
                 try out.print("\t.name = {f}\n", .{self.context_decl.name});
-                try out.print("\t.fields = {f}\n", .{fmt_.List_Printer(Type_AST){ .list = &self.context_decl.fields }});
+                try out.print("\t.type = {f}\n", .{self.context_decl._type});
                 try out.print(")", .{});
             },
             .type_param_decl => try out.print("type_param_decl({s})", .{self.type_param_decl.common._token.data}),

@@ -56,7 +56,7 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
         },
         .anyptr_type => try self.writer.print("void *", .{}),
         .unit_type => try self.writer.print("void", .{}),
-        .annotation => try self.output_type(_type.child()),
+        .annotation, .context_type => try self.output_type(_type.child()),
 
         .function => try self.writer.print("{f}", .{Canonical_Type_Fmt{ .type = _type }}),
         .enum_type,
@@ -64,7 +64,6 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
         .struct_type,
         .array_of,
         .dyn_type,
-        .context_type,
         => try self.writer.print("struct {f}", .{Canonical_Type_Fmt{ .type = _type }}),
         .untagged_sum_type => try self.writer.print("union {f}", .{Canonical_Type_Fmt{ .type = _type }}),
         else => std.debug.panic("compiler error: unimplemented output_type() for {f}", .{_type.*}),
@@ -200,10 +199,10 @@ pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) Code
     try self.output_common_types();
 
     for (contexts_used.pairs.items) |pair| {
-        var ctx = pair.key.child();
+        var ctx = pair.key;
         if (ctx.types_match(core_.allocating_context)) {
             try self.writer.print("#include \"alloc.inc\"\n", .{});
-        } else if (ctx.types_match(core_.io_context)) {
+        } else if (ctx.types_match(core_.writing_context) or ctx.types_match(core_.reading_context)) {
             try self.writer.print("#include \"io.inc\"\n", .{});
         } else if (ctx.types_match(core_.args_context)) {
             try self.writer.print("#include \"args.inc\"\n", .{});
@@ -229,10 +228,10 @@ pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_
                 \\ allocator_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__allocator_vtable}}}};
                 \\    
             , .{});
-        } else if (ctx.types_match(core_.io_context)) {
-            try self.output_type(core_.io_context);
+        } else if (ctx.types_match(core_.writing_context)) {
+            try self.output_type(core_.writing_context);
             try self.writer.print(
-                \\ io_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}}, ._1 = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}}}};
+                \\ writing_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}}, ._1 = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}}}};
                 \\    
             , .{});
         } else if (ctx.types_match(core_.args_context)) {
@@ -256,8 +255,8 @@ pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Err
         std.debug.assert(ctx.* == .addr_of);
         if (ctx.child().types_match(core_.allocating_context)) {
             try self.writer.print("&allocator_context", .{});
-        } else if (ctx.child().types_match(core_.io_context)) {
-            try self.writer.print("&io_context", .{});
+        } else if (ctx.child().types_match(core_.writing_context)) {
+            try self.writer.print("&writing_context", .{});
         } else if (ctx.child().types_match(core_.args_context)) {
             try self.writer.print("&args_context", .{});
         } else if (ctx.child().types_match(core_.file_io_context)) {

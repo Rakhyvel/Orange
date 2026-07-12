@@ -139,7 +139,7 @@ pub const Type_AST = union(enum) {
     },
     context_type: struct {
         common: Type_AST_Common,
-        _terms: std.array_list.Managed(*Type_AST),
+        _child: *Type_AST,
     },
     struct_type: struct {
         common: Type_AST_Common,
@@ -342,10 +342,10 @@ pub const Type_AST = union(enum) {
         );
     }
 
-    pub fn create_context_type(_token: Token, terms: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_context_type(_token: Token, _child: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
         return Type_AST.box(Type_AST{ .context_type = .{
             .common = Type_AST_Common{ ._token = _token },
-            ._terms = terms,
+            ._child = _child,
         } }, allocator);
     }
 
@@ -681,7 +681,6 @@ pub const Type_AST = union(enum) {
             .function => &self.function.args,
             .enum_type => &self.enum_type._terms,
             .untagged_sum_type => self.child().expand_identifier().children(),
-            .context_type => &self.context_type._terms,
             .struct_type => &self.struct_type._terms,
             .tuple_type => &self.tuple_type._terms,
             else => std.debug.panic("compiler error: cannot call `.children()` on the Type_AST `{t}`", .{self.*}),
@@ -1027,7 +1026,7 @@ pub const Type_AST = union(enum) {
                 return null;
             },
 
-            .struct_type, .tuple_type, .context_type => {
+            .struct_type, .tuple_type => {
                 var total_size: i64 = 0;
                 for (self.children().items) |_child| {
                     const child_alignof = _child.alignof() orelse return null;
@@ -1066,7 +1065,7 @@ pub const Type_AST = union(enum) {
 
             .unit_type => return 0,
 
-            .annotation => return self.child().sizeof(),
+            .annotation, .context_type => return self.child().sizeof(),
 
             else => std.debug.panic("compiler error: unimplemented sizeof() for {t}", .{self.*}),
         }
@@ -1093,7 +1092,7 @@ pub const Type_AST = union(enum) {
                 return primitive_info._align;
             },
 
-            .struct_type, .tuple_type, .context_type => {
+            .struct_type, .tuple_type => {
                 var max_align: i64 = 0;
                 for (self.children().items) |_child| {
                     const child_align = _child.alignof() orelse return null;
@@ -1121,7 +1120,7 @@ pub const Type_AST = union(enum) {
 
             .unit_type => return 1, // fogedda bout it
 
-            .annotation, .array_of => return self.child().alignof(),
+            .annotation, .array_of, .context_type => return self.child().alignof(),
 
             else => std.debug.panic("compiler error: unimplemented alignof for {s}", .{@tagName(self.*)}),
         }
@@ -1206,6 +1205,11 @@ pub const Type_AST = union(enum) {
             // If only B is an identifier, and B isn't an atom type, dive
             return types_match(A, B.expand_identifier());
         }
+        if (A.* == .context_type) {
+            return types_match(A.child(), B);
+        } else if (B.* == .context_type) {
+            return types_match(A, B.child());
+        }
         if (A.* == .poison or B.* == .poison) {
             return true; // Whatever
         }
@@ -1231,7 +1235,7 @@ pub const Type_AST = union(enum) {
             },
             .anyptr_type => return B.* == .anyptr_type,
             .unit_type => return true,
-            .struct_type, .tuple_type, .context_type => {
+            .struct_type, .tuple_type => {
                 if (!lengths_match(A.children(), B.children())) return false;
                 var retval = true;
                 for (A.children().items, B.children().items) |term, B_term| {
@@ -1573,8 +1577,8 @@ pub const Type_AST = union(enum) {
                 return retval;
             },
             .context_type => {
-                const new_children = clone_types(self.children().*, substs, allocator);
-                return create_context_type(self.token(), new_children, allocator);
+                const _child = clone(self.child(), substs, allocator);
+                return create_context_type(self.token(), _child, allocator);
             },
             .tuple_type => {
                 const new_children = clone_types(self.children().*, substs, allocator);

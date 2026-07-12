@@ -171,6 +171,19 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             if (symbol.kind == .@"const") {
                 try self.ctx.validate_symbol.validate_symbol(symbol);
             }
+            const ref = Type_AST.create_type_identifier(ast.token(), self.ctx.allocator());
+            ref.set_symbol(symbol);
+            if (try ref.resolve_context_reference(self.ctx)) |resolved| {
+                const context_val_symbol = try ast.scope().?.context_lookup(resolved, self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+                        .span = ast.token().span,
+                        .context = resolved,
+                    } });
+                    return error.CompileError;
+                };
+                ast.set_symbol(context_val_symbol);
+                return resolved.symbol().?.init_typedef().?.expand_identifier().child();
+            }
             if (symbol.is_type() or symbol.kind == .context) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
@@ -798,25 +811,16 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 ast.context_value.parent.* = resolved.*;
             }
             try self.ctx.validate_type.validate_type(ast.context_value.parent);
-            const expanded_expected: *Type_AST = if (expected == null) ast.context_value.parent.expand_identifier() else expected.?.expand_identifier();
-            if (expanded_expected.* == .context_type) {
-                // Expecting ast to be a product value of some product type
-                var args_validator = args_.init(.context, ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
-                ast.set_children(try args_validator.fill_default_args());
-                try args_validator.validate_arity();
-                try args_validator.validate_type(subst, self.ctx);
-                return ast.context_value.parent;
-            } else if (ast.context_value.parent.expand_identifier().* != .context_type) {
+            const expanded_expected: *Type_AST = ast.context_value.parent.expand_identifier();
+            if (ast.context_value.parent.expand_identifier().* != .context_type) {
                 // Parent wasn't even a context type!
                 return typing_.throw_wrong_from("context", "context value", ast.context_value.parent, ast.token().span, &self.ctx.errors);
-            } else if (!prelude_.unit_type.types_match(expanded_expected)) {
-                // It's ok to assign this to a unit type, something like `_ = (1, 2, 3)`
-                // expecting something that is not a type nor a product is not ok!
-                // poison `got`, so that it doesn't print anything for the `got` section, wouldn't make sense anyway
-                return typing_.throw_unexpected_type(ast.token().span, expanded_expected, ast.context_value.parent, &self.ctx.errors);
-            } else {
-                return prelude_.unit_type;
             }
+            _ = try self.typecheck_AST(ast.expr(), expanded_expected.child(), subst);
+            if (expected != null and !ast.context_value.parent.types_match(expected.?)) {
+                return typing_.throw_unexpected_type(ast.token().span, expanded_expected.child(), ast.context_value.parent, &self.ctx.errors);
+            }
+            return ast.context_value.parent;
         },
         .struct_value => {
             try self.ctx.validate_type.validate_type(ast.struct_value.parent);
