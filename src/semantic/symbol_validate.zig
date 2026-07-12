@@ -100,7 +100,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         if (maybe_context_param_symbols) |context_param_symbols| {
             for (context_param_symbols.items) |context_symbol| {
                 const context_type = context_symbol.type().strip_addrs().expand_identifier();
-                if (context_type.* != .context_type) {
+                if (!context_type.is_context()) {
                     self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                         .span = context_symbol.span(),
                         .got = context_type,

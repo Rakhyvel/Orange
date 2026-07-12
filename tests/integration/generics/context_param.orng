@@ -9,7 +9,7 @@ fn main() -> Int {
     }
 }
 
-fn do_twice[T, C](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, context C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }
 

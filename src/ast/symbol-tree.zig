@@ -199,6 +199,17 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try self.register_symbol(ast, symbol);
         },
+        .context_param_decl => {
+            const symbol = Symbol.init(
+                self.scope,
+                ast.token().data,
+                ast,
+                .context,
+                .local,
+                self.allocator,
+            );
+            try self.register_symbol(ast, symbol);
+        },
         .const_param_decl => {
             const symbol = Symbol.init(
                 self.scope,

@@ -1660,6 +1660,10 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
                 const param_type = try self.type_expr();
                 const const_param = ast_.AST.create_const_param_decl(name_token, param_type, self.allocator);
                 params.append(const_param) catch unreachable;
+            } else if (self.accept(.context)) |_| {
+                const param_token = try self.expect(.identifier);
+                const param_ident = ast_.AST.create_context_param_decl(param_token, false, self.allocator);
+                params.append(param_ident) catch unreachable;
             } else {
                 const param_token = try self.expect(.identifier);
                 const constraints = try self.colon_started_constraint_list();

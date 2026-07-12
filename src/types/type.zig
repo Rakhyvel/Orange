@@ -1731,4 +1731,8 @@ pub const Type_AST = union(enum) {
     pub fn is_type_param(self: *const Type_AST) bool {
         return self.* == .identifier and self.symbol() != null and self.symbol().?.decl.?.* == .type_param_decl;
     }
+
+    pub fn is_context(self: *const Type_AST) bool {
+        return (self.has_symbol() and self.symbol().?.kind == .context) or self.* == .context_type;
+    }
 };

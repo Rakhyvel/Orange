@@ -116,6 +116,7 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
                 }
             },
             .const_param_decl => {},
+            .context_param_decl => {},
             else => unreachable,
         }
     }

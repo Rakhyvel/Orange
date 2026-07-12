@@ -267,6 +267,9 @@ pub fn monomorphize(
                 .const_param_decl => {
                     try subst.put_const(param.symbol().?.name, arg.const_arg);
                 },
+                .context_param_decl => {
+                    try subst.put_type(param.symbol().?.name, arg.type_arg);
+                },
                 else => unreachable,
             }
         }

@@ -102,7 +102,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 const stripped_context_type = context_type.strip_addrs();
                 _ = try Decorate.symbol(stripped_context_type, self.ctx);
                 const expanded_context_type = stripped_context_type.expand_identifier();
-                if (expanded_context_type.* != .context_type) {
+                if (!expanded_context_type.is_context()) {
                     self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                         .span = context_type.token().span,
                         .got = expanded_context_type,
