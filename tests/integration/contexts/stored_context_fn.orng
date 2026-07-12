@@ -10,8 +10,6 @@ struct Doer[T, context C] {
     f: T -> T with C
 }
 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
-fn scale(x: Int) -> Int with My_Context { x * My_Context.x }
+fn scale(x: Int) -> Int with My_Context { x * My_Context }

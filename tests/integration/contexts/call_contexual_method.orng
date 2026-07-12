@@ -4,9 +4,7 @@ struct Thingy[T] {
     y: Int
 }
 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 trait Sized {
     const size: Int

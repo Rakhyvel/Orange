@@ -13,12 +13,10 @@ impl Give_Num for Impler {
     }
 }
 
-context Num {
-    num_getter: &mut dyn Give_Num
-}
+context Num = &mut dyn Give_Num
 
 fn get_num[T](x: Int) -> Int with Num {
-    x + Num.num_getter.>get_num()
+    x + Num.>get_num()
 }
 
 struct Wrapper[T] {}
@@ -32,7 +30,7 @@ impl[T] for Wrapper[T] {
 fn main() -> Int {
     let mut impler = Impler(0)
     let wrapper = Wrapper[Int]()
-    with Num(.num_getter = &mut impler) {
+    with Num(&mut impler) {
         wrapper.>run()
     }
 }

@@ -337,12 +337,8 @@ fn lower_AST_inner(
             return ast_lval.?.create_select_lval(field, offset, expanded_type, tag, self.ctx.allocator());
         },
         .context_value => {
-            _ = self.ctx.typecheck.typeof(ast).expand_identifier();
-            const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
-            var instr = Instruction.init_load_struct(temp, ast.token().span, self.ctx.allocator());
-            instr.data.lval_list.append((try self.lower_AST(ast.expr(), labels)) orelse return null) catch unreachable;
-            self.instructions.append(instr) catch unreachable;
-            return temp;
+            // context wraps a single value, no aggregate to construct
+            return try self.lower_AST(ast.expr(), labels);
         },
         .struct_value, .tuple_value, .array_value => {
             _ = self.ctx.typecheck.typeof(ast).expand_identifier();

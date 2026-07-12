@@ -7,15 +7,13 @@ fn main() -> Int {
 
 type Ctx_Alias = My_Context
 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
-fn use_direct() -> Int with My_Context { My_Context.x * 50 }
+fn use_direct() -> Int with My_Context { My_Context * 50 }
 
-fn use_alias() -> Int with Ctx_Alias { Ctx_Alias.x * 51 }
+fn use_alias() -> Int with Ctx_Alias { Ctx_Alias * 51 }
 
-fn scale(v: Int) -> Int with My_Context { v * My_Context.x }
+fn scale(v: Int) -> Int with My_Context { v * My_Context }
 
 fn do_twice[T, context C](f: T -> T with C, x: T) -> T with C {
     f(f(x))

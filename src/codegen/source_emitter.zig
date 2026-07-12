@@ -15,6 +15,7 @@ const Span = @import("../util/span.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Map = @import("../types/type_map.zig").Type_Map;
 const Symbol = @import("../symbol/symbol.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self = @This();
 

@@ -1,8 +1,6 @@
 // 366
 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 trait Contexual {
     virtual fn virt_contexual(self) -> Int with My_Context
@@ -12,11 +10,11 @@ trait Contexual {
 
 impl Contexual for Int {
     virtual fn virt_contexual(self) -> Int with My_Context {
-        My_Context.x + self
+        My_Context + self
     }
 
     fn static_contexual(self) -> Int with My_Context {
-        My_Context.x + self
+        My_Context + self
     }
 }
 

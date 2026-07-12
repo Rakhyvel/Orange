@@ -92,6 +92,9 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             // TODO: an error
         },
 
+        // New scope so introduced contexts are not visible after the with block
+        .with => return self.new_scope(ast),
+
         // Create a new scope, pass it to children
         .@"if", .match, .@"while", .@"for" => {
             var new_self = self.new_scope(ast);
@@ -167,6 +170,12 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try self.register_symbol(ast, symbol);
 
+            if (ast.context_value_decl.init != null) {
+                // with-header init reads the enclosing scope, not the context being introduced
+                var outer = self;
+                outer.scope = self.scope.parent.?;
+                return outer;
+            }
             return self;
         },
 

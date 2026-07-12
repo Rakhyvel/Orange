@@ -1,14 +1,10 @@
 // 367
-context Context1 {
-    x: Int
-}
+context Context1 = Int
 
-context Context2 {
-    y: Int
-}
+context Context2 = Int
 
 fn add() -> Int with (Context1, Context2) {
-    Context1.x + Context2.y
+    Context1 + Context2
 }
 
 fn main() -> Int {

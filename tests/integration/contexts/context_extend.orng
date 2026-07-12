@@ -1,7 +1,5 @@
 // 372
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn main() -> Int {
     with My_Context(371) {
@@ -10,11 +8,11 @@ fn main() -> Int {
 }
 
 fn func_a() -> Int with My_Context {
-    with My_Context(My_Context.x + 1) {
+    with My_Context(My_Context + 1) {
         func_b()
     }
 }
 
 fn func_b() -> Int with My_Context {
-    My_Context.x
+    My_Context
 }
