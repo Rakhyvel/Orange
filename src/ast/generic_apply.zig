@@ -116,7 +116,19 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
                 }
             },
             .const_param_decl => {},
-            .context_param_decl => {},
+            .context_param_decl => {
+                const ty = arg.type_arg;
+                if (try ty.resolve_context_reference(ctx)) |resolved| {
+                    // canonicalize so the subst and the monomorph key see the the context's own name
+                    ty.* = resolved.*;
+                } else {
+                    ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                        .span = ty.token().span,
+                        .got = ty,
+                    } });
+                    return error.CompileError;
+                }
+            },
             else => unreachable,
         }
     }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const alignment_ = @import("../util/alignment.zig");
 const AST = @import("../ast/ast.zig").AST;
+const Decorate = @import("../ast/decorate.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const process_state_ = @import("../util/process_state.zig");
 const Scope = @import("../symbol/scope.zig");
@@ -14,6 +15,7 @@ const unification_ = @import("unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
 const generic_arg_ = @import("../ast/generic_arg.zig");
 const GenericArg = generic_arg_.GenericArg;
+const walker_ = @import("../ast/walker.zig");
 
 pub const Type_AST_Common = struct {
     /// Token that defined the type
@@ -774,6 +776,21 @@ pub const Type_AST = union(enum) {
         }
     }
 
+    pub fn resolve_context_reference(self: *Type_AST, ctx: *Compiler_Context) !?*Type_AST {
+        var cur = self;
+        while (true) {
+            try walker_.walk_type(cur, Decorate.new(ctx));
+            if (!cur.has_symbol() or cur.symbol() == null) return null;
+            const sym = cur.symbol().?;
+            if (sym.kind == .context) return cur;
+            if (sym.is_alias()) {
+                cur = sym.init_typedef() orelse return null;
+                continue;
+            }
+            return null;
+        }
+    }
+
     /// True for types whose elements are mutable through a pointer indirection, `[*mut]T` and the
     /// mutable slice `[mut]T`. Taking `&mut` of such a value mutates the pointee, not the binding,
     /// so it does not require a `mut` binding, only reassigning the value itself does
@@ -1202,6 +1219,7 @@ pub const Type_AST = union(enum) {
         switch (A.*) {
             .identifier => {
                 // std.debug.print("{s} == {s}\n", .{ A.symbol().?.name, B.symbol().?.name });
+                if (A.symbol() == null or B.symbol() == null) return false;
                 return A.symbol().? == B.symbol().?;
             },
             .as_trait => return types_match(A.lhs(), B.lhs()),
@@ -1333,7 +1351,6 @@ pub const Type_AST = union(enum) {
     };
 
     pub fn satisfies_all_constraints(self: *Type_AST, constraints: []const *Type_AST, outer_type_defs: ?[]const *AST, ctx: *Compiler_Context) !Satisfies_Constraints_Results {
-        const Decorate = @import("../ast/decorate.zig");
         for (constraints) |constraint| {
             if (constraint.base_symbol() == null) _ = Decorate.symbol(constraint, ctx) catch {}; // Resolve symbols first
             if (constraint.base_symbol() != null) {

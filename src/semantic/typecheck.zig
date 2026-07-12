@@ -793,6 +793,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
         },
         .context_value => {
+            // Canonicalzie alias spellings
+            if (try ast.context_value.parent.resolve_context_reference(self.ctx)) |resolved| {
+                ast.context_value.parent.* = resolved.*;
+            }
             try self.ctx.validate_type.validate_type(ast.context_value.parent);
             const expanded_expected: *Type_AST = if (expected == null) ast.context_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .context_type) {
@@ -1251,14 +1255,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .context_value_decl => {
             try self.ctx.validate_type.validate_type(ast.context_value_decl.parent);
-            const stripped_parent = ast.context_value_decl.parent.strip_addrs().expand_identifier();
-            if (!stripped_parent.is_context()) {
+            const stripped = ast.context_value_decl.parent.strip_addrs();
+            _ = try stripped.resolve_context_reference(self.ctx) orelse {
                 self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                     .span = ast.token().span,
-                    .got = stripped_parent,
+                    .got = stripped,
                 } });
                 return error.CompileError;
-            }
+            };
             if (ast.context_value_decl.init) |_init| {
                 _ = self.typecheck_AST(_init, ast.context_value_decl.parent, subst) catch return error.CompileError;
             }

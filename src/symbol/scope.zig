@@ -122,6 +122,10 @@ pub fn num_visible_contexts(self: *Self) usize {
 }
 
 pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Context) !?*Symbol {
+    // Canonicalize the context type
+    const req_inner = if (context_type.* == .addr_of) context_type.child() else context_type;
+    if (try req_inner.resolve_context_reference(ctx)) |r| req_inner.* = r.*;
+
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
         if (symbol.kind == .let) {
@@ -131,6 +135,9 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
             }
             try walker_.walk_type(context_type, Decorate.new(ctx));
             try walker_.walk_type(symbol_type, Decorate.new(ctx));
+            // Canonicalize the symbol type
+            const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
+            if (try cand_inner.resolve_context_reference(ctx)) |r| cand_inner.* = r.*;
             const is_context_like = symbol_type.* == .context_type or
                 (symbol_type.* == .identifier and symbol_type.symbol() != null and symbol_type.symbol().?.kind == .context) or
                 std.mem.startsWith(u8, symbol.name, "context_value__");

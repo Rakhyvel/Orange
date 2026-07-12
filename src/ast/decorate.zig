@@ -263,13 +263,14 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                                 .type_arg => |ty| if (wants_const) {
                                     try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) });
                                 } else if (wants_context) {
-                                    if (!ty.is_context()) {
+                                    const resolved = (try ty.resolve_context_reference(self.ctx)) orelse {
                                         self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                                             .span = ty.token().span,
                                             .got = ty,
                                         } });
                                         return error.CompileError;
-                                    }
+                                    };
+                                    ty.* = resolved.*;
                                     try generic_args.append(.{ .type_arg = ty });
                                 } else {
                                     try generic_args.append(.{ .type_arg = ty });
@@ -295,6 +296,17 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         .select => {
             var child = ast.lhs();
+            if (child.* == .identifier and child.symbol() != null) {
+                var s = child.symbol().?;
+                // Hop type alias chains
+                while (s.decl != null and s.decl.?.* == .type_alias) {
+                    const td = s.init_typedef() orelse break;
+                    try walk_.walk_type(td, Self.new(self.ctx));
+                    if (td.* != .identifier or td.symbol() == null) break;
+                    s = td.symbol().?;
+                }
+                if (s.kind == .context) child.set_symbol(s);
+            }
             if (child.* == .identifier and child.symbol() != null and child.symbol().?.is_type()) {
                 const enum_value = ast_.AST.create_enum_value(ast.rhs().token(), self.ctx.allocator());
                 enum_value.enum_value.base = Type_AST.create_type_identifier(child.token(), self.ctx.allocator());

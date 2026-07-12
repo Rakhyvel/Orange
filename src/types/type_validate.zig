@@ -99,18 +99,14 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
             }
             try self.validate_type(@"type".rhs());
             for (@"type".function.contexts.items) |context_type| {
-                const stripped_context_type = context_type.strip_addrs();
-                if (stripped_context_type.has_symbol()) {
-                    _ = try Decorate.symbol(stripped_context_type, self.ctx);
-                }
-                const expanded_context_type = stripped_context_type.expand_identifier();
-                if (!expanded_context_type.is_context()) {
+                const stripped = context_type.strip_addrs();
+                _ = try stripped.resolve_context_reference(self.ctx) orelse {
                     self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                         .span = context_type.token().span,
-                        .got = expanded_context_type,
+                        .got = stripped,
                     } });
                     return error.CompileError;
-                }
+                };
             }
         },
 
