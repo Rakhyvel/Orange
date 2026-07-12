@@ -250,8 +250,17 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             if (lhs.children().items.len != rhs.children().items.len) {
                 return error.TypesMismatch;
             }
+            for (lhs.children().items, rhs.children().items) |A_param, B_param| {
+                try unify_inner(A_param, B_param, subst, visited_map, options);
+            }
 
             try unify_inner(lhs.rhs(), rhs.rhs(), subst, visited_map, options);
+            if (lhs.function.contexts.items.len != rhs.function.contexts.items.len) {
+                return error.TypesMismatch;
+            }
+            for (lhs.function.contexts.items, lhs.function.contexts.items) |A_ctx, B_ctx| {
+                try unify_inner(A_ctx, B_ctx, subst, visited_map, options);
+            }
         },
 
         .generic_apply => {
@@ -297,6 +306,7 @@ pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substi
             switch (param.*) {
                 .type_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
                 .const_param_decl => subst.put_const(param.symbol().?.name, arg.const_arg) catch unreachable,
+                .context_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
                 else => unreachable,
             }
         }
