@@ -1,0 +1,28 @@
+// 590
+fn main() -> Int {
+    take_color(Color2.red) + take_color2(Color.red)
+}
+
+fn take_color(c: Color) -> Int {
+    match c {
+        .red => 90
+        .green => 950
+        .blue => 0o55
+    }
+}
+
+fn take_color2(c: Color2) -> Int {
+    match c {
+        .red => 500
+        .green => 950
+        .blue => 0o55
+    }
+}
+
+type Color2 = Color
+
+enum Color {
+    red
+    green
+    blue
+}
