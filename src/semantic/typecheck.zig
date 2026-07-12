@@ -1134,7 +1134,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .context_value_decl => {
             try self.ctx.validate_type.validate_type(ast.context_value_decl.parent);
-            const stripped_parent = ast.context_value_decl.parent.strip_addrs();
+            const stripped_parent = ast.context_value_decl.parent.strip_addrs().expand_identifier();
             if (stripped_parent.* != .context_type) {
                 self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
                     .span = ast.token().span,
