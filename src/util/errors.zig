@@ -18,6 +18,7 @@ pub const Candidate_Reason = union(enum) {
     arity_mismatch: struct { expects: usize, got: usize },
     param_arg_mismatch: struct { param_idx: usize, expects: *const Type_AST, got: ?*const Type_AST },
     ret_type_mismatch: struct { expected: *const Type_AST, got: *const Type_AST },
+    constraint_not_satisfied: struct { solved: *const Type_AST, constraint: *const Type_AST },
 };
 
 pub const Candidate = struct {
@@ -838,6 +839,9 @@ pub const Error = union(enum) {
                             },
                             .ret_type_mismatch => |reason| {
                                 writer.print("candidate returns `{f}`, expected `{f}`", .{ reason.got, reason.expected }) catch unreachable;
+                            },
+                            .constraint_not_satisfied => |reason| {
+                                writer.print("the type `{f}` does not implement `{f}`", .{ reason.solved, reason.constraint }) catch unreachable;
                             },
                             .receiver_mismatch => {
                                 writer.print("receiver mutability mismatch", .{}) catch unreachable;

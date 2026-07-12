@@ -946,10 +946,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             const to_type = expected.?.expand_identifier();
 
             if (to_type.* != .addr_of) {
-                return typing_.throw_wrong_from("address type", "addr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
+                return typing_.throw_wrong_from("address", "addr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
             }
-            if (child_type.* != .addr_of) {
-                return typing_.throw_wrong_from("address type", "addr_cast", child_type, ast.token().span, &self.ctx.errors);
+            if (from_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address", "addr_cast", from_type, ast.token().span, &self.ctx.errors);
             }
 
             if (to_type.addr_of.mut and !from_type.addr_of.mut) {
@@ -1520,6 +1520,20 @@ fn method_fits(
         for (enclosing_impl.?.impl._generic_params.items) |param| {
             if (param.* == .type_param_decl and is.get_type(param.symbol().?.name) == null)
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
+        }
+
+        // Every solved param must satisfy its constraints, subst'd through the solution
+        for (enclosing_impl.?.impl._generic_params.items) |param| {
+            if (param.* != .type_param_decl) continue;
+            const solved = is.get_type(param.symbol().?.name).?;
+            for (param.type_param_decl.constraints.items) |constraint| {
+                const substd_constraint = constraint.clone(is, self.ctx.allocator());
+                const sat_res = solved.satisfies_all_constraints(&[_]*Type_AST{substd_constraint}, null, self.ctx) catch
+                    return .{ .not_viable = .{ .constraint_not_satisfied = .{ .solved = solved, .constraint = substd_constraint } } };
+                if (sat_res != .satisfies) {
+                    return .{ .not_viable = .{ .constraint_not_satisfied = .{ .solved = solved, .constraint = substd_constraint } } };
+                }
+            }
         }
     }
 
