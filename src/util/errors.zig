@@ -18,6 +18,7 @@ pub const Candidate_Reason = union(enum) {
     arity_mismatch: struct { expects: usize, got: usize },
     param_arg_mismatch: struct { param_idx: usize, expects: *const Type_AST, got: ?*const Type_AST },
     ret_type_mismatch: struct { expected: *const Type_AST, got: *const Type_AST },
+    constraint_not_satisfied: struct { solved: *const Type_AST, constraint: *const Type_AST },
 };
 
 pub const Candidate = struct {
@@ -66,6 +67,10 @@ pub const Error = union(enum) {
     comptime_known: struct {
         span: Span,
         what: []const u8, // what must be compile-time known?
+    },
+    unknown_builtin: struct {
+        span: Span,
+        builtin_name: []const u8,
     },
 
     // Symbol
@@ -118,6 +123,13 @@ pub const Error = union(enum) {
         span: Span,
         method_name: []const u8,
         _type: *Type_AST,
+        candidates: ?[]Candidate,
+    },
+    as_trait_type_not_impl_method: struct { // TODO: This should take in an enum to determine if the name is of a method or of a member
+        span: Span,
+        method_name: []const u8,
+        _type: *Type_AST,
+        traits: []*Type_AST,
         candidates: ?[]Candidate,
     },
     ambiguous_methods: struct {
@@ -354,6 +366,7 @@ pub const Error = union(enum) {
             .expected2token => return self.expected2token.got.span,
             .missing_close => return self.missing_close.got.span,
             .comptime_known => return self.comptime_known.span,
+            .unknown_builtin => return self.unknown_builtin.span,
 
             .redefinition => return self.redefinition.redefined_span,
             .symbol_error => return self.symbol_error.span,
@@ -366,6 +379,7 @@ pub const Error = union(enum) {
 
             .reimpl => return self.reimpl.redefined_span,
             .type_not_impl_method => return self.type_not_impl_method.span,
+            .as_trait_type_not_impl_method => return self.as_trait_type_not_impl_method.span,
             .ambiguous_methods => return self.ambiguous_methods.span,
             .type_not_impl_trait => return self.type_not_impl_trait.span,
             .method_not_in_trait => return self.method_not_in_trait.method_span,
@@ -463,6 +477,7 @@ pub const Error = union(enum) {
                 }) catch unreachable;
             },
             .comptime_known => writer.print("{s} must be compile-time known\n", .{err.comptime_known.what}) catch unreachable,
+            .unknown_builtin => writer.print("unknown built-in function `@{s}`\n", .{err.unknown_builtin.builtin_name}) catch unreachable,
 
             // Symbol
             .redefinition => writer.print("redefinition of symbol `{s}`\n", .{err.redefinition.name}) catch unreachable,
@@ -496,6 +511,13 @@ pub const Error = union(enum) {
                 writer.print("the type `", .{}) catch unreachable;
                 err.type_not_impl_method._type.print_type(writer) catch unreachable;
                 writer.print("` does not contain the member `{s}`\n", .{err.type_not_impl_method.method_name}) catch unreachable;
+            },
+            .as_trait_type_not_impl_method => {
+                writer.print("the type `(", .{}) catch unreachable;
+                err.as_trait_type_not_impl_method._type.print_type(writer) catch unreachable;
+                writer.print(" as ", .{}) catch unreachable;
+                err.as_trait_type_not_impl_method.traits[0].print_type(writer) catch unreachable;
+                writer.print(")` does not contain the member `{s}`\n", .{err.as_trait_type_not_impl_method.method_name}) catch unreachable;
             },
             .ambiguous_methods => {
                 writer.print("multiple applicable members `{s}` for the type `", .{err.ambiguous_methods.method_name}) catch unreachable;
@@ -827,6 +849,9 @@ pub const Error = union(enum) {
                             },
                             .ret_type_mismatch => |reason| {
                                 writer.print("candidate returns `{f}`, expected `{f}`", .{ reason.got, reason.expected }) catch unreachable;
+                            },
+                            .constraint_not_satisfied => |reason| {
+                                writer.print("the type `{f}` does not implement `{f}`", .{ reason.solved, reason.constraint }) catch unreachable;
                             },
                             .receiver_mismatch => {
                                 writer.print("receiver mutability mismatch", .{}) catch unreachable;

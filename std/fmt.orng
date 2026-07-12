@@ -33,7 +33,7 @@ impl core::Format for Int {
 
         // Extract digits in reverse order
         while value > 0 {
-            let digit = (value % 10) as Byte
+            let digit = @primitive_cast(value % 10) as Byte
             buf[i] = '0' + digit
             i += 1
             value /= 10
@@ -87,7 +87,7 @@ impl core::Format for Word32 {
 
         // Extract digits in reverse order
         while value > 0 {
-            let digit = (value % 10) as Byte
+            let digit = @primitive_cast(value % 10) as Byte
             buf[i] = '0' + digit
             i += 1
             value /= 10
@@ -139,7 +139,7 @@ impl core::Format for Float {
         for i in 0..precision {
             scaled *= 10.0
             let digit = math::int_from_float(scaled)
-            buf[i] = ('0' + digit) as Byte
+            buf[i] = @primitive_cast('0' + digit) as Byte
             if digit != 0 or i == 0 {
                 buf_slice.length = i + 1
             }
@@ -187,7 +187,7 @@ impl core::Format for Float32 {
         for i in 0..precision {
             scaled *= 10.0
             let digit = math::int_from_float32(scaled)
-            buf[i] = ('0' + digit) as Byte
+            buf[i] = @primitive_cast('0' + digit) as Byte
             if digit != 0 or i == 0 {
                 buf_slice.length = i + 1
             }
@@ -288,7 +288,7 @@ fn parse_int(buffer: String) -> Int {
     while i < buffer.length; i += 1 {
         let c: Byte = buffer[i]
         if c.>is_digit() {
-            retval = retval * 10 + (c as Int - '0')
+            retval = retval * 10 + (c.>into() as Int - '0')
         } else {
             break
         }
@@ -314,7 +314,7 @@ fn parse_float(buffer: String) -> Float {
     while i < buffer.length; i += 1 {
         let c: Byte = buffer[i]
         if c.>is_digit() {
-            retval = retval * 10.0 + math::float_from_int(c as Int - '0')
+            retval = retval * 10.0 + math::float_from_int(c.>into() as Int - '0')
         } else {
             break
         }
@@ -327,7 +327,7 @@ fn parse_float(buffer: String) -> Float {
         while i < buffer.length; i += 1 {
             let c: Byte = buffer[i]
             if c.>is_digit() {
-                retval += math::float_from_int(c as Int - '0') / divisor
+                retval += math::float_from_int(c.>into() as Int - '0') / divisor
                 divisor *= 10.0
             } else {
                 break

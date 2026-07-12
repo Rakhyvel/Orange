@@ -144,7 +144,7 @@ impl for String_Buffer {
     fn bytes(&self) -> core::Slice_Iter[Byte] {
         let slice = match self.buffer {
             .some(buffer) => buffer.>subslice(..self.size)
-            .none => ([]Byte)::from_parts(0 as [*mut]Byte, 0)
+            .none => ([]Byte)::from_parts(@addr_from_word64(0), 0)
         }
         core::Slice_Iter[Byte](slice, 0)
     }
@@ -152,7 +152,7 @@ impl for String_Buffer {
     fn split(&self, delimiter: Byte) -> mem::Delimiter_Iterator {
         let slice = match self.buffer {
             .some(buffer) => buffer.>subslice(..self.size)
-            .none => ([]Byte)::from_parts(0 as [*mut]Byte, 0)
+            .none => ([]Byte)::from_parts(@addr_from_word64(0), 0)
         }
         mem::Delimiter_Iterator(slice, delimiter, -1)
     }
@@ -160,7 +160,7 @@ impl for String_Buffer {
     fn lines(&self) -> mem::Delimiter_Iterator {
         let slice = match self.buffer {
             .some(buffer) => buffer.>subslice(..self.size)
-            .none => ([]Byte)::from_parts(0 as [*mut]Byte, 0)
+            .none => ([]Byte)::from_parts(@addr_from_word64(0), 0)
         }
         mem::Delimiter_Iterator(slice, '\n', -1)
     }
@@ -168,7 +168,7 @@ impl for String_Buffer {
     fn chars(&self) -> Char_Iter {
         let slice = match self.buffer {
             .some(buffer) => buffer.>subslice(..self.size)
-            .none => ([]Byte)::from_parts(0 as [*mut]Byte, 0)
+            .none => ([]Byte)::from_parts(@addr_from_word64(0), 0)
         }
         Char_Iter(slice, 0)
     }

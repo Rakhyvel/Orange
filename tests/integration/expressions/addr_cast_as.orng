@@ -1,0 +1,6 @@
+// 560
+fn main() -> Int {
+    let x = 560
+    let y = @addr_cast(&x) as [*]Int
+    y[0]
+}

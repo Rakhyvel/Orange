@@ -1,0 +1,8 @@
+// addr_cast_to_not_ptr.orng:7:30: error: expected address type for addr_cast, got `Int`
+//     let y: Int = @addr_cast(x)
+//                             ^
+// 
+fn main() -> Int {
+    let x = 4
+    let y: Int = @addr_cast(x)
+}

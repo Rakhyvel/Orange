@@ -1,4 +1,4 @@
-// unrecognized_builtin.orng:6:18: error: unknown built-in function
+// unrecognized_builtin.orng:6:18: error: unknown built-in function `@lmao`
 //     let x = @lmao(4)
 //                 ^
 // 

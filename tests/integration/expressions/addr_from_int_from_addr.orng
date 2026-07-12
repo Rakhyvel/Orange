@@ -1,0 +1,9 @@
+// 563
+fn main() -> Int {
+    let a: Int = 563
+
+    let x: &Int = &a
+    let y = @word64_from_addr(x)
+    let z: &Int = @addr_from_word64(y)
+    z^
+}

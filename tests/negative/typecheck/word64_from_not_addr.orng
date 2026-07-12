@@ -1,0 +1,9 @@
+// word64_from_not_addr.orng:7:30: error: expected address type type for word64_from_addr, got `Int`
+//     let z = @word64_from_addr(a)
+//                             ^
+// 
+fn main() -> Int {
+    let a: Int = 563
+    let z = @word64_from_addr(a)
+    z
+}

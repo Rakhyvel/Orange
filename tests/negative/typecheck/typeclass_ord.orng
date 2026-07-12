@@ -1,4 +1,4 @@
-// typeclass_ord.orng:8:8: error: the type `Bool` does not contain the member `lt`
+// typeclass_ord.orng:8:8: error: the type `Bool` does not implement the trait `Partial_Ord`
 //     x < y
 //       ^
 // 
