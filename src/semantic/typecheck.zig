@@ -418,7 +418,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     var constraints_arr = [1]*Type_AST{lhs_type_node};
                     try Scope.as_trait_member_lookup(concrete_type, &constraints_arr, method_name, &candidate_methods, self.ctx);
                     if (candidate_methods.keys().len == 0) {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type, .candidates = null } });
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type.strip_as_trait(), .candidates = null } });
                         return error.CompileError;
                     }
                     ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
@@ -449,12 +449,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
                 if (candidate_method_decls.keys().len == 0) {
                     self.ctx.errors.add_error(errs_.Error{
-                        .as_trait_type_not_impl_method = .{
+                        .type_not_impl_trait = .{
                             .span = ast.token().span,
-                            .method_name = method_name,
-                            ._type = for_type,
-                            .traits = as_trait_node.as_trait.constraints.items,
-                            .candidates = null,
+                            .trait_name = as_trait_node.as_trait.constraints.items[0].symbol().?.name, // TODO: This only does the first one, if there are many it'd be confusing
+                            ._type = for_type.strip_as_trait(),
                         },
                     });
                     return error.CompileError;
@@ -655,7 +653,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         .type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = ast.rhs().token().data,
-                            ._type = true_lhs_type.strip_addrs(),
+                            ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                             .candidates = null,
                         },
                     });
@@ -1358,7 +1356,7 @@ fn select_method(
                 .type_not_impl_method = .{
                     .span = ast.token().span,
                     .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type.strip_addrs(),
+                    ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                     .candidates = saved_rejection_reasons.items,
                 },
             });
@@ -1392,7 +1390,7 @@ fn select_method(
                     .ambiguous_methods = .{
                         .span = ast.token().span,
                         .method_name = ast.rhs().token().data,
-                        ._type = true_lhs_type.strip_addrs(),
+                        ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                         .viable = saved_viable.items,
                     },
                 });

@@ -1,6 +1,6 @@
-// ptr_cast_no_context.orng:7:22: error: cannot infer type to cast to, try using `as`
+// addr_cast_no_context.orng:7:23: error: cannot infer type to cast to, try using `as`
 //     let y = @addr_cast(x)
-//                     ^
+//                      ^
 // 
 fn main() -> Int {
     let x = 4

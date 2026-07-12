@@ -1,4 +1,4 @@
-// tuple_bracket_index.orng:13:34: error: the type `(Int, Int)` does not contain the member `index`
+// tuple_bracket_index.orng:13:34: error: the type `(Int, Int)` does not implement the trait `Index`
 //             retval.>put(pairs[i][0], pairs[i][1])
 //                                 ^
 // 

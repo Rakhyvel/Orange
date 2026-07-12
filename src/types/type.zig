@@ -793,6 +793,12 @@ pub const Type_AST = union(enum) {
         return retval;
     }
 
+    pub fn strip_as_trait(self: *Type_AST) *Type_AST {
+        var retval = self;
+        while (retval.* == .as_trait) : (retval = retval.lhs()) {}
+        return retval;
+    }
+
     pub fn unexpand_type(self: *Type_AST) *Type_AST {
         if (self.common()._unexpanded_type) |unexpanded| {
             return unexpanded.unexpand_type();

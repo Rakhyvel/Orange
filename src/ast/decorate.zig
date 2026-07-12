@@ -566,7 +566,7 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Sc
             .type_not_impl_method = .{
                 .span = rhs_token.span,
                 .method_name = rhs_token.data,
-                ._type = lhs,
+                ._type = lhs.strip_as_trait(),
                 .candidates = null,
             },
         });

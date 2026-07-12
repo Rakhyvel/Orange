@@ -1,6 +1,6 @@
-// inherit_dyn_down_cast.orng:9:9: error: cannot cast type `&dyn A` to type `&dyn B`
+// inherit_dyn_down_cast.orng:9:6: error: expected a value of type `&dyn B`, got a value of type `&dyn A`
 //     a as &dyn B
-//        ^
+//     ^
 // 
 trait A {}
 trait B: A {}

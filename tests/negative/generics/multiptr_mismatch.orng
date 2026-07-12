@@ -1,6 +1,6 @@
-// multiptr_mismatch.orng:11:28: error: expected a value of type `[*]T`, got a value of type `[*]Int`
+// multiptr_mismatch.orng:11:25: error: expected a value of type `[*]Int`, got a value of type `[*]U`
 //         My_Type[U](items as [*]Int)
-//                           ^
+//                        ^
 // 
 struct My_Type[T] {
     items: [*]T

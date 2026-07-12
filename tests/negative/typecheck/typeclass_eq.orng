@@ -1,4 +1,4 @@
-// typeclass_eq.orng:8:9: error: the type `Void` does not contain the member `eq`
+// typeclass_eq.orng:8:9: error: the type `Void` does not implement the trait `Partial_Eq`
 //     x == y // the ONLY type that isn't equalable
 //        ^
 // 

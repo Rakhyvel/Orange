@@ -1,6 +1,6 @@
-// ptr_cast_from_not_ptr.orng:7:28: error: expected address type type for addr_cast, got `Int`
+// addr_cast_from_not_addr.orng:7:29: error: expected address type for addr_cast, got `Int`
 //     let y: &Int = @addr_cast(x)
-//                           ^
+//                            ^
 // 
 fn main() -> Int {
     let x: Int = 4

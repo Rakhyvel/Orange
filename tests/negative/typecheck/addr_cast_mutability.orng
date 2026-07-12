@@ -1,6 +1,6 @@
-// ptr_cast_mutability.orng:7:32: error: cannot cast away mutability
+// addr_cast_mutability.orng:7:33: error: cannot cast away immutability
 //     let y: &mut Int = @addr_cast(&x)
-//                               ^
+//                                ^
 // 
 fn main() -> Int {
     let x = 4
