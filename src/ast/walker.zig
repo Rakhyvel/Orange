@@ -85,6 +85,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         .receiver,
         .identifier,
         .import,
+        .context_param_decl,
         => {},
 
         .type_param_decl => try walk_types(&ast.type_param_decl.constraints, new_context),

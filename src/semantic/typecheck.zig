@@ -470,11 +470,35 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 );
             }
 
-            try self.validate_context(expanded_lhs_type, ast);
+            var fn_type = expanded_lhs_type;
+            if (ast.lhs().* == .generic_apply) {
+                const callee_sym = ast.lhs().symbol().?;
+                const callee_params = callee_sym.decl.?.generic_params().items;
+                if (callee_params.len > 0) {
+                    // monomorphize early-returned the template
+                    var s = unification_.Substitutions.init(self.ctx.allocator());
+                    var param_i: usize = 0;
+                    for (ast.lhs().generic_apply._children.items) |arg| {
+                        switch (arg) {
+                            .type_arg => |ty| {
+                                if (ty.* == .eq_constraint) continue;
+                                s.put_type(callee_params[param_i].symbol().?.name, ty) catch unreachable;
+                                param_i += 1;
+                            },
+                            .const_arg => |v| {
+                                s.put_const(callee_params[param_i].symbol().?.name, v) catch unreachable;
+                                param_i += 1;
+                            },
+                        }
+                    }
+                    fn_type = expanded_lhs_type.clone(&s, self.ctx.allocator());
+                }
+            }
+            try self.validate_context(fn_type, ast);
 
-            const domain = expanded_lhs_type.function.args;
-            const codomain = expanded_lhs_type.rhs();
-            const variadic = expanded_lhs_type.function.variadic;
+            const domain = fn_type.function.args;
+            const codomain = fn_type.rhs();
+            const variadic = fn_type.function.variadic;
 
             // Peel any extra addrof off an FQS receiver
             if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {
@@ -769,6 +793,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
         },
         .context_value => {
+            // Canonicalzie alias spellings
+            if (try ast.context_value.parent.resolve_context_reference(self.ctx)) |resolved| {
+                ast.context_value.parent.* = resolved.*;
+            }
             try self.ctx.validate_type.validate_type(ast.context_value.parent);
             const expanded_expected: *Type_AST = if (expected == null) ast.context_value.parent.expand_identifier() else expected.?.expand_identifier();
             if (expanded_expected.* == .context_type) {
@@ -1227,6 +1255,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .context_value_decl => {
             try self.ctx.validate_type.validate_type(ast.context_value_decl.parent);
+            const stripped = ast.context_value_decl.parent.strip_addrs();
+            _ = try stripped.resolve_context_reference(self.ctx) orelse {
+                self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                    .span = ast.token().span,
+                    .got = stripped,
+                } });
+                return error.CompileError;
+            };
             if (ast.context_value_decl.init) |_init| {
                 _ = self.typecheck_AST(_init, ast.context_value_decl.parent, subst) catch return error.CompileError;
             }
@@ -1516,7 +1552,7 @@ fn method_fits(
     // A template is only viable if every impl param got solved
     if (impl_subst) |is| {
         for (enclosing_impl.?.impl._generic_params.items) |param| {
-            if (param.* == .type_param_decl and is.get_type(param.symbol().?.name) == null)
+            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null)
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
         }
 

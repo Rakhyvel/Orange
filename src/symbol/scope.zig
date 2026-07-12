@@ -122,6 +122,10 @@ pub fn num_visible_contexts(self: *Self) usize {
 }
 
 pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Context) !?*Symbol {
+    // Canonicalize the context type
+    const req_inner = if (context_type.* == .addr_of) context_type.child() else context_type;
+    if (try req_inner.resolve_context_reference(ctx)) |r| req_inner.* = r.*;
+
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
         if (symbol.kind == .let) {
@@ -129,7 +133,15 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
             if (symbol_type.* == .addr_of and context_type.* != .addr_of) {
                 symbol_type = symbol_type.child();
             }
+            try walker_.walk_type(context_type, Decorate.new(ctx));
             try walker_.walk_type(symbol_type, Decorate.new(ctx));
+            // Canonicalize the symbol type
+            const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
+            if (try cand_inner.resolve_context_reference(ctx)) |r| cand_inner.* = r.*;
+            const is_context_like = symbol_type.* == .context_type or
+                (symbol_type.* == .identifier and symbol_type.symbol() != null and symbol_type.symbol().?.kind == .context) or
+                std.mem.startsWith(u8, symbol.name, "context_value__");
+            if (!is_context_like) continue;
             if (context_type.types_match(symbol_type)) {
                 return symbol;
             }
@@ -480,7 +492,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
 pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
     for (impl.impl._generic_params.items) |param| {
         switch (param.*) {
-            .type_param_decl => {
+            .type_param_decl, .context_param_decl => {
                 const mapped = subst.get_type(param.symbol().?.name) orelse continue;
                 if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
                 if (mapped.is_generic()) return true;

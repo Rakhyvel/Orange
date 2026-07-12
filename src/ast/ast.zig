@@ -473,6 +473,11 @@ pub const AST = union(enum) {
         _symbol: ?*Symbol = null,
         constraints: std.array_list.Managed(*Type_AST),
     },
+    context_param_decl: struct {
+        common: AST_Common,
+        rigid: bool,
+        _symbol: ?*Symbol = null,
+    },
     const_param_decl: struct {
         common: AST_Common,
         _type: *Type_AST,
@@ -1383,6 +1388,13 @@ pub const AST = union(enum) {
         } }, allocator);
     }
 
+    pub fn create_context_param_decl(_token: Token, rigid: bool, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .context_param_decl = .{
+            .common = AST_Common{ ._token = _token },
+            .rigid = rigid,
+        } }, allocator);
+    }
+
     pub fn create_const_param_decl(_token: Token, _type: *Type_AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .const_param_decl = .{
             .common = AST_Common{ ._token = _token },
@@ -1807,7 +1819,14 @@ pub const AST = union(enum) {
                 retval.invoke.prepended = self.invoke.prepended;
                 return retval;
             },
-            .dyn_value => unreachable, // Shouldn't exist yet... have to clone scope?
+            .dyn_value => return create_dyn_value(
+                self.token(),
+                self.dyn_value.dyn_type.clone(substs, allocator),
+                self.dyn_value._expr.clone(substs, allocator),
+                self.dyn_value._scope.?,
+                self.dyn_value.mut,
+                allocator,
+            ),
             .enum_value => {
                 var retval = create_enum_value(self.token(), allocator);
                 retval.enum_value.init = if (self.enum_value.init) |init| init.clone(substs, allocator) else null;
@@ -1817,6 +1836,11 @@ pub const AST = union(enum) {
                 self.token(),
                 self.type_param_decl.rigid,
                 Type_AST.clone_types(self.type_param_decl.constraints, substs, allocator),
+                allocator,
+            ),
+            .context_param_decl => return create_context_param_decl(
+                self.token(),
+                self.context_param_decl.rigid,
                 allocator,
             ),
             .const_param_decl => return create_const_param_decl(
@@ -2215,7 +2239,7 @@ pub const AST = union(enum) {
             .method_decl => self.method_decl.init,
             .@"test" => self.@"test".init,
             .module, .trait => self,
-            .struct_decl, .enum_decl, .type_alias, .receiver, .type_param_decl, .const_param_decl, .context_decl, .context_value => null,
+            .struct_decl, .enum_decl, .type_alias, .receiver, .type_param_decl, .context_param_decl, .const_param_decl, .context_decl, .context_value => null,
             .context_value_decl => self.context_value_decl.init,
             else => std.debug.panic("compiler error: cannot call `.decl_init()` on the AST `{s}`", .{@tagName(self.*)}),
         };
@@ -2240,6 +2264,7 @@ pub const AST = union(enum) {
             .enum_decl => self.enum_decl._type,
             .type_alias => self.type_alias.init,
             .type_param_decl => null, // No type... yet!
+            .context_param_decl => null,
             .const_param_decl => null,
             .module => null,
             .trait => null, // Traits are not types, callers should check decl kind first
@@ -2545,6 +2570,18 @@ pub const AST = union(enum) {
             self.symbol().?.decl.?.* == .const_param_decl;
     }
 
+    pub fn is_typelike_param_decl(ast: *AST) bool {
+        return ast.* == .type_param_decl or ast.* == .context_param_decl;
+    }
+
+    pub fn is_rigid_type_param(ast: *AST) bool {
+        return switch (ast.*) {
+            .type_param_decl => ast.type_param_decl.rigid,
+            .context_param_decl => ast.context_param_decl.rigid,
+            else => unreachable,
+        };
+    }
+
     pub fn refers_to_type(self: *AST) bool {
         return switch (self.*) {
             else => false,
@@ -2734,6 +2771,7 @@ pub const AST = union(enum) {
                 try out.print(")", .{});
             },
             .type_param_decl => try out.print("type_param_decl({s})", .{self.type_param_decl.common._token.data}),
+            .context_param_decl => try out.print("context_param_decl({s})", .{self.context_param_decl.common._token.data}),
             .const_param_decl => try out.print("const_param_decl({s})", .{self.const_param_decl.common._token.data}),
             .struct_decl => {
                 try out.print("struct_decl(\n", .{});

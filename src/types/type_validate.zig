@@ -98,6 +98,16 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 try self.validate_type(arg);
             }
             try self.validate_type(@"type".rhs());
+            for (@"type".function.contexts.items) |context_type| {
+                const stripped = context_type.strip_addrs();
+                _ = try stripped.resolve_context_reference(self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                        .span = context_type.token().span,
+                        .got = stripped,
+                    } });
+                    return error.CompileError;
+                };
+            }
         },
 
         .enum_type,

@@ -65,7 +65,7 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
     for (filtered_args.items, 0..) |arg, i| {
         const param = params.items[i];
         switch (arg) {
-            .type_arg => |ty| if (param.* == .type_param_decl) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
+            .type_arg => |ty| if (param.is_typelike_param_decl()) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
             .const_arg => |v| if (param.* == .const_param_decl) constraint_subst.put_const(param.symbol().?.name, v) catch unreachable,
         }
     }
@@ -116,6 +116,19 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
                 }
             },
             .const_param_decl => {},
+            .context_param_decl => {
+                const ty = arg.type_arg;
+                if (try ty.resolve_context_reference(ctx)) |resolved| {
+                    // canonicalize so the subst and the monomorph key see the the context's own name
+                    ty.* = resolved.*;
+                } else {
+                    ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                        .span = ty.token().span,
+                        .got = ty,
+                    } });
+                    return error.CompileError;
+                }
+            },
             else => unreachable,
         }
     }

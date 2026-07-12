@@ -1,0 +1,15 @@
+// with_non_context_alias.orng:7:17: error: expected a context, got the type `A`
+//         f[Int, A](4)
+//                ^
+// 
+fn main() -> Int {
+    with A(2) {
+        f[Int, A](4)
+    }
+}
+
+fn f[T, context C](t: T) -> T with C {
+    t
+}
+
+type A = Int

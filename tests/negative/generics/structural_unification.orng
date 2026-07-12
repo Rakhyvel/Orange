@@ -1,0 +1,22 @@
+// structural_unification.orng:14:46: error: expected a value of type `My_Other_Struct->My_Other_Struct`, got a value of type `My_Struct->My_Struct`
+//     let mos = do_twice[My_Other_Struct](scale, My_Other_Struct(146))
+//                                             ^
+// 
+struct My_Struct {
+    x: Int
+}
+
+struct My_Other_Struct {
+    x: Int
+}
+
+fn main() -> Int {
+    let mos = do_twice[My_Other_Struct](scale, My_Other_Struct(146))
+    mos.x
+}
+
+fn do_twice[T](f: T -> T, x: T) -> T {
+    f(f(x))
+}
+
+fn scale(s: My_Struct) -> My_Struct { My_Struct(s.x * 2) }

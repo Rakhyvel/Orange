@@ -106,7 +106,13 @@ pub fn assert_init_valid(self: *Self) *Self {
 
 /// Whether or not this symbol represents a type or not
 pub fn is_type(self: *const Self) bool {
-    return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.* == .type_param_decl;
+    return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.is_typelike_param_decl();
+}
+
+pub fn is_nominal_type(self: *const Self) bool {
+    if (self.storage == .@"extern") return true;
+    const decl = self.decl orelse return false;
+    return decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .context_decl;
 }
 
 pub fn is_trait(self: *const Self) bool {
@@ -239,7 +245,7 @@ pub fn monomorphize(
 
     for (key.items) |k| {
         switch (k) {
-            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl) return self,
+            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.is_typelike_param_decl()) return self,
             .const_arg => |v| if (v.is_const_param_ref()) return self,
         }
     }
@@ -267,6 +273,9 @@ pub fn monomorphize(
                 .const_param_decl => {
                     try subst.put_const(param.symbol().?.name, arg.const_arg);
                 },
+                .context_param_decl => {
+                    try subst.put_type(param.symbol().?.name, arg.type_arg);
+                },
                 else => unreachable,
             }
         }
@@ -284,7 +293,10 @@ pub fn monomorphize(
             }
         }
 
+        try walker_.walk_ast(self.decl.?, Decorate.new(ctx));
+
         // Clone the decl with the substitution
+        // unification_.print_substitutions(&subst);
         const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
 

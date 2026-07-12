@@ -107,6 +107,10 @@ pub const Error = union(enum) {
         symbol_name: []const u8,
         num_generics: usize,
     },
+    expected_context: struct {
+        span: Span,
+        got: *Type_AST,
+    },
 
     // Traits
     reimpl: struct {
@@ -371,6 +375,7 @@ pub const Error = union(enum) {
             .not_inside_function => return self.not_inside_function.span,
             .import_file_not_found => return self.import_file_not_found.span,
             .unapplied_generic => return self.unapplied_generic.span,
+            .expected_context => return self.expected_context.span,
 
             .reimpl => return self.reimpl.redefined_span,
             .type_not_impl_method => return self.type_not_impl_method.span,
@@ -486,6 +491,11 @@ pub const Error = union(enum) {
                 err.unapplied_generic.num_generics,
                 if (err.unapplied_generic.num_generics != 1) "s" else "",
             }) catch unreachable,
+            .expected_context => {
+                writer.print("expected a context, got the type `", .{}) catch unreachable;
+                err.expected_context.got.print_type(writer) catch unreachable;
+                writer.print("`\n", .{}) catch unreachable;
+            },
 
             // Traits
             .reimpl => if (err.reimpl.name != null) {
