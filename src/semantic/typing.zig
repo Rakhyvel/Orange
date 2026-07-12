@@ -14,11 +14,6 @@ const Validate_Error_Enum = error{CompileError};
 pub fn type_check(span: Span, got: *Type_AST, maybe_expected: ?*Type_AST, subst: *unification_.Substitutions, errors: *errs_.Errors) Validate_Error_Enum!void {
     if (maybe_expected) |expected| {
         unification_.unify(got, expected, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
-            const Tree_Writer = @import("../ast/tree_writer.zig");
-            std.debug.print("=== type_check unify failed ===\ngot:\n", .{});
-            Tree_Writer.print(got);
-            std.debug.print("expected:\n", .{});
-            Tree_Writer.print(expected);
             return throw_unexpected_type(span, expected, got, errors);
         };
     }

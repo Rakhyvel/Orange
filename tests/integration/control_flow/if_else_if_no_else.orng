@@ -16,7 +16,7 @@ fn parse_int(buffer: String) -> Int {
     while i < buffer.length; i += 1 {
         let c: Byte = buffer[i]
         if c >= '0' and c <= '9' {
-            retval = retval * 10 + (c as Int - '0')
+            retval = retval * 10 + (c.>into() as Int - '0')
         } else {
             break
         }

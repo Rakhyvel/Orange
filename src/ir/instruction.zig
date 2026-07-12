@@ -139,7 +139,7 @@ pub fn init_invoke(dest: *lval_.L_Value, method_decl: *ast_.AST, lval_list: std.
     return retval;
 }
 
-pub fn init_dyn(dest: *lval_.L_Value, src1: *lval_.L_Value, mut: bool, impl: *ast_.AST, span: Span, allocator: std.mem.Allocator) *Self {
+pub fn init_dyn(dest: *lval_.L_Value, src1: *lval_.L_Value, mut: bool, impl: ?*ast_.AST, span: Span, allocator: std.mem.Allocator) *Self {
     var retval = Self.init(if (mut) .mut_dyn_value else .dyn_value, dest, src1, null, span, allocator);
     retval.data = Data{ .dyn = .{ .impl = impl } };
     return retval;
@@ -716,7 +716,7 @@ pub const Data = union(enum) {
         context_arg_lval_list: std.array_list.Managed(*lval_.L_Value), // List of args. Receiver will always be prepended
         dyn_value: ?*lval_.L_Value, // L-value of the vtable-data-ptr pair; non-null when the call is through a vtable, regardless of if the method uses the receiver
     },
-    dyn: struct { impl: *ast_.AST },
+    dyn: struct { impl: ?*ast_.AST },
     select: struct { offset: i128, field: i128 },
     ast: *ast_.AST,
     none,

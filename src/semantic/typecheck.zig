@@ -105,7 +105,7 @@ pub fn typecheck_AST(
         try walk_.walk_type(expected_type, Type_Decorate.new(self.ctx));
     }
 
-    const actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
+    var actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
         ast.common().validation_state = .invalid;
         return e;
     };
@@ -113,6 +113,7 @@ pub fn typecheck_AST(
     try walk_.walk_type(actual_type, Decorate.new(self.ctx));
 
     if (expected_type) |_| {
+        actual_type = try self.insert_coercion(ast, actual_type, expected_type.?, subst);
         const expanded_expected = expected_type.?.expand_identifier();
         if (expanded_expected.* != .unit_type or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
             typing_.type_check(ast.token().span, actual_type, expected_type.?, subst, &self.ctx.errors) catch |e| {
@@ -713,11 +714,26 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
             }
             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
-            if (ast.dyn_value.mut) {
-                try self.assert_mutable(ast.expr());
-            }
+            const expanded_expr_type = expr_type.expand_identifier();
 
-            if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
+            if (expanded_expr_type.* == .dyn_type) {
+                // Expected type is a potential upcast to a dyn type
+                if (!expanded_expr_type.child().is_sub_trait(ast.dyn_value.dyn_type.child())) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                        ._type = expr_type,
+                    } });
+                }
+                if (ast.dyn_value.mut and !expanded_expr_type.dyn_type.mut) {
+                    self.ctx.errors.add_error(errs_.Error{ .modify_immutable = .{ .identifier = ast.token() } });
+                    return error.CompileError;
+                }
+            } else if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
+                // Expected type is a type param
+                if (ast.dyn_value.mut) {
+                    try self.assert_mutable(ast.expr());
+                }
                 const type_param_decl = expr_type.symbol().?.decl.?;
                 var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
@@ -736,6 +752,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 }
             } else {
+                // Expected type is a concrete type
+                if (ast.dyn_value.mut) {
+                    try self.assert_mutable(ast.expr());
+                }
                 const impl = try Scope.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
                 if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
@@ -1228,6 +1248,33 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         else => std.debug.panic("compiler error: typecheck_AST() unimplemented for {s}", .{@tagName(ast.*)}),
     }
+}
+
+fn insert_coercion(self: *Self, ast: *ast_.AST, actual: *Type_AST, expected: *Type_AST, subst: *unification_.Substitutions) Validate_Error_Enum!*Type_AST {
+    const actual_expanded = actual.expand_identifier();
+    const expected_expanded = expected.expand_identifier();
+
+    // TODO: Maybe &[n]T => []T. Both T => E!T, T => ?T have ambiguity problems, but might be more ergonomic?
+
+    if
+    // Expected a dyn type of some super trait, got a dyn type of some sub trait. Wrap it in a new dyn_value
+    (actual_expanded.* == .dyn_type and expected_expanded.* == .dyn_type and
+        actual_expanded.child().symbol() != expected_expanded.child().symbol() and
+        actual_expanded.child().is_sub_trait(expected_expanded.child()) and
+        !(expected_expanded.dyn_type.mut and !actual_expanded.dyn_type.mut))
+    {
+
+        // Preserve the already-typechecked expression as the dyn value's operand
+        const inner = self.ctx.allocator().create(ast_.AST) catch unreachable;
+        inner.* = ast.*;
+        inner.common().validation_state = .valid;
+        self.map.put(inner, actual) catch unreachable;
+
+        ast.* = ast_.AST.create_dyn_value(ast.token(), expected_expanded, inner, ast.scope().?, expected_expanded.dyn_type.mut, self.ctx.allocator()).*;
+        return self.typecheck_AST(ast, expected, subst);
+    }
+
+    return actual;
 }
 
 /// Validates an open binary operator. An operator is `open` if it returns a type different from the

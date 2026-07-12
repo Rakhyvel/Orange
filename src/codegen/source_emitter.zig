@@ -478,17 +478,41 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
         .mut_dyn_value, .dyn_value => {
             try self.output_var_assign_cast(instr.dest.?, instr.dest.?.get_expanded_type());
             try self.writer.print("{{", .{});
-            try self.output_lvalue(instr.src1.?, instr.kind.precedence());
-            try self.writer.print(", ", .{});
 
             const dyn_type = instr.dest.?.get_expanded_type();
             const trait_decl = dyn_type.child().symbol().?.decl.?;
-            if (trait_decl.trait.num_virtual_methods != 0) {
-                try self.writer.print("&", .{});
-                try self.output_vtable_impl(instr.data.dyn.impl);
+
+            if (instr.data.dyn.impl) |impl| {
+                // Concrete value to dyn
+                try self.output_lvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(", ", .{});
+                if (trait_decl.trait.num_virtual_methods != 0) {
+                    try self.writer.print("&", .{});
+                    try self.output_vtable_impl(impl);
+                } else {
+                    try self.writer.print("NULL", .{});
+                }
             } else {
-                try self.writer.print("NULL", .{});
+                // dyn to super-dyn upcast, chase the super vtables
+                const sub_trait_decl = instr.src1.?.get_expanded_type().child().symbol().?.decl.?;
+                try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                try self.writer.print(".data_ptr, ", .{});
+
+                if (trait_decl.trait.num_virtual_methods != 0) {
+                    var vtables = std.array_list.Managed(usize).init(std.heap.page_allocator);
+                    defer vtables.deinit();
+                    _ = try self.append_vtable_to_super(sub_trait_decl, dyn_type.child().symbol().?, &vtables);
+
+                    try self.output_rvalue(instr.src1.?, instr.kind.precedence());
+                    try self.writer.print(".vtable", .{});
+                    for (0..vtables.items.len) |i| {
+                        try self.writer.print("->_{}", .{vtables.items[vtables.items.len - i - 1]});
+                    }
+                } else {
+                    try self.writer.print("NULL", .{});
+                }
             }
+
             try self.writer.print("}};\n", .{});
         },
         .not,

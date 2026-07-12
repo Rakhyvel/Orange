@@ -236,7 +236,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             if (rhs.* == .anyptr_type) return;
             if (rhs.* != .dyn_type) return error.TypesMismatch;
             if (rhs.dyn_type.mut and !lhs.dyn_type.mut) return error.TypesMismatch;
-            if (lhs.child().symbol() != rhs.child().symbol()) return error.TypesMismatch;
+            if (!lhs.child().is_sub_trait(rhs.child())) return error.TypesMismatch;
         },
 
         .unit_type => {
