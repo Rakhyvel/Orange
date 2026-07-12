@@ -492,7 +492,7 @@ pub const Error = union(enum) {
                 if (err.unapplied_generic.num_generics != 1) "s" else "",
             }) catch unreachable,
             .expected_ability => {
-                writer.print("expected a ability, got the type `", .{}) catch unreachable;
+                writer.print("expected an ability, got the type `", .{}) catch unreachable;
                 err.expected_ability.got.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
             },

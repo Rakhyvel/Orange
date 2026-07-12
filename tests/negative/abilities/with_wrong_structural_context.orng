@@ -1,10 +1,10 @@
-// with_wrong_structural_context.orng:11:24: error: missing ability`My_Ability`
+// with_wrong_structural_context.orng:11:24: error: missing ability `My_Ability`
 //         use_my_context()
 //                       ^
 // 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
-abilityMy_Other_Context = Int
+ability My_Other_Context = Int
 
 fn main() -> Int {
     with My_Other_Context(30) {

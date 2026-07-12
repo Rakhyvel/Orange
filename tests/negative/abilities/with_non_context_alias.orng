@@ -1,4 +1,4 @@
-// with_non_context_alias.orng:7:17: error: expected a context, got the type `A`
+// with_non_context_alias.orng:7:17: error: expected an ability, got the type `A`
 //         f[Int, A](4)
 //                ^
 // 
@@ -8,7 +8,7 @@ fn main() -> Int {
     }
 }
 
-fn f[T, abilityC](t: T) -> T with C {
+fn f[T, ability C](t: T) -> T with C {
     t
 }
 

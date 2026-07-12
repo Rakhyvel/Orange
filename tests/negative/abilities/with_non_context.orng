@@ -1,4 +1,4 @@
-// with_non_context.orng:9:16: error: expected a context, got the type `Int`
+// with_non_context.orng:9:16: error: expected an ability, got the type `Int`
 // fn f() with Int {}
 //               ^
 // 

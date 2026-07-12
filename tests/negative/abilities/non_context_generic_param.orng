@@ -1,14 +1,14 @@
-// non_context_generic_param.orng:8:24: error: expected a context, got the type `Float`
+// non_context_generic_param.orng:8:24: error: expected an ability, got the type `Float`
 //     do_twice[Int, Float](scale, 146)
 //                       ^
 // 
-abilityMy_Ability = Int
+ability My_Ability = Int
 
 fn main() -> Int {
     do_twice[Int, Float](scale, 146)
 }
 
-fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }
 
