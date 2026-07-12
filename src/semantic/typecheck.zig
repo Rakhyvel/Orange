@@ -1524,7 +1524,7 @@ fn method_fits(
     // A template is only viable if every impl param got solved
     if (impl_subst) |is| {
         for (enclosing_impl.?.impl._generic_params.items) |param| {
-            if (param.* == .type_param_decl and is.get_type(param.symbol().?.name) == null)
+            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null)
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
         }
 

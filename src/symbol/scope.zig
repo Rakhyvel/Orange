@@ -480,7 +480,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
 pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
     for (impl.impl._generic_params.items) |param| {
         switch (param.*) {
-            .type_param_decl => {
+            .type_param_decl, .context_param_decl => {
                 const mapped = subst.get_type(param.symbol().?.name) orelse continue;
                 if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
                 if (mapped.is_generic()) return true;

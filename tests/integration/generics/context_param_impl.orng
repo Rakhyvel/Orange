@@ -1,12 +1,13 @@
-// 585
+// 588
 context My_Context {
     x: Int
 }
 
 fn main() -> Int {
     let doer = Doer[Int, My_Context]()
+    _ = doer
     with My_Context(2) {
-        doer.>do_twice(scale, 146)
+        doer.>do_twice(scale, 147)
     }
 }
 

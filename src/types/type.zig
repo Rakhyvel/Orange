@@ -1550,6 +1550,10 @@ pub const Type_AST = union(enum) {
                 retval.struct_type.was_slice = self.struct_type.was_slice;
                 return retval;
             },
+            .context_type => {
+                const new_children = clone_types(self.children().*, substs, allocator);
+                return create_context_type(self.token(), new_children, allocator);
+            },
             .tuple_type => {
                 const new_children = clone_types(self.children().*, substs, allocator);
                 return create_tuple_type(self.token(), new_children, allocator);
@@ -1584,8 +1588,8 @@ pub const Type_AST = union(enum) {
 
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
-            .anyptr_type, .unit_type, .dyn_type, .as_trait => false, // I added as_trait, not sure if it should actually do more stuff or just be false
-            .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.* == .type_param_decl,
+            .anyptr_type, .unit_type, .dyn_type, .as_trait, .context_type => false, // I added as_trait, not sure if it should actually do more stuff or just be false
+            .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.is_typelike_param_decl(),
             .addr_of => _type.child().is_generic(),
             .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
             .annotation => _type.child().is_generic(),

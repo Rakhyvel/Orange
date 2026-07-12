@@ -83,29 +83,34 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (rhs.* == .as_trait and !lhs_binds_rhs) return try unify_inner(lhs, rhs.lhs(), subst, visited_map, options);
 
     if (lhs.* == .identifier and lhs.symbol() != null and subst.get_type(lhs.symbol().?.name) != null) {
-        if (lhs.symbol().?.decl.?.* != .type_param_decl or !lhs.symbol().?.decl.?.type_param_decl.rigid) {
+        if (!lhs.symbol().?.decl.?.is_typelike_param_decl() or !lhs.symbol().?.decl.?.is_rigid_type_param()) {
             const sub = subst.get_type(lhs.symbol().?.name).?;
             return try unify_inner(sub, rhs, subst, visited_map, options);
         }
     }
     if (rhs.* == .identifier and rhs.symbol() != null and subst.get_type(rhs.symbol().?.name) != null) {
         const sub = subst.get_type(rhs.symbol().?.name).?;
-        if (rhs.symbol().?.decl.?.* != .type_param_decl or !rhs.symbol().?.decl.?.type_param_decl.rigid) {
+        if (!rhs.symbol().?.decl.?.is_typelike_param_decl() or !rhs.symbol().?.decl.?.is_rigid_type_param()) {
             return try unify_inner(lhs, sub, subst, visited_map, options);
         }
     }
 
-    const lhs_is_type_param = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl;
-    const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl;
+    const lhs_is_type_param = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.is_typelike_param_decl();
+    const rhs_is_type_param = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.is_typelike_param_decl();
 
-    // Bind a type param to an extern type nominally rather than expanding it to the structural
-    // form, so its C name survives into codegen and matches the array element representation
-    const lhs_is_extern = lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.storage == .@"extern";
-    const rhs_is_extern = rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.storage == .@"extern";
+    const lhs_nominal = lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.is_nominal_type();
+    const rhs_nominal = rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.is_nominal_type();
 
-    if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null and !(lhs_is_extern and rhs_is_type_param)) {
+    // Two declared types, their symbols gotta match
+    if (lhs_nominal and rhs_nominal) {
+        if (lhs.symbol() == rhs.symbol()) return;
+        return error.TypesMismatch;
+    }
+
+    // Expand identifiers unless they're nominal
+    if (lhs.* == .identifier and lhs.symbol() != null and lhs.symbol().?.init_typedef() != null and !(lhs_nominal and rhs_is_type_param)) {
         return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
-    } else if (rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.init_typedef() != null and !(rhs_is_extern and lhs_is_type_param)) {
+    } else if (rhs.* == .identifier and rhs.symbol() != null and rhs.symbol().?.init_typedef() != null and !(rhs_nominal and lhs_is_type_param)) {
         return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
@@ -123,28 +128,28 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         if (rhs.symbol() != null and rhs.symbol().?.init_typedef() != null) {
             return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
         }
-        if (rhs.lhs().symbol().?.decl.?.* == .type_param_decl) {
+        if (rhs.lhs().symbol().?.decl.?.is_typelike_param_decl()) {
             if (rhs.associated_type_from_constraint()) |assoc_type|
                 return try unify_inner(lhs, assoc_type, subst, visited_map, options);
         }
     }
 
     if (lhs_is_type_param) {
-        if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
+        if (!options.allow_rigid and lhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
         try subst.put_type(lhs.symbol().?.name, rhs);
-        if (!options.allow_rigid and lhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(lhs, rhs)) {
+        if (!options.allow_rigid and lhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
         return;
     }
     if (rhs_is_type_param) {
-        if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
+        if (!options.allow_rigid and rhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
         try subst.put_type(rhs.symbol().?.name, lhs);
-        if (!options.allow_rigid and rhs.symbol().?.decl.?.type_param_decl.rigid and !can_unify_rigid(rhs, lhs)) {
+        if (!options.allow_rigid and rhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
         return;
@@ -258,7 +263,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             if (lhs.function.contexts.items.len != rhs.function.contexts.items.len) {
                 return error.TypesMismatch;
             }
-            for (lhs.function.contexts.items, lhs.function.contexts.items) |A_ctx, B_ctx| {
+            for (lhs.function.contexts.items, rhs.function.contexts.items) |A_ctx, B_ctx| {
                 try unify_inner(A_ctx, B_ctx, subst, visited_map, options);
             }
         },
@@ -315,7 +320,7 @@ pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substi
 }
 
 fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
-    if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.* == .type_param_decl and !arg.symbol().?.decl.?.type_param_decl.rigid) {
+    if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.is_typelike_param_decl() and !arg.symbol().?.decl.?.is_rigid_type_param()) {
         return true;
     }
     const expanded_arg = arg.expand_identifier();
@@ -329,7 +334,7 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
 pub fn type_param_list_from_subst_map(subst: *const Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
-        if (type_param.* != .type_param_decl) continue;
+        if (type_param.is_typelike_param_decl()) continue;
         const with_value = subst.get_type(type_param.symbol().?.name) orelse continue;
         retval.append(with_value) catch unreachable;
     }
@@ -358,7 +363,7 @@ pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
     for (subst.type_subst.keys()) |key| {
         const ty = subst.get_type(key).?;
         std.debug.assert(ty.* != .identifier or ty.symbol() != null);
-        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.* == .type_param_decl;
+        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.is_typelike_param_decl();
         if (bad) {
             return true;
         }

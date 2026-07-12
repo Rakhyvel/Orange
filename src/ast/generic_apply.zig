@@ -65,7 +65,7 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
     for (filtered_args.items, 0..) |arg, i| {
         const param = params.items[i];
         switch (arg) {
-            .type_arg => |ty| if (param.* == .type_param_decl) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
+            .type_arg => |ty| if (param.is_typelike_param_decl()) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
             .const_arg => |v| if (param.* == .const_param_decl) constraint_subst.put_const(param.symbol().?.name, v) catch unreachable,
         }
     }

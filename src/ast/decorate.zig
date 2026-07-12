@@ -242,24 +242,38 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                         const params = decl.generic_params().items;
                         for (ast.bracket._args.items, 0..) |arg, i| {
                             const wants_const = i < params.len and params[i].* == .const_param_decl;
-                            if (wants_const) {
-                                // Const param wants a value, a whole-arg type that names a const is allowed
-                                switch (arg) {
-                                    .const_arg => |v| try generic_args.append(.{ .const_arg = v }),
-                                    .type_arg => |ty| try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) }),
-                                }
-                            } else {
-                                // Type param wants a type, a value expression is an error
-                                switch (arg) {
-                                    .type_arg => |ty| try generic_args.append(.{ .type_arg = ty }),
-                                    .const_arg => |v| {
-                                        self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                            .msg = "expected a type argument, got a value",
-                                            .span = v.token().span,
+                            const wants_context = i < params.len and params[i].* == .context_param_decl;
+                            switch (arg) {
+                                .const_arg => |v| if (wants_const) {
+                                    try generic_args.append(.{ .const_arg = v });
+                                } else if (wants_context) {
+                                    self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                        .msg = "expected a context argument, got a value",
+                                        .span = v.token().span,
+                                    } });
+                                    return error.CompileError;
+                                } else {
+                                    self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                                        .msg = "expected a type argument, got a value",
+                                        .span = v.token().span,
+                                    } });
+                                    return error.CompileError;
+                                },
+
+                                .type_arg => |ty| if (wants_const) {
+                                    try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) });
+                                } else if (wants_context) {
+                                    if (!ty.is_context()) {
+                                        self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                                            .span = ty.token().span,
+                                            .got = ty,
                                         } });
                                         return error.CompileError;
-                                    },
-                                }
+                                    }
+                                    try generic_args.append(.{ .type_arg = ty });
+                                } else {
+                                    try generic_args.append(.{ .type_arg = ty });
+                                },
                             }
                         }
                         ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;

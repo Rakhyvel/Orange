@@ -106,7 +106,13 @@ pub fn assert_init_valid(self: *Self) *Self {
 
 /// Whether or not this symbol represents a type or not
 pub fn is_type(self: *const Self) bool {
-    return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.* == .type_param_decl;
+    return self.decl.?.* == .struct_decl or self.decl.?.* == .enum_decl or self.decl.?.* == .type_alias or self.decl.?.is_typelike_param_decl();
+}
+
+pub fn is_nominal_type(self: *const Self) bool {
+    if (self.storage == .@"extern") return true;
+    const decl = self.decl orelse return false;
+    return decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .context_decl;
 }
 
 pub fn is_trait(self: *const Self) bool {
@@ -239,7 +245,7 @@ pub fn monomorphize(
 
     for (key.items) |k| {
         switch (k) {
-            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.* == .type_param_decl) return self,
+            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.is_typelike_param_decl()) return self,
             .const_arg => |v| if (v.is_const_param_ref()) return self,
         }
     }

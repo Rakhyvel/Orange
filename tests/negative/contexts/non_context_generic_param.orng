@@ -1,0 +1,17 @@
+// non_context_generic_param.orng:10:24: error: expected a context, got the type `Float`
+//     do_twice[Int, Float](scale, 146)
+//                       ^
+// 
+context My_Context {
+    x: Int
+}
+
+fn main() -> Int {
+    do_twice[Int, Float](scale, 146)
+}
+
+fn do_twice[T, context C](f: T -> T with C, x: T) -> T with C {
+    f(f(x))
+}
+
+fn scale(x: Int) -> Int with My_Context { x * My_Context.x }

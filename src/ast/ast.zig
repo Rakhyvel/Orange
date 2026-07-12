@@ -2563,6 +2563,18 @@ pub const AST = union(enum) {
             self.symbol().?.decl.?.* == .const_param_decl;
     }
 
+    pub fn is_typelike_param_decl(ast: *AST) bool {
+        return ast.* == .type_param_decl or ast.* == .context_param_decl;
+    }
+
+    pub fn is_rigid_type_param(ast: *AST) bool {
+        return switch (ast.*) {
+            .type_param_decl => ast.type_param_decl.rigid,
+            .context_param_decl => ast.context_param_decl.rigid,
+            else => unreachable,
+        };
+    }
+
     pub fn refers_to_type(self: *AST) bool {
         return switch (self.*) {
             else => false,
