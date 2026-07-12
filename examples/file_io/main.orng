@@ -1,4 +1,4 @@
-fn main() -> ()!() with (core::IO, core::Allocating, core::Args, core::File_IO) {
+fn main() -> ()!() with (core::Writing, core::Allocating, core::Args, core::File_IO) {
     if core::Args.args.length != 3 {
         try @println("give me a first name and last name!")
         return .err

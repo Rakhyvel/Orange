@@ -79,7 +79,7 @@ fn build(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.Al
     try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
-    try compiler.compile(package_abs_path);
+    compiler.compile(package_abs_path) catch return error.CompileError;
 
     if (std.mem.eql(u8, name, "run")) {
         try run(compiler, package_abs_path, args, allocator);
@@ -135,7 +135,7 @@ fn @"test"(name: []const u8, args: *std.process.ArgIterator, allocator: std.mem.
     try compiler.determine_if_modified(package_abs_path);
     compiler.collect_types();
     try Codegen_Context.output_modules(compiler);
-    try compiler.compile(package_abs_path);
+    compiler.compile(package_abs_path) catch return error.CompileError;
 
     try run(compiler, package_abs_path, args, allocator);
 }
@@ -303,7 +303,7 @@ pub fn init_project(name: []const u8, args: *std.process.ArgIterator, allocator:
     defer main_orng.close();
 
     const main_content =
-        \\fn main() -> ()!() with core::IO {
+        \\fn main() -> ()!() with core::Writing {
         \\    @println("Hello, World!")
         \\}
     ;

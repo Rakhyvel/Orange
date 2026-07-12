@@ -24,7 +24,7 @@ enum Error {
 
 impl for String_Buffer {
     fn init() -> String_Buffer with core::Allocating {
-        String_Buffer(.none, 0, core::Allocating.alloc)
+        String_Buffer(.none, 0, core::Allocating)
     }
 
     fn init_with_contents(contents: String) -> Error!String_Buffer with core::Allocating {

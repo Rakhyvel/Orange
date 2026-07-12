@@ -208,7 +208,7 @@ extern ("SDL_EVENT_MOUSE_MOTION") const event_mouse_motion: Word32
 extern ("SDL_EVENT_MOUSE_BUTTON_DOWN") const event_mouse_button_down: Word32
 extern ("SDL_EVENT_MOUSE_BUTTON_UP") const event_mouse_button_up: Word32
 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     try init(.video = true)
     defer quit()
 
