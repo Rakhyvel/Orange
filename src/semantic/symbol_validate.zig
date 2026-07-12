@@ -94,6 +94,23 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
+    // Validate that `with`s are contexts
+    if (symbol.kind == .@"fn") {
+        const maybe_context_param_symbols = symbol.decl.?.context_param_symbols();
+        if (maybe_context_param_symbols) |context_param_symbols| {
+            for (context_param_symbols.items) |context_symbol| {
+                const context_type = context_symbol.type().strip_addrs();
+                if (context_type.* != .context_type) {
+                    self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                        .span = context_symbol.span(),
+                        .got = context_type,
+                    } });
+                    return error.CompileError;
+                }
+            }
+        }
+    }
+
     // Check that tests are requesting good contexts
     if (symbol.kind == .@"test") {
         const args_ = @import("args.zig");
