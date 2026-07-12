@@ -129,7 +129,12 @@ pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Conte
             if (symbol_type.* == .addr_of and context_type.* != .addr_of) {
                 symbol_type = symbol_type.child();
             }
+            try walker_.walk_type(context_type, Decorate.new(ctx));
             try walker_.walk_type(symbol_type, Decorate.new(ctx));
+            const is_context_like = symbol_type.* == .context_type or
+                (symbol_type.* == .identifier and symbol_type.symbol() != null and symbol_type.symbol().?.kind == .context) or
+                std.mem.startsWith(u8, symbol.name, "context_value__");
+            if (!is_context_like) continue;
             if (context_type.types_match(symbol_type)) {
                 return symbol;
             }

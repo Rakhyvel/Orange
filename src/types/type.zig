@@ -1143,8 +1143,8 @@ pub const Type_AST = union(enum) {
     pub fn types_match(A: *Type_AST, B: *Type_AST) bool {
         // FIXME: High Cyclo
         // std.debug.print("{f} == {f}\n", .{ A, B });
-        // Tree_Writer.print_type_tree(A);
-        // Tree_Writer.print_type_tree(B);
+        // Tree_Writer.print(A);
+        // Tree_Writer.print(B);
         // std.debug.print("\n", .{});
         if (A.* == .annotation) {
             return types_match(A.child(), B);
@@ -1168,14 +1168,19 @@ pub const Type_AST = union(enum) {
         if (A.is_ident_type("Void")) {
             return true; // Bottom type - vacuously true
         }
-        if (A.* == .identifier and A.symbol().?.is_alias() and A != A.expand_identifier()) {
+        if (A.* == .identifier and A.symbol() != null and A.symbol().?.is_alias() and A != A.expand_identifier()) {
             // If A is a type alias, expand
             // std.debug.print("{f} => {f}\n", .{ A, A.expand_identifier() });
             return types_match(A.expand_identifier(), B);
-        } else if (B.* == .identifier and B.symbol().?.is_alias() and B != B.expand_identifier()) {
+        } else if (B.* == .identifier and B.symbol() != null and B.symbol().?.is_alias() and B != B.expand_identifier()) {
             // std.debug.print("{f} => {f}\n", .{ B, B.expand_identifier() });
             // If B is a type alias, expand
             return types_match(A, B.expand_identifier());
+        }
+        const A_nominal = A.* == .identifier and A.symbol() != null and A.symbol().?.is_nominal_type();
+        const B_nominal = B.* == .identifier and B.symbol() != null and B.symbol().?.is_nominal_type();
+        if (A_nominal and B_nominal) {
+            return A.symbol() == B.symbol();
         }
         if (A.* == .identifier and B.* != .identifier and A != A.expand_identifier()) {
             // If only A is an identifier, and A isn't an atom type, dive

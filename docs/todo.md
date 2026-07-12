@@ -243,7 +243,7 @@
         - [x] `-Wlogical-op`
         - [x] `-Wshadow`
         - [x] `-Wmisleading-indentation`
-- [ ] pattern matching
+- [x] pattern matching
     - [x] `let` product destructuring
         - [x] `mut` applies before symbols
         - [x] Identifiers define new symbols, having a name repeat is a redefinition error
@@ -284,8 +284,8 @@
             > For each symbol defined, it must have the same type for all cases
         - [ ] `pattern if cond => rhs` for arbitrary additional conditions in match cases
             > I don't like how this is a pattern in itself in rust
-        - [ ] `low..upp` for ranges, like in Zig. Can leave off `low` or `upp` to be (theoretically) "negative and positive infinity", respectively
-            - [ ] should work for floats, also
+        - [x] `low..upp` for ranges, like in Zig. Can leave off `low` or `upp` to be (theoretically) "negative and positive infinity", respectively
+            - [x] should work for floats, also
 - [ ] new optimizations
     - [x] measure source-to-output ratio
     - [x] string literals should be indexed at compile-time, dont do runtime check
@@ -515,11 +515,11 @@
         - [x] `Array_List`
         - [ ] `Double_Linked_List`
     - [x] HashMap
-- [ ] Memory
+- [x] Memory
     - [x] `trait Allocator`
     - [x] `const Fixed_Buffer_Allocator`
     - [x] `const Arena_Allocator`
-    - [ ] `impl Eq for []T\Eq`
+    - [x] `impl Eq for []T\Eq`
 - [x] Strings
     - [x] String Buffer
 - [x] UTF8

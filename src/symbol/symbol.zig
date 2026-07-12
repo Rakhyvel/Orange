@@ -293,7 +293,10 @@ pub fn monomorphize(
             }
         }
 
+        try walker_.walk_ast(self.decl.?, Decorate.new(ctx));
+
         // Clone the decl with the substitution
+        // unification_.print_substitutions(&subst);
         const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
 

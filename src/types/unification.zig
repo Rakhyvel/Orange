@@ -334,7 +334,7 @@ fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.ar
 pub fn type_param_list_from_subst_map(subst: *const Substitutions, generic_params: std.array_list.Managed(*ast_.AST), alloc: std.mem.Allocator) std.array_list.Managed(*Type_AST) {
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
-        if (type_param.is_typelike_param_decl()) continue;
+        if (!type_param.is_typelike_param_decl()) continue;
         const with_value = subst.get_type(type_param.symbol().?.name) orelse continue;
         retval.append(with_value) catch unreachable;
     }
@@ -345,7 +345,7 @@ pub fn generic_arg_list_from_subst_map(subst: *const Substitutions, generic_para
     var retval = std.array_list.Managed(ast_.GenericArg).init(alloc);
     for (generic_params.items) |param| {
         switch (param.*) {
-            .type_param_decl => {
+            .type_param_decl, .context_param_decl => {
                 const with_value = subst.get_type(param.symbol().?.name) orelse continue;
                 retval.append(.{ .type_arg = with_value }) catch unreachable;
             },
@@ -398,7 +398,7 @@ pub fn const_arg_is_concrete(arg: *ast_.AST) bool {
 }
 
 pub fn print_substitutions(subst: *const Substitutions) void {
-    std.debug.print("{} substitutions: {{\n", .{subst.type_subst.keys().len});
+    std.debug.print("{} substitutions: {{\n", .{subst.type_subst.keys().len + subst.const_subst.keys().len});
     for (subst.type_subst.keys()) |key| {
         const ty = subst.get_type(key).?;
         const bad = ty.is_generic();

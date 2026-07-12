@@ -470,11 +470,35 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 );
             }
 
-            try self.validate_context(expanded_lhs_type, ast);
+            var fn_type = expanded_lhs_type;
+            if (ast.lhs().* == .generic_apply) {
+                const callee_sym = ast.lhs().symbol().?;
+                const callee_params = callee_sym.decl.?.generic_params().items;
+                if (callee_params.len > 0) {
+                    // monomorphize early-returned the template
+                    var s = unification_.Substitutions.init(self.ctx.allocator());
+                    var param_i: usize = 0;
+                    for (ast.lhs().generic_apply._children.items) |arg| {
+                        switch (arg) {
+                            .type_arg => |ty| {
+                                if (ty.* == .eq_constraint) continue;
+                                s.put_type(callee_params[param_i].symbol().?.name, ty) catch unreachable;
+                                param_i += 1;
+                            },
+                            .const_arg => |v| {
+                                s.put_const(callee_params[param_i].symbol().?.name, v) catch unreachable;
+                                param_i += 1;
+                            },
+                        }
+                    }
+                    fn_type = expanded_lhs_type.clone(&s, self.ctx.allocator());
+                }
+            }
+            try self.validate_context(fn_type, ast);
 
-            const domain = expanded_lhs_type.function.args;
-            const codomain = expanded_lhs_type.rhs();
-            const variadic = expanded_lhs_type.function.variadic;
+            const domain = fn_type.function.args;
+            const codomain = fn_type.rhs();
+            const variadic = fn_type.function.variadic;
 
             // Peel any extra addrof off an FQS receiver
             if (ast.lhs().* == .type_access and domain.items.len > 0 and ast.children().items.len > 0) {

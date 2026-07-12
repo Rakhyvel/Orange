@@ -1819,7 +1819,14 @@ pub const AST = union(enum) {
                 retval.invoke.prepended = self.invoke.prepended;
                 return retval;
             },
-            .dyn_value => unreachable, // Shouldn't exist yet... have to clone scope?
+            .dyn_value => return create_dyn_value(
+                self.token(),
+                self.dyn_value.dyn_type.clone(substs, allocator),
+                self.dyn_value._expr.clone(substs, allocator),
+                self.dyn_value._scope.?,
+                self.dyn_value.mut,
+                allocator,
+            ),
             .enum_value => {
                 var retval = create_enum_value(self.token(), allocator);
                 retval.enum_value.init = if (self.enum_value.init) |init| init.clone(substs, allocator) else null;

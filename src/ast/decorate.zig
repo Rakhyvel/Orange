@@ -327,11 +327,14 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
         },
 
         .write => {
+            const scope = ast.scope().?;
             const format_all_call = try self.create_format_all_call(ast, ast.write.writer);
             ast.* = format_all_call.*;
+            try self.scope_subtree(ast, scope);
         },
 
         .print => {
+            const scope = ast.scope().?;
             const context_val_symbol = try ast.scope().?.context_lookup(core_.io_context, self.ctx) orelse {
                 self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
                     .span = ast.token().span,
@@ -351,13 +354,15 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             const writer = ast_.AST.create_select(writer_token, io_context, writer_field, self.ctx.allocator());
 
             const format_all_call = try self.create_format_all_call(ast, writer);
-
             ast.* = format_all_call.*;
+            try self.scope_subtree(ast, scope);
         },
 
         .format_args => {
+            const scope = ast.scope().?;
             const format_args_slice = try self.create_format_args_slice(ast);
             ast.* = format_args_slice.*;
+            try self.scope_subtree(ast, scope);
         },
 
         .decl => {
@@ -660,7 +665,18 @@ fn rewrite_lvalue(self: *const Self, node: *ast_.AST) walk_.Error!void {
 }
 
 fn create_format_all_call(self: *const Self, ast: *ast_.AST, writer: *ast_.AST) !*ast_.AST {
-    var format_all = ast_.AST.create_identifier(ast.token(), self.ctx.allocator());
+    var core_token = ast.token();
+    core_token.data = "core";
+    const core_ident = ast_.AST.create_identifier(core_token, self.ctx.allocator());
+    var fa_token = ast.token();
+    fa_token.data = "format_all";
+    const format_all = ast_.AST.create_access(
+        ast.token(),
+        core_ident,
+        ast_.AST.create_field(fa_token, self.ctx.allocator()),
+        self.ctx.allocator(),
+    );
+
     format_all.set_symbol(self.ctx.get_core_symbol("format_all"));
     var args = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
     try args.append(writer);
