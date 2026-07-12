@@ -221,17 +221,23 @@ pub fn output_common_types(self: *Self) CodeGen_Error!void {
 
 pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_Error!void {
     for (contexts_used.pairs.items) |pair| {
-        const ctx = pair.key.child();
+        const ctx = pair.key;
         if (ctx.types_match(core_.allocating_context)) {
             try self.output_type(core_.allocating_context);
             try self.writer.print(
-                \\ allocator_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__allocator_vtable}}}};
+                \\ allocator_context = {{.data_ptr = NULL, .vtable = &orange__core__allocator_vtable}};
                 \\    
             , .{});
         } else if (ctx.types_match(core_.writing_context)) {
             try self.output_type(core_.writing_context);
             try self.writer.print(
-                \\ writing_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}}, ._1 = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}}}};
+                \\ writing_context = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}};
+                \\    
+            , .{});
+        } else if (ctx.types_match(core_.reading_context)) {
+            try self.output_type(core_.reading_context);
+            try self.writer.print(
+                \\ reading_context = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}};
                 \\    
             , .{});
         } else if (ctx.types_match(core_.args_context)) {
@@ -243,7 +249,7 @@ pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_
         } else if (ctx.types_match(core_.file_io_context)) {
             try self.output_type(core_.file_io_context);
             try self.writer.print(
-                \\ file_io_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__file_system_vtable}}}};
+                \\ file_io_context = {{.data_ptr = NULL, .vtable = &orange__core__file_system_vtable}};
                 \\    
             , .{});
         }
@@ -252,15 +258,14 @@ pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_
 
 pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Error!void {
     for (contexts, 0..) |ctx, i| {
-        std.debug.assert(ctx.* == .addr_of);
-        if (ctx.child().types_match(core_.allocating_context)) {
-            try self.writer.print("&allocator_context", .{});
-        } else if (ctx.child().types_match(core_.writing_context)) {
-            try self.writer.print("&writing_context", .{});
-        } else if (ctx.child().types_match(core_.args_context)) {
-            try self.writer.print("&args_context", .{});
-        } else if (ctx.child().types_match(core_.file_io_context)) {
-            try self.writer.print("&file_io_context", .{});
+        if (ctx.types_match(core_.allocating_context)) {
+            try self.writer.print("allocator_context", .{});
+        } else if (ctx.types_match(core_.writing_context)) {
+            try self.writer.print("writing_context", .{});
+        } else if (ctx.types_match(core_.args_context)) {
+            try self.writer.print("args_context", .{});
+        } else if (ctx.types_match(core_.file_io_context)) {
+            try self.writer.print("file_io_context", .{});
         }
         if (i + 1 < contexts.len) {
             try self.writer.print(", ", .{});

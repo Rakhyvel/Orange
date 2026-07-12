@@ -1,7 +1,5 @@
 // 588
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn main() -> Int {
     let doer = Doer[Int, My_Context]()
@@ -19,4 +17,4 @@ impl[T, context C] for Doer[T, C] {
     }
 }
 
-fn scale(x: Int) -> Int with My_Context { x * My_Context.x }
+fn scale(x: Int) -> Int with My_Context { x * My_Context }

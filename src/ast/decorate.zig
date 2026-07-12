@@ -360,12 +360,8 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             writer_token.data = context_val_symbol.name;
             const writing_context = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
             writing_context.set_symbol(context_val_symbol);
-            var writer_field_token = ast.token();
-            writer_field_token.data = "writer";
-            const writer_field = ast_.AST.create_field(writer_field_token, self.ctx.allocator());
-            const writer = ast_.AST.create_select(writer_token, writing_context, writer_field, self.ctx.allocator());
 
-            const format_all_call = try self.create_format_all_call(ast, writer);
+            const format_all_call = try self.create_format_all_call(ast, writing_context);
             ast.* = format_all_call.*;
             try self.scope_subtree(ast, scope);
         },

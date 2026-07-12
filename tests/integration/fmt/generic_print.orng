@@ -6,10 +6,10 @@ impl core::Format for Int {
     }
 }
 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     print_something[Int](371)
 }
 
-fn print_something[T: core::Format](t: T) -> ()!() with core::IO {
+fn print_something[T: core::Format](t: T) -> ()!() with core::Writing {
     @print("{t}")
 }

@@ -1,16 +1,14 @@
 // 585
 fn main() -> Int {
     let mut arr = [1, 2, 3]
-    fn f(x: Int) -> Int with My_Context { x * My_Context.x }
+    fn f(x: Int) -> Int with My_Context { x * My_Context }
     with My_Context(195) {
         map_array[Int, 3, My_Context](f, &mut arr)
     }
     arr[2]
 }
 
-context My_Context {
-    x: Int
-}
+context My_Context = Int
 
 fn map_array[T, const n: Int, context C](f: T -> T with C, xs: &mut [n]T) with C {
     for i in 0..n {

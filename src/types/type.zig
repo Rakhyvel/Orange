@@ -916,12 +916,7 @@ pub const Type_AST = union(enum) {
             },
             .context_type => {
                 try out.print("context {{", .{});
-                for (self.children().items, 0..) |term, i| {
-                    try term.print_type(out);
-                    if (i + 1 < self.children().items.len) {
-                        try out.print(", ", .{});
-                    }
-                }
+                try self.child().print_type(out);
                 try out.print("}}", .{});
             },
             .tuple_type => {

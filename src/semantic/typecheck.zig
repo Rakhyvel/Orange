@@ -227,6 +227,19 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 } });
                 return error.CompileError;
             }
+            const ref = Type_AST.create_type_identifier(ast.token(), self.ctx.allocator());
+            ref.set_symbol(symbol);
+            if (try ref.resolve_context_reference(self.ctx)) |resolved| {
+                const context_val_symbol = try ast.scope().?.context_lookup(resolved, self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+                        .span = ast.token().span,
+                        .context = resolved,
+                    } });
+                    return error.CompileError;
+                };
+                ast.set_symbol(context_val_symbol);
+                return resolved.symbol().?.init_typedef().?.expand_identifier().child();
+            }
 
             if (symbol.is_type()) {
                 if (expected != null) {

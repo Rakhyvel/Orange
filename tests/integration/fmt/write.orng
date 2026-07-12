@@ -1,6 +1,6 @@
 // Hello, World!
 
-fn main() -> ()!() with core::IO {
-    try @write(core::IO.writer, "Hello, World!")
+fn main() -> ()!() with core::Writing {
+    try @write(core::Writing, "Hello, World!")
     .ok
 }
