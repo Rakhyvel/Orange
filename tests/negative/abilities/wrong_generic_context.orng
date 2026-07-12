@@ -1,0 +1,19 @@
+// wrong_generic_context.orng:11:46: error: expected a value of type `Int->Int with My_Other_Context`, got a value of type `Int->Int with My_Ability`
+//         do_twice[Int, My_Other_Context](scale, 146)
+//                                             ^
+// 
+abilityMy_Ability = Int
+
+abilityMy_Other_Context = Int
+
+fn main() -> Int {
+    with My_Other_Context(2) {
+        do_twice[Int, My_Other_Context](scale, 146)
+    }
+}
+
+fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
+    f(f(x))
+}
+
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

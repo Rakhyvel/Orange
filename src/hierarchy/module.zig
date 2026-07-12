@@ -270,9 +270,9 @@ pub const Module = struct {
                 self.entry = cfg;
                 found_entry = true;
 
-                // Check for entry context requirements
+                // Check for entry ability requirements
                 const args_ = @import("../semantic/args.zig");
-                try args_.validate_requested_contexts(cfg.symbol.type().function.contexts.items, &compiler.errors);
+                try args_.validate_requested_abilities(cfg.symbol.type().function.abilities.items, &compiler.errors);
             }
         }
         if (need_entry and !found_entry) {

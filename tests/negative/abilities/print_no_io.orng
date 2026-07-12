@@ -1,4 +1,4 @@
-// print_no_io.orng:6:11: error: missing context `Writing`
+// print_no_io.orng:6:11: error: missing ability`Writing`
 //     @print("Hello, World!")
 //          ^
 // 

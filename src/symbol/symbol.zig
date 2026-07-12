@@ -32,7 +32,7 @@ pub const Kind = union(enum) {
     import_inner, // Created from the inner expressions of qualified import statements, similar to consts
     module, // Refers to modules. The init is the `module` AST, which refers to the module and to the scope. `Module`s have their symbol
     @"test",
-    context,
+    ability,
 };
 
 pub const Storage = union(enum) {
@@ -112,7 +112,7 @@ pub fn is_type(self: *const Self) bool {
 pub fn is_nominal_type(self: *const Self) bool {
     if (self.storage == .@"extern") return true;
     const decl = self.decl orelse return false;
-    return decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .context_decl;
+    return decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .ability_decl;
 }
 
 pub fn is_trait(self: *const Self) bool {
@@ -141,8 +141,8 @@ pub fn set_span(self: *Self, _span: Span) void {
 
 pub fn expanded_type(self: *const Self) *Type_AST {
     var expanded = self.type().expand_identifier();
-    // context values are represented as their underlying value
-    while (expanded.* == .context_type) expanded = expanded.child().expand_identifier();
+    // ability values are represented as their underlying value
+    while (expanded.* == .ability_type) expanded = expanded.child().expand_identifier();
     return expanded;
 }
 
@@ -168,7 +168,7 @@ pub fn err_if_undefined(self: *Self, errors: *errs_.Errors) error{CompileError}!
 /// Throws an `error.CompileError` if a symbol is not used.
 pub fn err_if_unused(self: *Self, errors: *errs_.Errors) error{CompileError}!void {
     if (self.kind != .@"const" and self.uses == 0) {
-        // TODO: Add a better error for contexts, say `context My_Context is unused` or something
+        // TODO: Add a better error for abilities, say `ability My_Ability is unused` or something
         errors.add_error(errs_.Error{ .symbol_error = .{
             .span = self.span(),
             .context_span = null,
@@ -276,7 +276,7 @@ pub fn monomorphize(
                 .const_param_decl => {
                     try subst.put_const(param.symbol().?.name, arg.const_arg);
                 },
-                .context_param_decl => {
+                .ability_param_decl => {
                     try subst.put_type(param.symbol().?.name, arg.type_arg);
                 },
                 else => unreachable,

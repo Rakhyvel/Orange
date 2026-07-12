@@ -86,12 +86,12 @@ pub const Type_AST = union(enum) {
         common: Type_AST_Common,
         args: std.array_list.Managed(*Type_AST),
         _rhs: *Type_AST,
-        contexts: std.array_list.Managed(*Type_AST),
+        abilities: std.array_list.Managed(*Type_AST),
         variadic: bool = false,
 
-        pub fn contains_context(self: *@This(), context_type: *Type_AST) bool {
-            for (self.contexts.items) |ctx| {
-                if (context_type.types_match(ctx.child())) {
+        pub fn contains_ability(self: *@This(), ability_type: *Type_AST) bool {
+            for (self.abilities.items) |ab| {
+                if (ability_type.types_match(ab.child())) {
                     return true;
                 }
             }
@@ -137,7 +137,7 @@ pub const Type_AST = union(enum) {
         common: Type_AST_Common,
         _child: *Type_AST,
     },
-    context_type: struct {
+    ability_type: struct {
         common: Type_AST_Common,
         _child: *Type_AST,
     },
@@ -313,13 +313,13 @@ pub const Type_AST = union(enum) {
         } }, allocator);
     }
 
-    pub fn create_function(_token: Token, args: std.array_list.Managed(*Type_AST), _rhs: *Type_AST, contexts: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
+    pub fn create_function(_token: Token, args: std.array_list.Managed(*Type_AST), _rhs: *Type_AST, abilities: std.array_list.Managed(*Type_AST), allocator: std.mem.Allocator) *Type_AST {
         const _common: Type_AST_Common = .{ ._token = _token };
         return Type_AST.box(Type_AST{ .function = .{
             .common = _common,
             .args = args,
             ._rhs = _rhs,
-            .contexts = contexts,
+            .abilities = abilities,
         } }, allocator);
     }
 
@@ -342,8 +342,8 @@ pub const Type_AST = union(enum) {
         );
     }
 
-    pub fn create_context_type(_token: Token, _child: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
-        return Type_AST.box(Type_AST{ .context_type = .{
+    pub fn create_ability_type(_token: Token, _child: *Type_AST, allocator: std.mem.Allocator) *Type_AST {
+        return Type_AST.box(Type_AST{ .ability_type = .{
             .common = Type_AST_Common{ ._token = _token },
             ._child = _child,
         } }, allocator);
@@ -775,13 +775,13 @@ pub const Type_AST = union(enum) {
         }
     }
 
-    pub fn resolve_context_reference(self: *Type_AST, ctx: *Compiler_Context) !?*Type_AST {
+    pub fn resolve_ability_reference(self: *Type_AST, ctx: *Compiler_Context) !?*Type_AST {
         var cur = self;
         while (true) {
             try walker_.walk_type(cur, Decorate.new(ctx));
             if (!cur.has_symbol() or cur.symbol() == null) return null;
             const sym = cur.symbol().?;
-            if (sym.kind == .context) return cur;
+            if (sym.kind == .ability) return cur;
             if (sym.is_alias()) {
                 cur = sym.init_typedef() orelse return null;
                 continue;
@@ -889,10 +889,10 @@ pub const Type_AST = union(enum) {
                 if (self.function.args.items.len != 1) try out.print(")", .{});
                 try out.print("->", .{});
                 try self.rhs().print_type(out);
-                if (self.function.contexts.items.len > 0) {
+                if (self.function.abilities.items.len > 0) {
                     try out.print(" with ", .{});
-                    for (self.function.contexts.items) |ctx| {
-                        try ctx.print_type(out);
+                    for (self.function.abilities.items) |ab| {
+                        try ab.print_type(out);
                     }
                 }
             },
@@ -914,8 +914,8 @@ pub const Type_AST = union(enum) {
                 }
                 try out.print("}}", .{});
             },
-            .context_type => {
-                try out.print("context {{", .{});
+            .ability_type => {
+                try out.print("ability {{", .{});
                 try self.child().print_type(out);
                 try out.print("}}", .{});
             },
@@ -1060,7 +1060,7 @@ pub const Type_AST = union(enum) {
 
             .unit_type => return 0,
 
-            .annotation, .context_type => return self.child().sizeof(),
+            .annotation, .ability_type => return self.child().sizeof(),
 
             else => std.debug.panic("compiler error: unimplemented sizeof() for {t}", .{self.*}),
         }
@@ -1115,7 +1115,7 @@ pub const Type_AST = union(enum) {
 
             .unit_type => return 1, // fogedda bout it
 
-            .annotation, .array_of, .context_type => return self.child().alignof(),
+            .annotation, .array_of, .ability_type => return self.child().alignof(),
 
             else => std.debug.panic("compiler error: unimplemented alignof for {s}", .{@tagName(self.*)}),
         }
@@ -1200,9 +1200,9 @@ pub const Type_AST = union(enum) {
             // If only B is an identifier, and B isn't an atom type, dive
             return types_match(A, B.expand_identifier());
         }
-        if (A.* == .context_type) {
+        if (A.* == .ability_type) {
             return types_match(A.child(), B);
-        } else if (B.* == .context_type) {
+        } else if (B.* == .ability_type) {
             return types_match(A, B.child());
         }
         if (A.* == .poison or B.* == .poison) {
@@ -1473,7 +1473,7 @@ pub const Type_AST = union(enum) {
             .unit_type => return other.* == .unit_type,
             .anyptr_type => return other.* == .anyptr_type,
             .dyn_type => return self.child().symbol() == other.child().symbol(),
-            .struct_type, .tuple_type, .enum_type, .untagged_sum_type, .context_type => {
+            .struct_type, .tuple_type, .enum_type, .untagged_sum_type, .ability_type => {
                 if (other.children().items.len != self.children().items.len) {
                     return false;
                 }
@@ -1551,8 +1551,8 @@ pub const Type_AST = union(enum) {
             .function => {
                 const args = clone_types(self.function.args, substs, allocator);
                 const _rhs = clone(self.rhs(), substs, allocator);
-                const contexts = clone_types(self.function.contexts, substs, allocator);
-                return create_function(self.token(), args, _rhs, contexts, allocator);
+                const abilities = clone_types(self.function.abilities, substs, allocator);
+                return create_function(self.token(), args, _rhs, abilities, allocator);
             },
             .enum_type => {
                 const new_children = clone_types(self.children().*, substs, allocator);
@@ -1571,9 +1571,9 @@ pub const Type_AST = union(enum) {
                 retval.struct_type.was_slice = self.struct_type.was_slice;
                 return retval;
             },
-            .context_type => {
+            .ability_type => {
                 const _child = clone(self.child(), substs, allocator);
-                return create_context_type(self.token(), _child, allocator);
+                return create_ability_type(self.token(), _child, allocator);
             },
             .tuple_type => {
                 const new_children = clone_types(self.children().*, substs, allocator);
@@ -1609,7 +1609,7 @@ pub const Type_AST = union(enum) {
 
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
-            .anyptr_type, .unit_type, .dyn_type, .as_trait, .context_type => false, // I added as_trait, not sure if it should actually do more stuff or just be false
+            .anyptr_type, .unit_type, .dyn_type, .as_trait, .ability_type => false, // I added as_trait, not sure if it should actually do more stuff or just be false
             .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.is_typelike_param_decl(),
             .addr_of => _type.child().is_generic(),
             .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
@@ -1763,7 +1763,7 @@ pub const Type_AST = union(enum) {
         return self.* == .identifier and self.symbol() != null and self.symbol().?.decl.?.* == .type_param_decl;
     }
 
-    pub fn is_context(self: *const Type_AST) bool {
-        return (self.has_symbol() and self.symbol().?.kind == .context) or self.* == .context_type;
+    pub fn is_ability(self: *const Type_AST) bool {
+        return (self.has_symbol() and self.symbol().?.kind == .ability) or self.* == .ability_type;
     }
 };

@@ -1,18 +1,18 @@
 // 576
 fn main() -> Int {
-    with My_Context(8) {
-        outer[Int, My_Context](scale, 9)
+    with My_Ability(8) {
+        outer[Int, My_Ability](scale, 9)
     }
 }
 
-context My_Context = Int
+abilityMy_Ability = Int
 
-fn scale(x: Int) -> Int with My_Context { x * My_Context }
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }
 
-fn outer[T, context C](f: T -> T with C, x: T) -> T with C {
+fn outer[T, abilityC](f: T -> T with C, x: T) -> T with C {
     do_twice[T, C](f, x)
 }
 
-fn do_twice[T, context C](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }

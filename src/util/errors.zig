@@ -107,7 +107,7 @@ pub const Error = union(enum) {
         symbol_name: []const u8,
         num_generics: usize,
     },
-    expected_context: struct {
+    expected_ability: struct {
         span: Span,
         got: *Type_AST,
     },
@@ -215,10 +215,10 @@ pub const Error = union(enum) {
         trait_name: []const u8,
     },
 
-    // Contexts
-    missing_context: struct {
+    // Abilities
+    missing_ability: struct {
         span: Span,
-        context: *Type_AST,
+        ability: *Type_AST,
     },
 
     // Typecheck
@@ -375,7 +375,7 @@ pub const Error = union(enum) {
             .not_inside_function => return self.not_inside_function.span,
             .import_file_not_found => return self.import_file_not_found.span,
             .unapplied_generic => return self.unapplied_generic.span,
-            .expected_context => return self.expected_context.span,
+            .expected_ability => return self.expected_ability.span,
 
             .reimpl => return self.reimpl.redefined_span,
             .type_not_impl_method => return self.type_not_impl_method.span,
@@ -395,7 +395,7 @@ pub const Error = union(enum) {
             .trait_virtual_refers_to_self => return self.trait_virtual_refers_to_self.span,
             .invoke_not_virtual => return self.invoke_not_virtual.span,
 
-            .missing_context => return self.missing_context.span,
+            .missing_ability => return self.missing_ability.span,
 
             .unexpected_type => return self.unexpected_type.span,
             .non_convertible => return self.non_convertible.span,
@@ -491,9 +491,9 @@ pub const Error = union(enum) {
                 err.unapplied_generic.num_generics,
                 if (err.unapplied_generic.num_generics != 1) "s" else "",
             }) catch unreachable,
-            .expected_context => {
-                writer.print("expected a context, got the type `", .{}) catch unreachable;
-                err.expected_context.got.print_type(writer) catch unreachable;
+            .expected_ability => {
+                writer.print("expected a ability, got the type `", .{}) catch unreachable;
+                err.expected_ability.got.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
             },
 
@@ -616,10 +616,10 @@ pub const Error = union(enum) {
                 }) catch unreachable;
             },
 
-            // Contexts
-            .missing_context => {
-                writer.print("missing context `{f}`\n", .{
-                    err.missing_context.context,
+            // Abilities
+            .missing_ability => {
+                writer.print("missing ability `{f}`\n", .{
+                    err.missing_ability.ability,
                 }) catch unreachable;
             },
 

@@ -1,0 +1,9 @@
+// use_missing_context.orng:8:15: error: missing ability`My_Ability`
+//     My_Ability
+//              ^
+// 
+abilityMy_Ability = Int
+
+fn main() -> Int {
+    My_Ability
+}

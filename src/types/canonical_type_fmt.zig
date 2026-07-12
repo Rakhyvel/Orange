@@ -98,7 +98,7 @@ fn hash_type_internal(
             try writer.print("tuple{}", .{non_unit_len(real_type)});
             try append_tuple_fields(real_type, seen_map, next_id, writer);
         },
-        .context_type => {
+        .ability_type => {
             try hash_type_internal(real_type.child(), seen_map, next_id, writer);
         },
         .array_of => {

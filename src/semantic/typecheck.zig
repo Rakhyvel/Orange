@@ -173,18 +173,18 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             const ref = Type_AST.create_type_identifier(ast.token(), self.ctx.allocator());
             ref.set_symbol(symbol);
-            if (try ref.resolve_context_reference(self.ctx)) |resolved| {
-                const context_val_symbol = try ast.scope().?.context_lookup(resolved, self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+            if (try ref.resolve_ability_reference(self.ctx)) |resolved| {
+                const ability_val_symbol = try ast.scope().?.ability_lookup(resolved, self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .missing_ability = .{
                         .span = ast.token().span,
-                        .context = resolved,
+                        .ability = resolved,
                     } });
                     return error.CompileError;
                 };
-                ast.set_symbol(context_val_symbol);
+                ast.set_symbol(ability_val_symbol);
                 return resolved.symbol().?.init_typedef().?.expand_identifier().child();
             }
-            if (symbol.is_type() or symbol.kind == .context) {
+            if (symbol.is_type() or symbol.kind == .ability) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
                     return error.CompileError;
@@ -229,15 +229,15 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
             const ref = Type_AST.create_type_identifier(ast.token(), self.ctx.allocator());
             ref.set_symbol(symbol);
-            if (try ref.resolve_context_reference(self.ctx)) |resolved| {
-                const context_val_symbol = try ast.scope().?.context_lookup(resolved, self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+            if (try ref.resolve_ability_reference(self.ctx)) |resolved| {
+                const ability_val_symbol = try ast.scope().?.ability_lookup(resolved, self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .missing_ability = .{
                         .span = ast.token().span,
-                        .context = resolved,
+                        .ability = resolved,
                     } });
                     return error.CompileError;
                 };
-                ast.set_symbol(context_val_symbol);
+                ast.set_symbol(ability_val_symbol);
                 return resolved.symbol().?.init_typedef().?.expand_identifier().child();
             }
 
@@ -520,7 +520,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     fn_type = expanded_lhs_type.clone(&s, self.ctx.allocator());
                 }
             }
-            try self.validate_context(fn_type, ast);
+            try self.validate_ability(fn_type, ast);
 
             const domain = fn_type.function.args;
             const codomain = fn_type.rhs();
@@ -606,7 +606,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return error.CompileError;
             }
             try self.ctx.validate_symbol.validate_symbol(symbol);
-            if (symbol.is_type() or symbol.kind == .context) {
+            if (symbol.is_type() or symbol.kind == .ability) {
                 if (expected != null) {
                     self.ctx.errors.add_error(errs_.Error{ .unexpected_type_type = .{ .expected = expected, .span = ast.token().span } });
                     return error.CompileError;
@@ -746,7 +746,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
 
             const domain = method_decl_type.function.args;
-            try self.validate_context(method_decl_type, ast);
+            try self.validate_ability(method_decl_type, ast);
 
             var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             ast.set_children(try args_validator.fill_default_args());
@@ -818,22 +818,22 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
             return Type_AST.create_dyn_type(ast.token(), ast.dyn_value.dyn_type.child(), ast.dyn_value.mut, self.ctx.allocator());
         },
-        .context_value => {
+        .ability_value => {
             // Canonicalzie alias spellings
-            if (try ast.context_value.parent.resolve_context_reference(self.ctx)) |resolved| {
-                ast.context_value.parent.* = resolved.*;
+            if (try ast.ability_value.parent.resolve_ability_reference(self.ctx)) |resolved| {
+                ast.ability_value.parent.* = resolved.*;
             }
-            try self.ctx.validate_type.validate_type(ast.context_value.parent);
-            const expanded_expected: *Type_AST = ast.context_value.parent.expand_identifier();
-            if (ast.context_value.parent.expand_identifier().* != .context_type) {
-                // Parent wasn't even a context type!
-                return typing_.throw_wrong_from("context", "context value", ast.context_value.parent, ast.token().span, &self.ctx.errors);
+            try self.ctx.validate_type.validate_type(ast.ability_value.parent);
+            const expanded_expected: *Type_AST = ast.ability_value.parent.expand_identifier();
+            if (ast.ability_value.parent.expand_identifier().* != .ability_type) {
+                // Parent wasn't even an ability type!
+                return typing_.throw_wrong_from("ability", "ability value", ast.ability_value.parent, ast.token().span, &self.ctx.errors);
             }
             _ = try self.typecheck_AST(ast.expr(), expanded_expected.child(), subst);
-            if (expected != null and !ast.context_value.parent.types_match(expected.?)) {
-                return typing_.throw_unexpected_type(ast.token().span, expanded_expected.child(), ast.context_value.parent, &self.ctx.errors);
+            if (expected != null and !ast.ability_value.parent.types_match(expected.?)) {
+                return typing_.throw_unexpected_type(ast.token().span, expanded_expected.child(), ast.ability_value.parent, &self.ctx.errors);
             }
-            return ast.context_value.parent;
+            return ast.ability_value.parent;
         },
         .struct_value => {
             try self.ctx.validate_type.validate_type(ast.struct_value.parent);
@@ -1203,7 +1203,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             return prelude_.unit_type;
         },
         .with => {
-            for (ast.with.contexts.items) |child| {
+            for (ast.with.abilities.items) |child| {
                 _ = try self.typecheck_AST(child, null, subst);
             }
             return self.typecheck_AST(ast.with._body_block, expected, subst);
@@ -1270,18 +1270,18 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             try self.ctx.validate_symbol.validate_symbol(ast.decl.name.symbol().?);
             return prelude_.unit_type;
         },
-        .context_value_decl => {
-            try self.ctx.validate_type.validate_type(ast.context_value_decl.parent);
-            const stripped = ast.context_value_decl.parent.strip_addrs();
-            _ = try stripped.resolve_context_reference(self.ctx) orelse {
-                self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+        .ability_value_decl => {
+            try self.ctx.validate_type.validate_type(ast.ability_value_decl.parent);
+            const stripped = ast.ability_value_decl.parent.strip_addrs();
+            _ = try stripped.resolve_ability_reference(self.ctx) orelse {
+                self.ctx.errors.add_error(errs_.Error{ .expected_ability = .{
                     .span = ast.token().span,
                     .got = stripped,
                 } });
                 return error.CompileError;
             };
-            if (ast.context_value_decl.init) |_init| {
-                _ = self.typecheck_AST(_init, ast.context_value_decl.parent, subst) catch return error.CompileError;
+            if (ast.ability_value_decl.init) |_init| {
+                _ = self.typecheck_AST(_init, ast.ability_value_decl.parent, subst) catch return error.CompileError;
             }
             try self.ctx.validate_symbol.validate_symbol(ast.symbol().?);
             return prelude_.unit_type;
@@ -1635,20 +1635,20 @@ fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lh
     return null;
 }
 
-fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Validate_Error_Enum!void {
-    for (function_type.function.contexts.items) |context| {
-        var fn_ctx = context;
-        const symbol = try ast.scope().?.context_lookup(fn_ctx, self.ctx) orelse {
-            if (fn_ctx.* == .addr_of) {
-                fn_ctx = fn_ctx.child();
+fn validate_ability(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Validate_Error_Enum!void {
+    for (function_type.function.abilities.items) |ability| {
+        var fn_ab = ability;
+        const symbol = try ast.scope().?.ability_lookup(fn_ab, self.ctx) orelse {
+            if (fn_ab.* == .addr_of) {
+                fn_ab = fn_ab.child();
             }
-            self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+            self.ctx.errors.add_error(errs_.Error{ .missing_ability = .{
                 .span = ast.token().span,
-                .context = fn_ctx,
+                .ability = fn_ab,
             } });
             return error.CompileError;
         };
-        try ast.context_args().append(symbol);
+        try ast.ability_args().append(symbol);
     }
 }
 
@@ -1656,7 +1656,7 @@ fn validate_context(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Valid
 fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
         // These are all good
-        .select, .positional_select, .identifier, .array_value, .context_value, .string => {},
+        .select, .positional_select, .identifier, .array_value, .ability_value, .string => {},
 
         // A dereference is an lvalue IF its a deref of an lval, thats not an address
         .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {

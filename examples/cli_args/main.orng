@@ -1,6 +1,6 @@
 import std::fmt
 
-// The `Args` context allows functions to access the command-line arguments
+// The `Args` ability allows functions to access the command-line arguments
 fn main() -> ()!() with (core::Writing, core::Args) {
     try @println("given {core::Args.args.length} args:")
 

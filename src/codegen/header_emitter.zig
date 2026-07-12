@@ -160,7 +160,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
             const method_decl_has_receiver = decl.method_decl.receiver != null;
             const num_method_params = decl.children().items.len;
             const has_params = num_method_params + @intFromBool(method_decl_has_receiver) == 0;
-            const has_contexts = decl.method_decl.context_decls.items.len > 0;
+            const has_abilities = decl.method_decl.ability_decls.items.len > 0;
 
             try self.writer.print("    ", .{});
             try self.emitter.output_type(decl.method_decl.ret_type);
@@ -169,7 +169,7 @@ fn output_traits(self: *Self) CodeGen_Error!void {
             // Output receiver parameter
             if (method_decl_has_receiver) {
                 try self.writer.print("void *", .{});
-                if ((decl.children().items.len > 0 and Emitter.is_storable(decl.children().items[0].binding.type)) or has_contexts) {
+                if ((decl.children().items.len > 0 and Emitter.is_storable(decl.children().items[0].binding.type)) or has_abilities) {
                     try self.writer.print(", ", .{});
                 }
             }
@@ -179,19 +179,19 @@ fn output_traits(self: *Self) CodeGen_Error!void {
                 if (Emitter.is_storable(param_decl.binding.type)) {
                     // Do not output `void` parameters
                     try self.emitter.output_type(param_decl.binding.type);
-                    if ((i + 1 < num_method_params and Emitter.is_storable(decl.children().items[i + 1].binding.type)) or has_contexts) {
+                    if ((i + 1 < num_method_params and Emitter.is_storable(decl.children().items[i + 1].binding.type)) or has_abilities) {
                         try self.writer.print(", ", .{});
                     }
                 }
             }
 
-            // Output context parameters
-            for (decl.method_decl.context_decls.items) |param_decl| {
+            // Output ability parameters
+            for (decl.method_decl.ability_decls.items) |param_decl| {
                 if (has_params) {
                     try self.writer.print(", ", .{});
                 }
                 // Do not output `void` parameters
-                try self.emitter.output_type(param_decl.context_value_decl.parent);
+                try self.emitter.output_type(param_decl.ability_value_decl.parent);
             }
 
             if (has_params) {

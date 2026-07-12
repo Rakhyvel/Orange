@@ -1,0 +1,9 @@
+// invalid_entry_context.orng:7:33: error: can't request this context
+// fn main() -> Int with My_Ability {
+//                                ^
+// 
+abilityMy_Ability = Int
+
+fn main() -> Int with My_Ability {
+    My_Ability
+}

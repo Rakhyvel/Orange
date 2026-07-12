@@ -2,7 +2,7 @@ import std::io
 import std::string_buffer::String_Buffer
 
 fn main() -> ()!() with (core::Writing, core::Reading, core::Allocating) {
-    // `String_Buffer::init()` implicitly uses the allocator from the surrounding context
+    // `String_Buffer::init()` implicitly uses the allocator from the surrounding ability
     let mut first_name_buf = String_Buffer::init()
     defer first_name_buf.>deinit()
     let mut last_name_buf = String_Buffer::init()

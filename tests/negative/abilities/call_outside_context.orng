@@ -1,0 +1,13 @@
+// call_outside_context.orng:8:14: error: missing ability`My_Ability`
+//     get_four()
+//             ^
+// 
+abilityMy_Ability = Int
+
+fn main() -> Int {
+    get_four()
+}
+
+fn get_four() -> Int with My_Ability {
+    My_Ability
+}

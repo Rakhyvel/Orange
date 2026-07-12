@@ -8,7 +8,7 @@ fn main() -> Int {
     }
 }
 
-fn f[T, context C](t: T) -> T with C {
+fn f[T, abilityC](t: T) -> T with C {
     t
 }
 

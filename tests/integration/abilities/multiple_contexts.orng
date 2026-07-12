@@ -1,7 +1,7 @@
 // 367
-context Context1 = Int
+abilityContext1 = Int
 
-context Context2 = Int
+abilityContext2 = Int
 
 fn add() -> Int with (Context1, Context2) {
     Context1 + Context2

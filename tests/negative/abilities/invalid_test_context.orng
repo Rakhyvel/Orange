@@ -1,9 +1,9 @@
 // invalid_test_context.orng:7:31: error: can't request this context
-// test "my test" with My_Context {
+// test "my test" with My_Ability {
 //                              ^
 // 
-context My_Context = Int
+abilityMy_Ability = Int
 
-test "my test" with My_Context {
+test "my test" with My_Ability {
     .ok
 }

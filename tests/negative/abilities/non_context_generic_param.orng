@@ -2,14 +2,14 @@
 //     do_twice[Int, Float](scale, 146)
 //                       ^
 // 
-context My_Context = Int
+abilityMy_Ability = Int
 
 fn main() -> Int {
     do_twice[Int, Float](scale, 146)
 }
 
-fn do_twice[T, context C](f: T -> T with C, x: T) -> T with C {
+fn do_twice[T, abilityC](f: T -> T with C, x: T) -> T with C {
     f(f(x))
 }
 
-fn scale(x: Int) -> Int with My_Context { x * My_Context }
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

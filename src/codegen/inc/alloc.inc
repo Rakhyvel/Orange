@@ -1,4 +1,4 @@
-// root allocator context implementation
+// root allocator ability implementation
 // Copyright (c) 2023-2026, Joseph Shimel and contributors.
 
 #ifndef ORANGE_CORE_ALLOC_INC

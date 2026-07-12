@@ -37,7 +37,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     _ = symbol.assert_symbol_valid();
     const expected: ?*Type_AST = switch (symbol.kind) {
         .@"fn", .@"test", .@"comptime" => symbol.type().rhs(),
-        .type, .context => null,
+        .type, .ability => null,
         .import_inner => if (symbol.decl.?.* == .type_alias) null else symbol.type(),
         else => symbol.type(),
     };
@@ -94,15 +94,15 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         return error.CompileError;
     }
 
-    // Validate that `with`s are contexts
+    // Validate that `with`s are abilities
     if (symbol.kind == .@"fn") {
-        const maybe_context_param_symbols = symbol.decl.?.context_param_symbols();
-        if (maybe_context_param_symbols) |context_param_symbols| {
-            for (context_param_symbols.items) |context_symbol| {
-                const stripped = context_symbol.type().strip_addrs();
-                _ = try stripped.resolve_context_reference(self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
-                        .span = context_symbol.span(),
+        const maybe_ability_param_symbols = symbol.decl.?.ability_param_symbols();
+        if (maybe_ability_param_symbols) |ability_param_symbols| {
+            for (ability_param_symbols.items) |ability_symbol| {
+                const stripped = ability_symbol.type().strip_addrs();
+                _ = try stripped.resolve_ability_reference(self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .expected_ability = .{
+                        .span = ability_symbol.span(),
                         .got = stripped,
                     } });
                     return error.CompileError;
@@ -111,10 +111,10 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
         }
     }
 
-    // Check that tests are requesting good contexts
+    // Check that tests are requesting good abilities
     if (symbol.kind == .@"test") {
         const args_ = @import("args.zig");
-        try args_.validate_requested_contexts(symbol.type().function.contexts.items, &self.ctx.errors);
+        try args_.validate_requested_abilities(symbol.type().function.abilities.items, &self.ctx.errors);
     }
 
     if (symbol.decl.?.* == .type_param_decl) {
@@ -166,7 +166,7 @@ pub fn validate_symbol(self: *Self, symbol: *Symbol) Validate_Error_Enum!void {
     }
 
     // Symbol's name must be capitalized iff its type is Type
-    if (symbol.is_type() or symbol.kind == .trait or symbol.kind == .context) {
+    if (symbol.is_type() or symbol.kind == .trait or symbol.kind == .ability) {
         if (!is_capitalized(symbol.name)) {
             self.ctx.errors.add_error(errs_.Error{ .symbol_error = .{
                 .problem = "must start with an uppercase letter",

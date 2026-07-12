@@ -4,7 +4,7 @@ struct Thingy[T] {
     y: Int
 }
 
-context My_Context = Int
+ability My_Ability = Int
 
 trait Sized {
     const size: Int
@@ -14,7 +14,7 @@ type My_Type = [45]Int
 impl Sized for My_Type { const size: Int = 360 }
 
 impl[T: Sized] for Thingy[T] {
-    fn init() -> Self with My_Context {
+    fn init() -> Self with My_Ability {
         Self(0, 0)
     }
 
@@ -29,7 +29,7 @@ impl[T: Sized] for Thingy[T] {
 }
 
 fn main() -> Int {
-    with My_Context(0) {
+    with My_Ability(0) {
         let mut my_thingy = Thingy[My_Type]::init()
         my_thingy.>get_val() + 5
     }

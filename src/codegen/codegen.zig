@@ -185,12 +185,12 @@ fn output_start(
     source_emitter.output_header_include() catch return error.CompileError;
     buf.print("#include <stdio.h>\n#include \"debug.inc\"\n\n", .{}) catch return error.CompileError;
 
-    var contexts_used = Type_Map(void).init(allocator);
-    defer contexts_used.deinit();
+    var abilities_used = Type_Map(void).init(allocator);
+    defer abilities_used.deinit();
     for (module.cfgs.items) |@"test"| {
-        contexts_used.put_many(@"test".symbol.type().function.contexts.items, void{}) catch return error.CompileError;
+        abilities_used.put_many(@"test".symbol.type().function.abilities.items, void{}) catch return error.CompileError;
     }
-    source_emitter.emitter.output_context_includes(&contexts_used) catch return error.CompileError;
+    source_emitter.emitter.output_ability_includes(&abilities_used) catch return error.CompileError;
 
     source_emitter.output_main_function() catch return error.CompileError;
 
@@ -229,14 +229,14 @@ fn output_testrunner(
 
     var mod_0_emitter = Emitter.init(&buf);
 
-    var contexts_used = Type_Map(void).init(allocator);
-    defer contexts_used.deinit();
+    var abilities_used = Type_Map(void).init(allocator);
+    defer abilities_used.deinit();
     for (modules.items) |module| {
         for (module.tests.items) |@"test"| {
-            contexts_used.put_many(@"test".symbol.type().function.contexts.items, void{}) catch return error.CompileError;
+            abilities_used.put_many(@"test".symbol.type().function.abilities.items, void{}) catch return error.CompileError;
         }
     }
-    mod_0_emitter.output_context_includes(&contexts_used) catch return error.CompileError;
+    mod_0_emitter.output_ability_includes(&abilities_used) catch return error.CompileError;
 
     buf.print(
         \\
@@ -258,7 +258,7 @@ fn output_testrunner(
         \\    int failed_tests = 0;
         \\    
     , .{}) catch return error.CompileError;
-    mod_0_emitter.output_context_defs(&contexts_used) catch return error.CompileError;
+    mod_0_emitter.output_ability_defs(&abilities_used) catch return error.CompileError;
     buf.print(
         \\    if (argc >= 2)
         \\    {{
@@ -292,7 +292,7 @@ fn output_testrunner(
             , .{ test_filename, test_name }) catch return error.CompileError;
             emitter.output_symbol(@"test".symbol) catch return error.CompileError;
             buf.print("(", .{}) catch return error.CompileError;
-            emitter.output_context_args(@"test".symbol.type().function.contexts.items) catch return error.CompileError;
+            emitter.output_ability_args(@"test".symbol.type().function.abilities.items) catch return error.CompileError;
             buf.print(");\n", .{}) catch return error.CompileError;
             buf.print(
                 \\        if (res.tag == 0)

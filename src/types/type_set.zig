@@ -55,7 +55,7 @@ fn add_internal(self: *Self, oldast_: *Type_AST, from_function: bool) ?*Dependen
                 return null;
             }
         },
-        .context_type => return self.add_internal(ast.child(), from_function),
+        .ability_type => return self.add_internal(ast.child(), from_function),
         .array_of => return self.add_array(ast),
         .identifier, .unit_type, .anyptr_type => return null, // Do not add to Dependency_Node
         else => std.debug.panic("error: cannot add unknown typekind `{t}` to set", .{ast.*}),
@@ -76,9 +76,9 @@ fn add_function(self: *Self, function_type_ast: *Type_AST) ?*Dependency_Node {
     if (self.add_type(function_type_ast.rhs())) |codomain| {
         dag.add_dependency(codomain);
     }
-    for (function_type_ast.function.contexts.items) |ctx| {
-        if (self.add_type(ctx)) |context_node| {
-            dag.add_dependency(context_node);
+    for (function_type_ast.function.abilities.items) |ab| {
+        if (self.add_type(ab)) |ability_node| {
+            dag.add_dependency(ability_node);
         }
     }
     return dag;

@@ -1,20 +1,20 @@
 // 588
-context My_Context = Int
+abilityMy_Ability = Int
 
 fn main() -> Int {
-    let doer = Doer[Int, My_Context]()
+    let doer = Doer[Int, My_Ability]()
     _ = doer
-    with My_Context(2) {
+    with My_Ability(2) {
         doer.>do_twice(scale, 147)
     }
 }
 
-struct Doer[T, context C] {}
+struct Doer[T, abilityC] {}
 
-impl[T, context C] for Doer[T, C] {
+impl[T, abilityC] for Doer[T, C] {
     fn do_twice(f: T -> T with C, x: T) -> T with C {
         f(f(x))
     }
 }
 
-fn scale(x: Int) -> Int with My_Context { x * My_Context }
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }
