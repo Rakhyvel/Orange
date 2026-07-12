@@ -11,13 +11,13 @@ fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
 
 fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
     match core::Allocating.alloc.>alloc(T::size * length) {
-        .some(bytes) => .ok(([mut]T)::from_parts(bytes as [*mut]T, length))
+        .some(bytes) => .ok(([mut]T)::from_parts(@addr_cast(bytes), length))
         .none => .err
     }
 }
 
 fn destroy[T](slice: [mut]T) with core::Allocating {
-    core::Allocating.alloc.>free(slice.data as [*mut]Byte)
+    core::Allocating.alloc.>free(@addr_cast(slice.data))
 }
 
 fn eql(a: String, b: String) -> Bool {

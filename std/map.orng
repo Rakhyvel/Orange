@@ -42,9 +42,9 @@ enum Error {
 impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     fn init() -> Self with core::Allocating {
         Self(
-            .hashes = ([mut]Word64)::from_parts(0 as [*mut]Word64, 0),
-            .keys = ([mut]K)::from_parts(0 as [*mut]K, 0),
-            .values = ([mut]V)::from_parts(0 as [*mut]V, 0),
+            .hashes = ([mut]Word64)::from_parts(@addr_from_word64(0), 0),
+            .keys = ([mut]K)::from_parts(@addr_from_word64(0), 0),
+            .values = ([mut]V)::from_parts(@addr_from_word64(0), 0),
             .capacity = 0,
             .alloc = core::Allocating.alloc,
         )
@@ -61,9 +61,9 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
     }
 
     fn deinit(&mut self) {
-        self.alloc.>free(self.hashes.data as [*mut]Byte)
-        self.alloc.>free(self.keys.data as [*mut]Byte)
-        self.alloc.>free(self.values.data as [*mut]Byte)
+        self.alloc.>free(@addr_cast(self.hashes.data))
+        self.alloc.>free(@addr_cast(self.keys.data))
+        self.alloc.>free(@addr_cast(self.values.data))
     }
 
     fn clone(&self) -> Error!Self with core::Allocating {
@@ -197,29 +197,29 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
         if new_length > self.capacity {
             let new_cap_elements = new_length * 2
 
-            self.hashes.data = (self.alloc.>realloc(
-                self.hashes.data as [*mut]Byte,
+            self.hashes.data = @addr_cast(self.alloc.>realloc(
+                @addr_cast(self.hashes.data),
                 new_cap_elements * @sizeof(Word64)
             ) orelse {
                 return .err(.out_of_memory)
-            }) as [*mut]Word64
+            })
 
             if K::size > 0 {
-                self.keys.data = (self.alloc.>realloc(
-                    self.keys.data as [*mut]Byte,
+                self.keys.data = @addr_cast(self.alloc.>realloc(
+                    @addr_cast(self.keys.data),
                     new_cap_elements * K::size
                 ) orelse {
                     return .err(.out_of_memory)
-                }) as [*mut]K
+                })
             }
 
             if V::size > 0 {
-                self.values.data = (self.alloc.>realloc(
-                    self.values.data as [*mut]Byte,
+                self.values.data = @addr_cast(self.alloc.>realloc(
+                    @addr_cast(self.values.data),
                     new_cap_elements * V::size
                 ) orelse {
                     return .err(.out_of_memory)
-                }) as [*mut]V
+                })
             }
 
             self.capacity = new_cap_elements

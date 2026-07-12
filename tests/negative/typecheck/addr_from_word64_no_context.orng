@@ -1,0 +1,7 @@
+// addr_from_word64_no_context.orng:6:30: error: cannot infer type to cast to, try using `as`
+//     let y = @addr_from_word64(100)
+//                             ^
+// 
+fn main() -> Int {
+    let y = @addr_from_word64(100)
+}

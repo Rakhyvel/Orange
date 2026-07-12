@@ -1,7 +1,7 @@
 // -6510615555426900571
 fn main() -> Int {
     let x: Int = -6510615555426900571
-    let x_ptr: [*]Byte = (&x) as [*]Byte
-    let int_ptr = x_ptr as [*]Int
+    let x_ptr: [*]Byte = @addr_cast(&x)
+    let int_ptr: [*]Int = @addr_cast(x_ptr)
     int_ptr[0]
 }

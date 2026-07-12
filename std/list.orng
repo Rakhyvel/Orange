@@ -14,7 +14,7 @@ enum Error {
 // TODO: retain, truncate, reserve, resize, drain, shrink_to_fit
 impl[T: core::Sized] for List[T] {
     fn init() -> Self with core::Allocating {
-        Self(([mut]T)::from_parts(0 as [*mut]T, 0), 0, core::Allocating.alloc)
+        Self(([mut]T)::from_parts(@addr_from_word64(0), 0), 0, core::Allocating.alloc)
     }
 
     fn init_from_slice(items: []T) -> Error!Self with core::Allocating {
@@ -28,7 +28,7 @@ impl[T: core::Sized] for List[T] {
     }
 
     fn deinit(&self) {
-        self.alloc.>free(self.items.data as [*mut]Byte)
+        self.alloc.>free(@addr_cast(self.items.data))
     }
 
     fn to_owned_slice(&self) -> Error![mut]T with core::Allocating {
@@ -111,13 +111,13 @@ impl[T: core::Sized] for List[T] {
             let new_cap_bytes = new_cap_elements * T::size
 
             let new_data = self.alloc.>realloc(
-                self.items.data as [*mut]Byte, 
+                @addr_cast(self.items.data), 
                 new_cap_bytes
             ) orelse {
                 return .err(.out_of_memory)
             }
 
-            self.items.data = new_data as [*mut]T
+            self.items.data = @addr_cast(new_data)
             self.capacity = new_cap_elements
         }
         self.items.length = new_length

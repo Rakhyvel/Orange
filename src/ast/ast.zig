@@ -330,6 +330,22 @@ pub const AST = union(enum) {
         common: AST_Common,
         _expr: *AST,
     },
+    addr_cast: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
+    addr_from_word64: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
+    word64_from_addr: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
+    primitive_cast: struct {
+        common: AST_Common,
+        _expr: *AST,
+    },
 
     // Control-flow expressions
     @"if": struct {
@@ -672,6 +688,34 @@ pub const AST = union(enum) {
 
     pub fn create_variant_name(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
         return AST.box(AST{ .variant_name = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
+        } }, allocator);
+    }
+
+    pub fn create_ptr_cast(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .addr_cast = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
+        } }, allocator);
+    }
+
+    pub fn create_ptr_from_int(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .addr_from_word64 = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
+        } }, allocator);
+    }
+
+    pub fn create_int_from_ptr(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .word64_from_addr = .{
+            .common = AST_Common{ ._token = _token },
+            ._expr = _expr,
+        } }, allocator);
+    }
+
+    pub fn create_primitive_cast(_token: Token, _expr: *AST, allocator: std.mem.Allocator) *AST {
+        return AST.box(AST{ .primitive_cast = .{
             .common = AST_Common{ ._token = _token },
             ._expr = _expr,
         } }, allocator);
@@ -1546,6 +1590,10 @@ pub const AST = union(enum) {
             },
             .variant_tag => return create_variant_tag(self.token(), self.expr().clone(substs, allocator), allocator),
             .variant_name => return create_variant_name(self.token(), self.expr().clone(substs, allocator), allocator),
+            .addr_cast => return create_ptr_cast(self.token(), self.expr().clone(substs, allocator), allocator),
+            .addr_from_word64 => return create_ptr_from_int(self.token(), self.expr().clone(substs, allocator), allocator),
+            .word64_from_addr => return create_int_from_ptr(self.token(), self.expr().clone(substs, allocator), allocator),
+            .primitive_cast => return create_primitive_cast(self.token(), self.expr().clone(substs, allocator), allocator),
 
             .@"comptime" => return create_comptime(self.token(), self.expr().clone(substs, allocator), allocator),
 
@@ -2554,6 +2602,10 @@ pub const AST = union(enum) {
             .size_of => try out.print("size_of({f})", .{self.type()}),
             .variant_tag => try out.print("variant_tag({f})", .{self.expr()}),
             .variant_name => try out.print("variant_name({f})", .{self.expr()}),
+            .addr_cast => try out.print("addr_cast({f})", .{self.expr()}),
+            .word64_from_addr => try out.print("word64_from_addr({f})", .{self.expr()}),
+            .addr_from_word64 => try out.print("addr_from_word64({f})", .{self.expr()}),
+            .primitive_cast => try out.print("primitive_cast({f})", .{self.expr()}),
             .@"comptime" => try out.print("comptime({f})", .{self.expr()}),
 
             .assign => {

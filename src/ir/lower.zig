@@ -143,7 +143,7 @@ fn lower_AST_inner(
         .false => return self.lval_from_int(0, self.ctx.typecheck.typeof(ast), ast.token().span),
         // Unary operators
         .not, .negate, .addr_of, .bit_not => return try self.unop(ast, labels),
-        .as => {
+        .as, .addr_cast, .addr_from_word64, .word64_from_addr, .primitive_cast => {
             const expr = try self.lower_AST(ast.expr(), labels) orelse return null;
             const expanded_type = self.ctx.typecheck.typeof(ast).expand_identifier();
             const temp = self.create_temp_lvalue(expanded_type);
@@ -283,7 +283,7 @@ fn lower_AST_inner(
         .dyn_value => {
             const expr = try self.lower_AST(ast.expr(), labels) orelse return null;
             const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
-            self.instructions.append(Instruction.init_dyn(temp, expr, ast.dyn_value.mut, ast.dyn_value.impl.?, ast.token().span, self.ctx.allocator())) catch unreachable;
+            self.instructions.append(Instruction.init_dyn(temp, expr, ast.dyn_value.mut, ast.dyn_value.impl, ast.token().span, self.ctx.allocator())) catch unreachable;
             return temp;
         },
         .child_addr, .child_addr_mut => {

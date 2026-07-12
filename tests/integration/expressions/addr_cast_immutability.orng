@@ -1,0 +1,6 @@
+// 561
+fn main() -> Int {
+    let mut x = 561
+    let y: &Int = @addr_cast(&mut x)
+    y^
+}

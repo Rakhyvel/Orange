@@ -5,7 +5,7 @@ struct Box[K] {
 
 impl[K] for Box[K] {
     fn init() -> Self {
-        Self(.keys = ([mut]K)::from_parts(0 as [*mut]K, 0))
+        Self(.keys = ([mut]K)::from_parts(@addr_from_word64(0), 0))
     }
 }
 

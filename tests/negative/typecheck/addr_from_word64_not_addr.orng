@@ -1,0 +1,8 @@
+// addr_from_word64_not_addr.orng:6:39: error: expected address type type for addr_from_word64, got `Int`
+//     let y: Int = @addr_from_word64(100)
+//                                      ^
+// 
+fn main() -> Int {
+    let y: Int = @addr_from_word64(100)
+    y
+}

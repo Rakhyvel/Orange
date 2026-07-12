@@ -24,7 +24,7 @@ fn accept_a(a: &dyn A) -> Int {
 }
 
 fn get_result(b: &dyn B) -> Int {
-    let a = accept_a(b as &dyn A)
+    let a = accept_a(b)
     b.>b() + a
 }
 

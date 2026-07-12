@@ -105,7 +105,7 @@ pub fn typecheck_AST(
         try walk_.walk_type(expected_type, Type_Decorate.new(self.ctx));
     }
 
-    const actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
+    var actual_type = self.typecheck_AST_internal(ast, expected_type, subst) catch |e| {
         ast.common().validation_state = .invalid;
         return e;
     };
@@ -113,6 +113,7 @@ pub fn typecheck_AST(
     try walk_.walk_type(actual_type, Decorate.new(self.ctx));
 
     if (expected_type) |_| {
+        actual_type = try self.insert_coercion(ast, actual_type, expected_type.?, subst);
         const expanded_expected = expected_type.?.expand_identifier();
         if (expanded_expected.* != .unit_type or (actual_type.* == .enum_type and actual_type.enum_type.from == .@"error"))
             typing_.type_check(ast.token().span, actual_type, expected_type.?, subst, &self.ctx.errors) catch |e| {
@@ -417,7 +418,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     var constraints_arr = [1]*Type_AST{lhs_type_node};
                     try Scope.as_trait_member_lookup(concrete_type, &constraints_arr, method_name, &candidate_methods, self.ctx);
                     if (candidate_methods.keys().len == 0) {
-                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type, .candidates = null } });
+                        self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type.strip_as_trait(), .candidates = null } });
                         return error.CompileError;
                     }
                     ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
@@ -447,12 +448,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 try Scope.as_trait_member_lookup(for_type, as_trait_node.as_trait.constraints.items, method_name, &candidate_method_decls, self.ctx);
 
                 if (candidate_method_decls.keys().len == 0) {
-                    self.ctx.errors.add_error(errs_.Error{ // TODO: Maybe this should be `type not impl trait(s)`?
-                        .type_not_impl_method = .{
+                    self.ctx.errors.add_error(errs_.Error{
+                        .type_not_impl_trait = .{
                             .span = ast.token().span,
-                            .method_name = method_name,
-                            ._type = for_type,
-                            .candidates = null,
+                            .trait_name = as_trait_node.as_trait.constraints.items[0].symbol().?.name, // TODO: This only does the first one, if there are many it'd be confusing
+                            ._type = for_type.strip_as_trait(),
                         },
                     });
                     return error.CompileError;
@@ -653,7 +653,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         .type_not_impl_method = .{
                             .span = ast.token().span,
                             .method_name = ast.rhs().token().data,
-                            ._type = true_lhs_type.strip_addrs(),
+                            ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                             .candidates = null,
                         },
                     });
@@ -686,19 +686,24 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     }
                 }
             }
-            try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
+            // Try to find the method that fits, and get the impl substitutions needed to make it work
+            const sel_subst = try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            const method_decl_type = method_decl.?.decl_type();
+            var method_decl_type = method_decl.?.decl_type();
+            if (sel_subst != subst) {
+                // The impl required substitutions, make them to the method type
+                method_decl_type = method_decl_type.clone(sel_subst, self.ctx.allocator());
+            }
 
-            const domain = method_decl.?.decl_type().function.args;
+            const domain = method_decl_type.function.args;
             try self.validate_context(method_decl_type, ast);
 
             var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             ast.set_children(try args_validator.fill_default_args());
             try args_validator.validate_arity();
-            try args_validator.validate_type(subst, self.ctx);
+            try args_validator.validate_type(sel_subst, self.ctx);
 
-            return ast.invoke.method_decl.?.method_decl.ret_type;
+            return method_decl_type.function._rhs;
         },
         .dyn_value => {
             var expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
@@ -707,11 +712,26 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 expr_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
             }
             try self.ctx.validate_type.validate_type(ast.dyn_value.dyn_type);
-            if (ast.dyn_value.mut) {
-                try self.assert_mutable(ast.expr());
-            }
+            const expanded_expr_type = expr_type.expand_identifier();
 
-            if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
+            if (expanded_expr_type.* == .dyn_type) {
+                // Expected type is a potential upcast to a dyn type
+                if (!expanded_expr_type.child().is_sub_trait(ast.dyn_value.dyn_type.child())) {
+                    self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
+                        .span = ast.token().span,
+                        .trait_name = ast.dyn_value.dyn_type.child().symbol().?.name,
+                        ._type = expr_type,
+                    } });
+                }
+                if (ast.dyn_value.mut and !expanded_expr_type.dyn_type.mut) {
+                    self.ctx.errors.add_error(errs_.Error{ .modify_immutable = .{ .identifier = ast.token() } });
+                    return error.CompileError;
+                }
+            } else if (expr_type.* == .identifier and expr_type.symbol() != null and expr_type.symbol().?.decl.?.* == .type_param_decl) {
+                // Expected type is a type param
+                if (ast.dyn_value.mut) {
+                    try self.assert_mutable(ast.expr());
+                }
                 const type_param_decl = expr_type.symbol().?.decl.?;
                 var found_constraint = false;
                 // Check to see if the type parameter has the constraint type that we're looking for
@@ -730,6 +750,10 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 }
             } else {
+                // Expected type is a concrete type
+                if (ast.dyn_value.mut) {
+                    try self.assert_mutable(ast.expr());
+                }
                 const impl = try Scope.impl_trait_lookup(expr_type, ast.dyn_value.dyn_type.child().symbol().?, self.ctx);
                 if (impl.impl_ast == null) {
                     self.ctx.errors.add_error(errs_.Error{ .type_not_impl_trait = .{
@@ -833,11 +857,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             }
         },
         .as => {
-            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
-            if (!child_type.convertible_to(ast.type())) {
-                self.ctx.errors.add_error(errs_.Error{ .non_convertible = .{ .span = ast.token().span, .from = child_type, .to = ast.type() } });
-                return error.CompileError;
-            }
+            _ = try self.typecheck_AST(ast.expr(), ast.type(), subst);
             return ast.type();
         },
         .addr_of => {
@@ -911,6 +931,79 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 return typing_.throw_wrong_from("enum", "enum value", expanded_expr_type, ast.token().span, &self.ctx.errors);
             }
             return prelude_.string_type;
+        },
+        .addr_cast => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const from_type = child_type.expand_identifier();
+            const to_type = expected.?.expand_identifier();
+
+            if (to_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address", "addr_cast", to_type, ast.expr().token().span, &self.ctx.errors);
+            }
+            if (from_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address", "addr_cast", from_type, ast.token().span, &self.ctx.errors);
+            }
+
+            if (to_type.addr_of.mut and !from_type.addr_of.mut) {
+                // Casting away mutability directly is never allowed
+                // Cast to Word64 first like a normal person
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot cast away immutability" } });
+                return error.CompileError;
+            }
+
+            return expected.?;
+        },
+        .word64_from_addr => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            const from_type = child_type.expand_identifier();
+
+            if (from_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "word64_from_addr", from_type, ast.token().span, &self.ctx.errors);
+            }
+            return prelude_.word64_type;
+        },
+        .addr_from_word64 => {
+            _ = try self.typecheck_AST(ast.expr(), prelude_.word64_type, subst);
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const to_type = expected.?.expand_identifier();
+
+            if (to_type.* != .addr_of) {
+                return typing_.throw_wrong_from("address type", "addr_from_word64", to_type, ast.expr().token().span, &self.ctx.errors);
+            }
+
+            return expected.?;
+        },
+        .primitive_cast => {
+            const child_type = self.typecheck_AST(ast.expr(), null, subst) catch return error.CompileError;
+
+            if (expected == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+                return error.CompileError;
+            }
+
+            const from_expanded = child_type.expand_identifier();
+            const to_expanded = expected.?.expand_identifier();
+
+            const from_info = prelude_.info_from_ast(from_expanded);
+            const to_info = prelude_.info_from_ast(to_expanded);
+
+            if (from_info == null or to_info == null) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot infer type to cast to, try using `as`" } });
+            }
+
+            return expected.?;
         },
         .enum_value => {
             if (ast.enum_value.base == null and expected == null) {
@@ -1155,6 +1248,33 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
     }
 }
 
+fn insert_coercion(self: *Self, ast: *ast_.AST, actual: *Type_AST, expected: *Type_AST, subst: *unification_.Substitutions) Validate_Error_Enum!*Type_AST {
+    const actual_expanded = actual.expand_identifier();
+    const expected_expanded = expected.expand_identifier();
+
+    // TODO: Maybe &[n]T => []T. Both T => E!T, T => ?T have ambiguity problems, but might be more ergonomic?
+
+    if
+    // Expected a dyn type of some super trait, got a dyn type of some sub trait. Wrap it in a new dyn_value
+    (actual_expanded.* == .dyn_type and expected_expanded.* == .dyn_type and
+        actual_expanded.child().symbol() != expected_expanded.child().symbol() and
+        actual_expanded.child().is_sub_trait(expected_expanded.child()) and
+        !(expected_expanded.dyn_type.mut and !actual_expanded.dyn_type.mut))
+    {
+
+        // Preserve the already-typechecked expression as the dyn value's operand
+        const inner = self.ctx.allocator().create(ast_.AST) catch unreachable;
+        inner.* = ast.*;
+        inner.common().validation_state = .valid;
+        self.map.put(inner, actual) catch unreachable;
+
+        ast.* = ast_.AST.create_dyn_value(ast.token(), expected_expanded, inner, ast.scope().?, expected_expanded.dyn_type.mut, self.ctx.allocator()).*;
+        return self.typecheck_AST(ast, expected, subst);
+    }
+
+    return actual;
+}
+
 /// Validates an open binary operator. An operator is `open` if it returns a type different from the
 /// ones it acts on.
 ///
@@ -1206,7 +1326,7 @@ fn select_method(
     candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
-) !void {
+) !*unification_.Substitutions {
     const Viable_Method = struct { method: *ast_.AST, plan: Receiver_Plan };
     var viable = std.array_list.Managed(Viable_Method).init(self.ctx.allocator());
     defer viable.deinit();
@@ -1236,7 +1356,7 @@ fn select_method(
                 .type_not_impl_method = .{
                     .span = ast.token().span,
                     .method_name = ast.rhs().token().data,
-                    ._type = true_lhs_type.strip_addrs(),
+                    ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                     .candidates = saved_rejection_reasons.items,
                 },
             });
@@ -1270,7 +1390,7 @@ fn select_method(
                     .ambiguous_methods = .{
                         .span = ast.token().span,
                         .method_name = ast.rhs().token().data,
-                        ._type = true_lhs_type.strip_addrs(),
+                        ._type = true_lhs_type.strip_as_trait().strip_addrs(),
                         .viable = saved_viable.items,
                     },
                 });
@@ -1281,16 +1401,35 @@ fn select_method(
 
     rejection_reasons.deinit();
     const choice = chosen.?;
-    ast.invoke.method_decl = choice.method;
+    var sel_subst: *unification_.Substitutions = subst;
+    if (choice.plan.impl_subst) |isub| {
+        // Candidate came from a generic impl, instantiate a clone of it with the solved params
+        const instantiated = try ast.scope().?.instantiate_generic_impl(choice.method.method_decl.impl.?, isub, self.ctx);
+        ast.invoke.method_decl = Scope.search_impl(instantiated, ast.rhs().token().data).?;
+        // Inject the caller's bindings with the impl solution
+        var t_it = subst.type_subst.iterator();
+        while (t_it.next()) |entry| {
+            if (isub.get_type(entry.key_ptr.*) == null) isub.put_type(entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
+        }
+        var c_it = subst.const_subst.iterator();
+        while (c_it.next()) |entry| {
+            if (isub.get_const(entry.key_ptr.*) == null) isub.put_const(entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
+        }
+        sel_subst = isub;
+    } else {
+        ast.invoke.method_decl = choice.method;
+    }
     if (choice.plan.prepend) {
         try ast.children().insert(0, choice.plan.receiver_expr.?);
         ast.invoke.prepended = true;
     }
+    return sel_subst;
 }
 
 const Receiver_Plan = struct {
     prepend: bool,
     receiver_expr: ?*ast_.AST,
+    impl_subst: ?*unification_.Substitutions = null,
 };
 const Method_Result = union(enum) {
     fits: Receiver_Plan,
@@ -1307,7 +1446,27 @@ fn method_fits(
     var new_self = try self.clone();
     defer new_self.deinit();
 
-    const domain: std.array_list.Managed(*Type_AST) = method_decl.decl_type().function.args;
+    const enclosing_impl = method_decl.method_decl.impl;
+    const is_template = enclosing_impl != null and enclosing_impl.?.impl._generic_params.items.len > 0;
+    var impl_subst: ?*unification_.Substitutions = null;
+    var method_type = method_decl.decl_type();
+
+    // Try to unify the method's impl's for type with the true lhs type, if generic
+    if (is_template) {
+        var stripped_lhs = true_lhs_type;
+        while (stripped_lhs.* == .as_trait) stripped_lhs = stripped_lhs.lhs();
+        if (stripped_lhs.* == .addr_of and !stripped_lhs.addr_of.multiptr) stripped_lhs = stripped_lhs.child();
+
+        const scratch = self.ctx.allocator().create(unification_.Substitutions) catch unreachable;
+        scratch.* = unification_.Substitutions.init(self.ctx.allocator());
+        scratch.put_type("Self", stripped_lhs) catch unreachable;
+        unification_.unify(enclosing_impl.?.impl._type, stripped_lhs, scratch, .{}) catch
+            return .{ .not_viable = .receiver_mismatch };
+        impl_subst = scratch;
+        method_type = method_decl.decl_type().clone(scratch, self.ctx.allocator());
+    }
+
+    const domain: std.array_list.Managed(*Type_AST) = method_type.function.args;
 
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
     defer temp_args.deinit();
@@ -1340,14 +1499,43 @@ fn method_fits(
 
     // Try unifying the return type with the expected return type, if its provided
     if (expected) |exp| {
-        const actual = method_decl.decl_type().function._rhs;
+        const actual = method_type.function._rhs;
         try walk_.walk_type(actual, Decorate.new(self.ctx)); // Type might not be decorated yet!
-        unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
-            return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
-        };
+        if (impl_subst) |is| {
+            // Impl was generic, try to unify return type with the substitutions
+            unification_.unify(actual, exp, is, .{}) catch
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+        } else {
+            // Impl wasn't generic, use the surrounding context's subst
+            unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+            };
+        }
     }
 
-    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver } };
+    // A template is only viable if every impl param got solved
+    if (impl_subst) |is| {
+        for (enclosing_impl.?.impl._generic_params.items) |param| {
+            if (param.* == .type_param_decl and is.get_type(param.symbol().?.name) == null)
+                return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
+        }
+
+        // Every solved param must satisfy its constraints, subst'd through the solution
+        for (enclosing_impl.?.impl._generic_params.items) |param| {
+            if (param.* != .type_param_decl) continue;
+            const solved = is.get_type(param.symbol().?.name).?;
+            for (param.type_param_decl.constraints.items) |constraint| {
+                const substd_constraint = constraint.clone(is, self.ctx.allocator());
+                const sat_res = solved.satisfies_all_constraints(&[_]*Type_AST{substd_constraint}, null, self.ctx) catch
+                    return .{ .not_viable = .{ .constraint_not_satisfied = .{ .solved = solved, .constraint = substd_constraint } } };
+                if (sat_res != .satisfies) {
+                    return .{ .not_viable = .{ .constraint_not_satisfied = .{ .solved = solved, .constraint = substd_constraint } } };
+                }
+            }
+        }
+    }
+
+    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver, .impl_subst = impl_subst } };
 }
 
 fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lhs_type: *Type_AST) !?*ast_.AST {
