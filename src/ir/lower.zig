@@ -229,8 +229,8 @@ fn lower_AST_inner(
             for (ast.children().items) |term| {
                 instr.data.call.arg_lval_list.append((try self.lower_AST(term, labels)) orelse continue) catch unreachable;
             }
-            for (ast.call.context_args.items) |context_arg| {
-                instr.data.call.arg_lval_list.append(lval_.L_Value.create_unversioned_symbver(context_arg, self.ctx.allocator())) catch unreachable;
+            for (ast.call.ability_args.items) |ability_arg| {
+                instr.data.call.arg_lval_list.append(lval_.L_Value.create_unversioned_symbver(ability_arg, self.ctx.allocator())) catch unreachable;
             }
             self.instructions.append(Instruction.init_stack_push(ast.token().span, self.ctx.allocator())) catch unreachable;
             self.instructions.append(instr) catch unreachable;
@@ -268,8 +268,8 @@ fn lower_AST_inner(
                 }
             }
             const instr = Instruction.init_invoke(temp, ast.invoke.method_decl.?, lval_list, dyn_value, ast.token().span, self.ctx.allocator());
-            for (ast.invoke.context_args.items) |context_arg| {
-                instr.data.invoke.arg_lval_list.append(lval_.L_Value.create_unversioned_symbver(context_arg, self.ctx.allocator())) catch unreachable;
+            for (ast.invoke.ability_args.items) |ability_arg| {
+                instr.data.invoke.arg_lval_list.append(lval_.L_Value.create_unversioned_symbver(ability_arg, self.ctx.allocator())) catch unreachable;
             }
             if (ast.invoke.method_decl.?.method_decl.init != null) {
                 // Fine if symbol is null, for invokes on trait objects.
@@ -336,7 +336,11 @@ fn lower_AST_inner(
             const expanded_type = self.ctx.typecheck.typeof(ast).expand_identifier();
             return ast_lval.?.create_select_lval(field, offset, expanded_type, tag, self.ctx.allocator());
         },
-        .struct_value, .tuple_value, .array_value, .context_value => {
+        .ability_value => {
+            // ability wraps a single value, no aggregate to construct
+            return try self.lower_AST(ast.expr(), labels);
+        },
+        .struct_value, .tuple_value, .array_value => {
             _ = self.ctx.typecheck.typeof(ast).expand_identifier();
             const temp = self.create_temp_lvalue(self.ctx.typecheck.typeof(ast));
             var instr = Instruction.init_load_struct(temp, ast.token().span, self.ctx.allocator());
@@ -534,8 +538,8 @@ fn lower_AST_inner(
             return lval_.L_Value.create_unversioned_symbver(symbol, self.ctx.allocator());
         },
         .with => {
-            for (ast.with.contexts.items) |ctx| {
-                _ = try self.lower_AST(ctx, labels);
+            for (ast.with.abilities.items) |ab| {
+                _ = try self.lower_AST(ab, labels);
             }
             return self.lower_AST(ast.with._body_block, labels);
         },
@@ -634,8 +638,8 @@ fn lower_AST_inner(
             }
             return self.lval_from_unit_value(ast);
         },
-        .context_value_decl => {
-            if (ast.context_value_decl.init) |_init| {
+        .ability_value_decl => {
+            if (ast.ability_value_decl.init) |_init| {
                 const def: ?*lval_.L_Value = try self.lower_AST(_init, labels);
                 if (def == null) {
                     return null;

@@ -201,8 +201,8 @@ fn top_level_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         return try self.test_declaration();
     } else if (self.peek_kind(.@"struct")) {
         return self.struct_declaration();
-    } else if (self.peek_kind(.context)) {
-        return self.context_declaration();
+    } else if (self.peek_kind(.ability)) {
+        return self.ability_declaration();
     } else if (self.peek_kind(.@"enum")) {
         return self.enum_declaration();
     } else if (self.peek_kind(.type)) {
@@ -335,20 +335,20 @@ fn function_type_expr(self: *Self) Parser_Error_Enum!*Type_AST {
             variadic = true;
         }
         const codomain = try self.error_type_expr();
-        var contexts = std.array_list.Managed(*Type_AST).init(self.allocator);
+        var abilities = std.array_list.Managed(*Type_AST).init(self.allocator);
         if (self.accept(.with) != null) {
-            const context = try self.type_expr();
-            try contexts.append(Type_AST.create_addr_of_type(context.token(), context, false, false, self.allocator));
+            const ability = try self.type_expr();
+            try abilities.append(ability);
         }
         if (exp.* == .tuple_type) {
-            exp = Type_AST.create_function(token, exp.tuple_type._terms, codomain, contexts, self.allocator);
+            exp = Type_AST.create_function(token, exp.tuple_type._terms, codomain, abilities, self.allocator);
         } else if (exp.* == .unit_type) {
             const args = std.array_list.Managed(*Type_AST).init(self.allocator);
-            exp = Type_AST.create_function(token, args, codomain, contexts, self.allocator);
+            exp = Type_AST.create_function(token, args, codomain, abilities, self.allocator);
         } else {
             var args = std.array_list.Managed(*Type_AST).init(self.allocator);
             try args.append(exp);
-            exp = Type_AST.create_function(token, args, codomain, contexts, self.allocator);
+            exp = Type_AST.create_function(token, args, codomain, abilities, self.allocator);
         }
         exp.function.variadic = variadic;
     }
@@ -630,8 +630,8 @@ fn statement(self: *Self) Parser_Error_Enum!*ast_.AST {
         return self.extern_const_declaration();
     } else if (self.peek_kind(.@"struct")) {
         return self.struct_declaration();
-    } else if (self.peek_kind(.context)) {
-        return self.context_declaration();
+    } else if (self.peek_kind(.ability)) {
+        return self.ability_declaration();
     } else if (self.peek_kind(.@"enum")) {
         return self.enum_declaration();
     } else if (self.peek_kind(.type)) {
@@ -1336,32 +1336,24 @@ fn while_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
 
 fn with_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.with);
-    var context_list = std.array_list.Managed(*ast_.AST).init(self.allocator);
+    var ability_list = std.array_list.Managed(*ast_.AST).init(self.allocator);
 
-    try context_list.append(try self.context_param());
+    try ability_list.append(try self.ability_param(true));
     while (self.accept(.comma) != null) {
-        try context_list.append(try self.context_param());
+        try ability_list.append(try self.ability_param(true));
     }
 
     const body_block = try self.block_expr();
 
-    return ast_.AST.create_with(token, context_list, body_block, self.allocator);
+    return ast_.AST.create_with(token, ability_list, body_block, self.allocator);
 }
 
-fn context_value(self: *Self, context_name: *Type_AST) Parser_Error_Enum!*ast_.AST {
-    var arg_list: std.array_list.Managed(*ast_.AST) = std.array_list.Managed(*ast_.AST).init(self.allocator);
-
+fn ability_value(self: *Self, ability_name: *Type_AST) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.left_parenthesis);
-    while (!self.peek_kind(.right_parenthesis)) {
-        const context_decl = try self.assignment_expr();
-        arg_list.append(context_decl) catch unreachable;
-        if (self.accept(.comma) == null) {
-            break;
-        }
-    }
+    const ability_val = try self.assignment_expr();
     _ = try self.expect(.right_parenthesis);
 
-    return ast_.AST.create_context_value(token, context_name, arg_list, self.allocator);
+    return ast_.AST.create_ability_value(token, ability_name, ability_val, self.allocator);
 }
 
 fn for_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1414,7 +1406,7 @@ fn fn_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         ret_type = try self.type_expr();
     }
     const refinement: ?*ast_.AST = null;
-    const contexts_decls = try self.context_paramlist();
+    const abilities_decls = try self.ability_paramlist();
 
     const _init = try self.block_expr();
 
@@ -1424,7 +1416,7 @@ fn fn_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
         gen_params,
         params,
         ret_type orelse Type_AST.create_unit_type(introducer, self.allocator),
-        contexts_decls,
+        abilities_decls,
         refinement,
         _init,
         self.allocator,
@@ -1486,54 +1478,49 @@ fn param(self: *Self) Parser_Error_Enum!*ast_.AST {
     );
 }
 
-fn context_paramlist(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
+fn ability_paramlist(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_.AST) {
     var retval = std.array_list.Managed(*ast_.AST).init(self.allocator);
     if (self.accept(.with)) |_| {
         if (self.accept(.left_parenthesis) != null) {
             while (!self.peek_kind(.right_parenthesis)) {
-                try retval.append(try self.context_param());
+                try retval.append(try self.ability_param(false));
                 if (self.accept(.comma) == null) {
                     break;
                 }
             }
             _ = try self.expect(.right_parenthesis);
         } else {
-            try retval.append(try self.context_param());
+            try retval.append(try self.ability_param(false));
         }
     }
     return retval;
 }
 
-fn context_param(self: *Self) Parser_Error_Enum!*ast_.AST {
+fn ability_param(self: *Self, allow_init: bool) Parser_Error_Enum!*ast_.AST {
     const parent = try self.type_expr();
 
-    const addr_context_type = Type_AST.create_addr_of_type(
-        parent.token(),
-        parent,
-        false,
-        false,
-        self.allocator,
-    );
     var _init: ?*ast_.AST = null;
-    if (self.peek_kind(.left_parenthesis)) {
-        _init = ast_.AST.create_addr_of(parent.token(), try self.context_value(parent), false, false, self.allocator);
+    if (allow_init and self.peek_kind(.left_parenthesis)) {
+        _init = try self.ability_value(parent);
     }
 
-    return ast_.AST.create_context_value_decl(
+    return ast_.AST.create_ability_value_decl(
         parent.token(),
-        addr_context_type,
+        parent,
         _init,
         self.allocator,
     );
 }
 
-fn context_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
-    _ = try self.expect(.context);
+fn ability_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
+    _ = try self.expect(.ability);
     const identifier: Token = try self.expect(.identifier);
     const name = ast_.AST.create_pattern_symbol(identifier, .type, .local, identifier.data, self.allocator);
 
-    const fields = try self.parse_fields(Self.parse_struct_field);
-    return ast_.AST.create_context_decl(identifier, name, fields, self.allocator);
+    _ = try self.expect(.single_equals);
+    const _init: *Type_AST = try self.type_expr();
+
+    return ast_.AST.create_ability_decl(identifier, name, _init, self.allocator);
 }
 
 fn struct_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
@@ -1672,9 +1659,9 @@ fn generic_params_list(self: *Self) Parser_Error_Enum!std.array_list.Managed(*as
                 const param_type = try self.type_expr();
                 const const_param = ast_.AST.create_const_param_decl(name_token, param_type, self.allocator);
                 params.append(const_param) catch unreachable;
-            } else if (self.accept(.context)) |_| {
+            } else if (self.accept(.ability)) |_| {
                 const param_token = try self.expect(.identifier);
-                const param_ident = ast_.AST.create_context_param_decl(param_token, false, self.allocator);
+                const param_ident = ast_.AST.create_ability_param_decl(param_token, false, self.allocator);
                 params.append(param_ident) catch unreachable;
             } else {
                 const param_token = try self.expect(.identifier);
@@ -1788,12 +1775,12 @@ fn impl_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
 fn test_declaration(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.@"test");
     const name = try self.bool_expr();
-    const context_decls = try self.context_paramlist();
+    const ability_decls = try self.ability_paramlist();
     const body = try self.block_expr();
     return ast_.AST.create_test(
         token,
         name,
-        context_decls,
+        ability_decls,
         body,
         self.allocator,
     );
@@ -1816,7 +1803,7 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     if (self.accept(.where)) |_| {
         _ = try self.bool_expr();
     }
-    const contexts_decls = try self.context_paramlist();
+    const abilities_decls = try self.ability_paramlist();
 
     var _init: ?*ast_.AST = null;
     if (self.peek_kind(.left_brace)) {
@@ -1830,7 +1817,7 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
         _receiver,
         params,
         ret_type orelse Type_AST.create_unit_type(introducer, self.allocator),
-        contexts_decls,
+        abilities_decls,
         refinement,
         _init,
         self.allocator,

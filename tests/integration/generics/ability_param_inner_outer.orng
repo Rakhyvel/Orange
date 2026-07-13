@@ -1,0 +1,18 @@
+// 576
+fn main() -> Int {
+    with My_Ability(8) {
+        outer[Int, My_Ability](scale, 9)
+    }
+}
+
+ability My_Ability = Int
+
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }
+
+fn outer[T, ability C](f: T -> T with C, x: T) -> T with C {
+    do_twice[T, C](f, x)
+}
+
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
+    f(f(x))
+}

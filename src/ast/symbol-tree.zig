@@ -92,6 +92,9 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             // TODO: an error
         },
 
+        // New scope so introduced abilities are not visible after the with block
+        .with => return self.new_scope(ast),
+
         // Create a new scope, pass it to children
         .@"if", .match, .@"while", .@"for" => {
             var new_self = self.new_scope(ast);
@@ -149,13 +152,13 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             return new_self;
         },
 
-        .context_value_decl => {
+        .ability_value_decl => {
             std.debug.assert(ast.symbol() == null);
 
-            const number = self.scope.num_visible_contexts();
+            const number = self.scope.num_visible_abilities();
             var out = std.array_list.Managed(u8).init(self.allocator);
             defer out.deinit();
-            try out.print("context_value__{}", .{number});
+            try out.print("ability_value__{}", .{number});
 
             const symbol = Symbol.init(
                 self.scope,
@@ -167,10 +170,16 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try self.register_symbol(ast, symbol);
 
+            if (ast.ability_value_decl.init != null) {
+                // with-header init reads the enclosing scope, not the ability being introduced
+                var outer = self;
+                outer.scope = self.scope.parent.?;
+                return outer;
+            }
             return self;
         },
 
-        .context_decl => {
+        .ability_decl => {
             std.debug.assert(ast.symbol() == null);
 
             const new_self = self.new_scope(ast);
@@ -179,7 +188,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 self.scope,
                 ast.decl_name().token().data,
                 ast,
-                .context,
+                .ability,
                 ast.decl_name().pattern_symbol.storage,
                 self.allocator,
             );
@@ -199,12 +208,12 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             );
             try self.register_symbol(ast, symbol);
         },
-        .context_param_decl => {
+        .ability_param_decl => {
             const symbol = Symbol.init(
                 self.scope,
                 ast.token().data,
                 ast,
-                .context,
+                .ability,
                 .local,
                 self.allocator,
             );
@@ -426,18 +435,18 @@ fn symbol_tree_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                 symbol.defined = true;
                 symbol.param = true;
             }
-            for (ast.fn_decl.context_decls.items) |context_param| {
-                const symbol = context_param.symbol().?;
-                try ast.context_param_symbols().?.append(symbol);
+            for (ast.fn_decl.ability_decls.items) |ability_param| {
+                const symbol = ability_param.symbol().?;
+                try ast.ability_param_symbols().?.append(symbol);
                 symbol.defined = true;
                 symbol.param = true;
             }
         },
 
         .@"test" => {
-            for (ast.@"test".context_decls.items) |context_param| {
-                const symbol = context_param.symbol().?;
-                try ast.context_param_symbols().?.append(symbol);
+            for (ast.@"test".ability_decls.items) |ability_param| {
+                const symbol = ability_param.symbol().?;
+                try ast.ability_param_symbols().?.append(symbol);
                 symbol.defined = true;
                 symbol.param = true;
             }
@@ -450,9 +459,9 @@ fn symbol_tree_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                 symbol.defined = true;
                 symbol.param = true;
             }
-            for (ast.method_decl.context_decls.items) |context_param| {
-                const symbol = context_param.symbol().?;
-                try ast.context_param_symbols().?.append(symbol);
+            for (ast.method_decl.ability_decls.items) |ability_param| {
+                const symbol = ability_param.symbol().?;
+                try ast.ability_param_symbols().?.append(symbol);
                 symbol.defined = true;
                 symbol.param = true;
             }
@@ -576,9 +585,9 @@ pub fn create_function_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) !*Sy
     // Calculate the domain type from the function paramter types
     const domain = try extract_domain(ast.children().*, allocator);
 
-    var contexts = std.array_list.Managed(*Type_AST).init(allocator);
-    for (ast.fn_decl.context_decls.items) |ctx| {
-        try contexts.append(ctx.context_value_decl.parent);
+    var abilities = std.array_list.Managed(*Type_AST).init(allocator);
+    for (ast.fn_decl.ability_decls.items) |ab| {
+        try abilities.append(ab.ability_value_decl.parent);
     }
 
     // Create the function type
@@ -586,7 +595,7 @@ pub fn create_function_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) !*Sy
         ast.fn_decl.ret_type.token(),
         domain,
         ast.fn_decl.ret_type,
-        contexts,
+        abilities,
         allocator,
     );
     ast.fn_decl._decl_type = _type;
@@ -613,9 +622,9 @@ pub fn create_function_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) !*Sy
 }
 
 pub fn create_test_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) Error!*Symbol {
-    var contexts = std.array_list.Managed(*Type_AST).init(allocator);
-    for (ast.@"test".context_decls.items) |ctx| {
-        try contexts.append(ctx.context_value_decl.parent);
+    var abilities = std.array_list.Managed(*Type_AST).init(allocator);
+    for (ast.@"test".ability_decls.items) |ab| {
+        try abilities.append(ab.ability_value_decl.parent);
     }
 
     const args = std.array_list.Managed(*Type_AST).init(allocator);
@@ -623,7 +632,7 @@ pub fn create_test_symbol(ast: *ast_.AST, allocator: std.mem.Allocator) Error!*S
         ast.token(),
         args,
         core_.test_result_type,
-        contexts,
+        abilities,
         allocator,
     );
     ast.@"test"._decl_type = _type;
@@ -802,9 +811,9 @@ fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
     else
         try extract_domain(ast.children().*, allocator);
 
-    var contexts = std.array_list.Managed(*Type_AST).init(allocator);
-    for (ast.method_decl.context_decls.items) |ctx| {
-        try contexts.append(ctx.context_value_decl.parent);
+    var abilities = std.array_list.Managed(*Type_AST).init(allocator);
+    for (ast.method_decl.ability_decls.items) |ab| {
+        try abilities.append(ab.ability_value_decl.parent);
     }
 
     // Create the function type
@@ -812,7 +821,7 @@ fn create_method_type(ast: *ast_.AST, allocator: std.mem.Allocator) !*Type_AST {
         ast.method_decl.ret_type.token(),
         args,
         ast.method_decl.ret_type,
-        contexts,
+        abilities,
         allocator,
     );
     return _type;

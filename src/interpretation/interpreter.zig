@@ -341,14 +341,14 @@ inline fn execute_instruction(self: *Self, instr: *Instruction) Error!void { // 
                 return self.package_find(instr);
             }
 
-            try self.call(symbol, instr.dest.?, instr.data.call.arg_lval_list); // TODO: Comptime contexts
+            try self.call(symbol, instr.dest.?, instr.data.call.arg_lval_list); // TODO: Comptime abilities
         },
         .invoke => {
             const symbol_loc = try self.effective_address(instr.data.invoke.method_decl_lval.?);
             const symbol_int = @as(usize, @intCast(self.memory.load_int(symbol_loc, 8)));
             const symbol: *Symbol = @ptrFromInt(symbol_int);
 
-            try self.call(symbol, instr.dest.?, instr.data.invoke.arg_lval_list); // TODO: Comptime contexts
+            try self.call(symbol, instr.dest.?, instr.data.invoke.arg_lval_list); // TODO: Comptime abilities
         },
         .push_stack_trace => { // Pushes a static span/code to the lines array if debug mode is on
             self.debug_call_stack.append(instr.span) catch unreachable;

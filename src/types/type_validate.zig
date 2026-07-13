@@ -35,7 +35,7 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
 
         .identifier => {
             const type_symbol = try Decorate.symbol(@"type", self.ctx);
-            if (!(type_symbol.is_type() or type_symbol.kind == .context)) {
+            if (!(type_symbol.is_type() or type_symbol.kind == .ability)) {
                 self.ctx.errors.add_error(errs_.Error{ .basic = .{ .msg = "expected a type", .span = @"type".token().span } });
                 return error.CompileError;
             }
@@ -98,11 +98,11 @@ pub fn validate_type(self: *Self, @"type": *Type_AST) Validate_Error_Enum!void {
                 try self.validate_type(arg);
             }
             try self.validate_type(@"type".rhs());
-            for (@"type".function.contexts.items) |context_type| {
-                const stripped = context_type.strip_addrs();
-                _ = try stripped.resolve_context_reference(self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
-                        .span = context_type.token().span,
+            for (@"type".function.abilities.items) |ability_type| {
+                const stripped = ability_type.strip_addrs();
+                _ = try stripped.resolve_ability_reference(self.ctx) orelse {
+                    self.ctx.errors.add_error(errs_.Error{ .expected_ability = .{
+                        .span = ability_type.token().span,
                         .got = stripped,
                     } });
                     return error.CompileError;

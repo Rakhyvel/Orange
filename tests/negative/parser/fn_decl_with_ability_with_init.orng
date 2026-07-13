@@ -1,0 +1,13 @@
+// fn_decl_with_ability_with_init.orng:13:31: error: expected `{`, got `(`
+// fn f() -> Int with My_Ability(4) { My_Ability }
+//                              ^
+// 
+ability My_Ability = Int
+
+fn main() -> Int {
+    with My_Ability(4) {
+        f()
+    }
+}
+
+fn f() -> Int with My_Ability(4) { My_Ability }

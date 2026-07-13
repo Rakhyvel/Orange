@@ -56,7 +56,7 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
         },
         .anyptr_type => try self.writer.print("void *", .{}),
         .unit_type => try self.writer.print("void", .{}),
-        .annotation => try self.output_type(_type.child()),
+        .annotation, .ability_type => try self.output_type(_type.child()),
 
         .function => try self.writer.print("{f}", .{Canonical_Type_Fmt{ .type = _type }}),
         .enum_type,
@@ -64,7 +64,6 @@ pub fn output_type(self: *Self, old_type: *Type_AST) CodeGen_Error!void {
         .struct_type,
         .array_of,
         .dyn_type,
-        .context_type,
         => try self.writer.print("struct {f}", .{Canonical_Type_Fmt{ .type = _type }}),
         .untagged_sum_type => try self.writer.print("union {f}", .{Canonical_Type_Fmt{ .type = _type }}),
         else => std.debug.panic("compiler error: unimplemented output_type() for {f}", .{_type.*}),
@@ -114,10 +113,10 @@ pub fn output_function_prototype(
     // Output function parameters
     const decl = cfg.symbol.decl.?;
     const param_symbols = decl.param_symbols();
-    const context_param_symbols = decl.context_param_symbols();
+    const ability_param_symbols = decl.ability_param_symbols();
 
     var has_params = false;
-    const has_contexts = context_param_symbols != null and context_param_symbols.?.items.len > 0;
+    const has_abilities = ability_param_symbols != null and ability_param_symbols.?.items.len > 0;
 
     var num_non_unit_params: i64 = 0;
     try self.writer.print("(", .{});
@@ -140,13 +139,13 @@ pub fn output_function_prototype(
             }
         }
     }
-    if (context_param_symbols != null) {
-        if (has_contexts and has_params) {
+    if (ability_param_symbols != null) {
+        if (has_abilities and has_params) {
             try self.writer.print(", ", .{});
         }
-        for (context_param_symbols.?.items, 0..) |term, i| {
+        for (ability_param_symbols.?.items, 0..) |term, i| {
             try self.output_var_decl(term, true);
-            if (i + 1 < context_param_symbols.?.items.len and is_storable(context_param_symbols.?.items[i + 1].expanded_type())) {
+            if (i + 1 < ability_param_symbols.?.items.len and is_storable(ability_param_symbols.?.items[i + 1].expanded_type())) {
                 try self.writer.print(", ", .{});
             }
             num_non_unit_params += 1;
@@ -196,18 +195,18 @@ pub fn output_symbol(self: *Self, symbol: *Symbol) CodeGen_Error!void {
     }
 }
 
-pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) CodeGen_Error!void {
+pub fn output_ability_includes(self: *Self, abilities_used: *Type_Map(void)) CodeGen_Error!void {
     try self.output_common_types();
 
-    for (contexts_used.pairs.items) |pair| {
-        var ctx = pair.key.child();
-        if (ctx.types_match(core_.allocating_context)) {
+    for (abilities_used.pairs.items) |pair| {
+        var ab = pair.key;
+        if (ab.types_match(core_.allocating_ability)) {
             try self.writer.print("#include \"alloc.inc\"\n", .{});
-        } else if (ctx.types_match(core_.io_context)) {
+        } else if (ab.types_match(core_.writing_ability) or ab.types_match(core_.reading_ability)) {
             try self.writer.print("#include \"io.inc\"\n", .{});
-        } else if (ctx.types_match(core_.args_context)) {
+        } else if (ab.types_match(core_.args_ability)) {
             try self.writer.print("#include \"args.inc\"\n", .{});
-        } else if (ctx.types_match(core_.file_io_context)) {
+        } else if (ab.types_match(core_.file_io_ability)) {
             try self.writer.print("#include \"file_io.inc\"\n", .{});
         }
     }
@@ -216,54 +215,60 @@ pub fn output_context_includes(self: *Self, contexts_used: *Type_Map(void)) Code
 pub fn output_common_types(self: *Self) CodeGen_Error!void {
     try self.writer.print("typedef struct {f} orange_type_String;\n", .{Canonical_Type_Fmt{ .type = prelude_.string_type }});
     try self.writer.print("typedef struct {f} orange_type_StringSlice;\n", .{Canonical_Type_Fmt{ .type = Type_AST.create_slice_type(prelude_.string_type, false, std.heap.page_allocator) }});
-    try self.writer.print("typedef struct {f} orange_type_ArgsCtx;\n", .{Canonical_Type_Fmt{ .type = core_.args_context }});
     try self.writer.print("typedef struct {f} orange_type_File;\n", .{Canonical_Type_Fmt{ .type = core_.file_system_trait.trait.method_decls.items[0].method_decl.ret_type }});
 }
 
-pub fn output_context_defs(self: *Self, contexts_used: *Type_Map(void)) CodeGen_Error!void {
-    for (contexts_used.pairs.items) |pair| {
-        const ctx = pair.key.child();
-        if (ctx.types_match(core_.allocating_context)) {
-            try self.output_type(core_.allocating_context);
+pub fn output_ability_defs(self: *Self, abilities_used: *Type_Map(void)) CodeGen_Error!void {
+    for (abilities_used.pairs.items) |pair| {
+        const ab = pair.key;
+        if (ab.types_match(core_.allocating_ability)) {
+            try self.output_type(core_.allocating_ability);
             try self.writer.print(
-                \\ allocator_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__allocator_vtable}}}};
+                \\ allocator_ability = {{.data_ptr = NULL, .vtable = &orange__core__allocator_vtable}};
                 \\    
             , .{});
-        } else if (ctx.types_match(core_.io_context)) {
-            try self.output_type(core_.io_context);
+        } else if (ab.types_match(core_.writing_ability)) {
+            try self.output_type(core_.writing_ability);
             try self.writer.print(
-                \\ io_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}}, ._1 = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}}}};
+                \\ writing_ability = {{.data_ptr = NULL, .vtable = &orange__core__writer_vtable}};
                 \\    
             , .{});
-        } else if (ctx.types_match(core_.args_context)) {
-            try self.output_type(core_.args_context);
+        } else if (ab.types_match(core_.reading_ability)) {
+            try self.output_type(core_.reading_ability);
             try self.writer.print(
-                \\ args_context = orange__core__convert_args(argc, argv);
+                \\ reading_ability = {{.data_ptr = NULL, .vtable = &orange__core__reader_vtable}};
                 \\    
             , .{});
-        } else if (ctx.types_match(core_.file_io_context)) {
-            try self.output_type(core_.file_io_context);
+        } else if (ab.types_match(core_.args_ability)) {
+            try self.output_type(core_.args_ability);
             try self.writer.print(
-                \\ file_io_context = {{._0 = {{.data_ptr = NULL, .vtable = &orange__core__file_system_vtable}}}};
+                \\ args_ability = orange__core__convert_args(argc, argv);
+                \\    
+            , .{});
+        } else if (ab.types_match(core_.file_io_ability)) {
+            try self.output_type(core_.file_io_ability);
+            try self.writer.print(
+                \\ file_io_ability = {{.data_ptr = NULL, .vtable = &orange__core__file_system_vtable}};
                 \\    
             , .{});
         }
     }
 }
 
-pub fn output_context_args(self: *Self, contexts: []const *Type_AST) CodeGen_Error!void {
-    for (contexts, 0..) |ctx, i| {
-        std.debug.assert(ctx.* == .addr_of);
-        if (ctx.child().types_match(core_.allocating_context)) {
-            try self.writer.print("&allocator_context", .{});
-        } else if (ctx.child().types_match(core_.io_context)) {
-            try self.writer.print("&io_context", .{});
-        } else if (ctx.child().types_match(core_.args_context)) {
-            try self.writer.print("&args_context", .{});
-        } else if (ctx.child().types_match(core_.file_io_context)) {
-            try self.writer.print("&file_io_context", .{});
+pub fn output_ability_args(self: *Self, abilities: []const *Type_AST) CodeGen_Error!void {
+    for (abilities, 0..) |ctx, i| {
+        if (ctx.types_match(core_.allocating_ability)) {
+            try self.writer.print("allocator_ability", .{});
+        } else if (ctx.types_match(core_.writing_ability)) {
+            try self.writer.print("writing_ability", .{});
+        } else if (ctx.types_match(core_.reading_ability)) {
+            try self.writer.print("reading_ability", .{});
+        } else if (ctx.types_match(core_.args_ability)) {
+            try self.writer.print("args_ability", .{});
+        } else if (ctx.types_match(core_.file_io_ability)) {
+            try self.writer.print("file_io_ability", .{});
         }
-        if (i + 1 < contexts.len) {
+        if (i + 1 < abilities.len) {
             try self.writer.print(", ", .{});
         }
     }

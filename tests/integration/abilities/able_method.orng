@@ -1,0 +1,26 @@
+// 366
+
+ability My_Ability = Int
+
+trait Contexual {
+    virtual fn virt_contexual(self) -> Int with My_Ability
+
+    fn static_contexual(self) -> Int with My_Ability
+}
+
+impl Contexual for Int {
+    virtual fn virt_contexual(self) -> Int with My_Ability {
+        My_Ability + self
+    }
+
+    fn static_contexual(self) -> Int with My_Ability {
+        My_Ability + self
+    }
+}
+
+fn main() -> Int {
+    with My_Ability(182) {
+        let x: Int = 1
+        x.>virt_contexual() + x.>static_contexual()
+    }
+}

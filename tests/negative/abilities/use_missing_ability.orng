@@ -1,0 +1,9 @@
+// use_missing_ability.orng:8:15: error: missing ability `My_Ability`
+//     My_Ability
+//              ^
+// 
+ability My_Ability = Int
+
+fn main() -> Int {
+    My_Ability
+}

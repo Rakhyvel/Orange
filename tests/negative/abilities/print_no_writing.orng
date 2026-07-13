@@ -1,0 +1,7 @@
+// print_no_writing.orng:6:11: error: missing ability `Writing`
+//     @print("Hello, World!")
+//          ^
+// 
+fn main() -> ()!() {
+    @print("Hello, World!")
+}

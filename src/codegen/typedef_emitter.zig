@@ -42,7 +42,7 @@ fn output_dependencies(self: *Self) CodeGen_Error!void {
     for (self.dep.dependencies.items) |depen| {
         switch (depen.base.*) {
             .struct_type,
-            .context_type,
+            .ability_type,
             .tuple_type,
             .array_of,
             .enum_type,
@@ -69,7 +69,7 @@ fn output_include_guard_end(self: *Self) CodeGen_Error!void {
 /// Outputs a typedef declaration based on the provided `DAG`.
 fn output_typedef(self: *Self) CodeGen_Error!void {
     if (self.dep.base.* == .function) {
-        const has_contexts = self.dep.base.function.contexts.items.len > 0;
+        const has_abilities = self.dep.base.function.abilities.items.len > 0;
         var has_params = false;
 
         try self.writer.print("typedef ", .{});
@@ -87,19 +87,19 @@ fn output_typedef(self: *Self) CodeGen_Error!void {
             }
         }
 
-        if (has_contexts) {
+        if (has_abilities) {
             if (has_params) {
                 try self.writer.print(", ", .{});
             }
-            for (self.dep.base.function.contexts.items, 0..) |ctx, i| {
+            for (self.dep.base.function.abilities.items, 0..) |ctx, i| {
                 try self.emitter.output_type(ctx);
-                if (i + 1 < self.dep.base.function.contexts.items.len) {
+                if (i + 1 < self.dep.base.function.abilities.items.len) {
                     try self.writer.print(", ", .{});
                 }
             }
         }
         try self.writer.print(");\n\n", .{});
-    } else if (self.dep.base.* == .struct_type or self.dep.base.* == .tuple_type or self.dep.base.* == .context_type) {
+    } else if (self.dep.base.* == .struct_type or self.dep.base.* == .tuple_type or self.dep.base.* == .ability_type) {
         try self.writer.print("struct {f} {{\n", .{Canonical_Type_Fmt{ .type = self.dep.base }});
         try self.output_field_list(self.dep.base.children(), 4);
         try self.writer.print("}};\n\n", .{});

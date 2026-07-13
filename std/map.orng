@@ -46,7 +46,7 @@ impl[K: core::Hash + core::Eq + core::Sized, V: core::Sized] for Map[K, V] {
             .keys = ([mut]K)::from_parts(@addr_from_word64(0), 0),
             .values = ([mut]V)::from_parts(@addr_from_word64(0), 0),
             .capacity = 0,
-            .alloc = core::Allocating.alloc,
+            .alloc = core::Allocating,
         )
     }
 

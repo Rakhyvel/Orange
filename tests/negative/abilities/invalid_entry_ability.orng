@@ -1,0 +1,9 @@
+// invalid_entry_ability.orng:7:33: error: can't request this ability
+// fn main() -> Int with My_Ability {
+//                                ^
+// 
+ability My_Ability = Int
+
+fn main() -> Int with My_Ability {
+    My_Ability
+}

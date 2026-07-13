@@ -14,7 +14,7 @@ const Validate_Error_Enum = error{CompileError};
 pub const Validate_Args_Thing = enum {
     function,
     method,
-    context,
+    ability,
     @"struct",
     tuple,
     array,
@@ -25,7 +25,7 @@ pub const Validate_Args_Thing = enum {
 
     fn takes_name(self: @This()) []const u8 {
         return switch (self) {
-            .context, .function, .method => "parameter",
+            .ability, .function, .method => "parameter",
             .@"struct" => "field",
             .tuple, .array => "element",
         };
@@ -33,7 +33,7 @@ pub const Validate_Args_Thing = enum {
 
     fn given_name(self: @This()) []const u8 {
         return switch (self) {
-            .context, .function, .method => "argument",
+            .ability, .function, .method => "argument",
             .@"struct" => "value",
             .tuple, .array => "element",
         };
@@ -282,18 +282,19 @@ pub fn validate_arity(self: *Self) Validate_Error_Enum!void {
     }
 }
 
-pub fn validate_requested_contexts(contexts: []const *Type_AST, errors: *errs_.Errors) Validate_Error_Enum!void {
+pub fn validate_requested_abilities(abilities: []const *Type_AST, errors: *errs_.Errors) Validate_Error_Enum!void {
     const core_ = @import("../hierarchy/core.zig");
 
-    for (contexts) |ctx| {
-        if (!ctx.child().types_match(core_.allocating_context) and
-            !ctx.child().types_match(core_.io_context) and
-            !ctx.child().types_match(core_.args_context) and
-            !ctx.child().types_match(core_.file_io_context))
+    for (abilities) |ab| {
+        if (!ab.types_match(core_.allocating_ability) and
+            !ab.types_match(core_.writing_ability) and
+            !ab.types_match(core_.reading_ability) and
+            !ab.types_match(core_.args_ability) and
+            !ab.types_match(core_.file_io_ability))
         {
             errors.add_error(errs_.Error{ .basic = .{
-                .span = ctx.token().span,
-                .msg = "can't request this context",
+                .span = ab.token().span,
+                .msg = "can't request this ability",
             } });
             return error.CompileError;
         }

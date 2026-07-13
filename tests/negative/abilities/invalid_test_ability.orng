@@ -1,0 +1,9 @@
+// invalid_test_ability.orng:7:31: error: can't request this ability
+// test "my test" with My_Ability {
+//                              ^
+// 
+ability My_Ability = Int
+
+test "my test" with My_Ability {
+    .ok
+}

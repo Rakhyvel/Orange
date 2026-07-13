@@ -1,0 +1,20 @@
+// 588
+ability My_Ability = Int
+
+fn main() -> Int {
+    let doer = Doer[Int, My_Ability]()
+    _ = doer
+    with My_Ability(2) {
+        doer.>do_twice(scale, 147)
+    }
+}
+
+struct Doer[T, ability C] {}
+
+impl[T, ability C] for Doer[T, C] {
+    fn do_twice(f: T -> T with C, x: T) -> T with C {
+        f(f(x))
+    }
+}
+
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

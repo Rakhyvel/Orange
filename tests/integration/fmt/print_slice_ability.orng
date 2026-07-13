@@ -1,0 +1,17 @@
+// Hello, World!
+
+fn main() -> ()!() with core::Writing {
+    let options = ["Hello", ", ", "World", "!"]
+    with Slice(&options) {
+        print()
+    }
+}
+
+ability Slice = []String
+
+fn print() -> ()!() with (core::Writing, Slice) {
+    for i in 0..Slice.length {
+        try @print("{Slice[i]}")
+    }
+    .ok
+}

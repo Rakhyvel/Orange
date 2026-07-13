@@ -1,0 +1,12 @@
+// 360
+ability My_Ability = Int
+
+fn main() -> Int {
+    with My_Ability(356) {
+        add_four()
+    }
+}
+
+fn add_four() -> Int with My_Ability {
+    My_Ability + 4
+}

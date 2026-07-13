@@ -3,21 +3,21 @@ import ffi
 import testing
 
 fn new[T: core::Sized]() -> ()!&mut T with core::Allocating {
-    match core::Allocating.alloc.>alloc(T::size) {
+    match core::Allocating.>alloc(T::size) {
         .some(bytes) => ffi::ref_from_ptr_mut[T](bytes as [*mut]T)
         .none => .err
     }
 }
 
 fn make[T: core::Sized](length: Int) -> ()![mut]T with core::Allocating {
-    match core::Allocating.alloc.>alloc(T::size * length) {
+    match core::Allocating.>alloc(T::size * length) {
         .some(bytes) => .ok(([mut]T)::from_parts(@addr_cast(bytes), length))
         .none => .err
     }
 }
 
 fn destroy[T](slice: [mut]T) with core::Allocating {
-    core::Allocating.alloc.>free(@addr_cast(slice.data))
+    core::Allocating.>free(@addr_cast(slice.data))
 }
 
 fn eql(a: String, b: String) -> Bool {

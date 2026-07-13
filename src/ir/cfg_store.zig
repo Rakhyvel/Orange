@@ -39,8 +39,8 @@ pub fn get_cfg(
     }
     if (symbol.cfg == null) {
         symbol.cfg = CFG.init(symbol, self.ctx.allocator());
-        var lower_context = Lower_Context.init(self.ctx, symbol.cfg.?, interned_strings);
-        try lower_context.lower_AST_into_cfg();
+        var lower_ability = Lower_Context.init(self.ctx, symbol.cfg.?, interned_strings);
+        try lower_ability.lower_AST_into_cfg();
         try cfg_validate_.validate_cfg(symbol.cfg.?, &self.ctx.errors);
         try optimizations_.optimize(symbol.cfg.?, &self.ctx.errors, self.ctx.allocator());
         symbol.cfg.?.collect_generated_symbvers();

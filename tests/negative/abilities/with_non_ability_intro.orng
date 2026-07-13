@@ -1,0 +1,9 @@
+// with_non_ability_intro.orng:6:13: error: expected an ability, got the type `Int`
+//     with Int {
+//            ^
+// 
+fn main() -> Int {
+    with Int {
+        3
+    }
+}

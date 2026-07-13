@@ -186,7 +186,7 @@ fn integrate_test_file(filename: []const u8, mode: Test_Mode, debug_alloc: *Debu
     _ = try expected_out.replace("\r", "");
     _ = try expected_out.replace("\n", "");
 
-    try compiler.compile(package_abs_path);
+    compiler.compile(package_abs_path) catch unreachable;
 
     // execute (make sure no signals)
     var output_name = try String.init_with_contents(allocator, "");

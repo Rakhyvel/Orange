@@ -113,7 +113,7 @@ test "uniform" {
     .ok
 }
 
-test "normal" with core::IO {
+test "normal" {
     let mut rng = Xoshiro128::from_seed(0)
 
     let mut min = 1000.0

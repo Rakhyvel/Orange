@@ -15,6 +15,7 @@ const Span = @import("../util/span.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Type_Map = @import("../types/type_map.zig").Type_Map;
 const Symbol = @import("../symbol/symbol.zig");
+const Tree_Writer = @import("../ast/tree_writer.zig");
 
 const Self = @This();
 
@@ -222,10 +223,10 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
         \\    
     , .{});
 
-    var contexts_used = Type_Map(void).init(std.heap.page_allocator);
-    defer contexts_used.deinit();
-    try contexts_used.put_many(symbol.type().function.contexts.items, void{});
-    try self.emitter.output_context_defs(&contexts_used);
+    var abilities_used = Type_Map(void).init(std.heap.page_allocator);
+    defer abilities_used.deinit();
+    try abilities_used.put_many(symbol.type().function.abilities.items, void{});
+    try self.emitter.output_ability_defs(&abilities_used);
 
     if (specifier != null) {
         try self.writer.print("printf(\"%{s}{s}\", ", .{ if (codomain.sizeof().? == 8) "l" else "", specifier.? });
@@ -234,11 +235,11 @@ pub fn output_main_function(self: *Self) CodeGen_Error!void {
     } else {
         if (codomain.* == .enum_type and codomain.enum_type.from == .@"error") {
             try self.emitter.output_type(codomain);
-            try self.writer.print("  retcode = ", .{});
+            try self.writer.print(" retcode = ", .{});
         }
         try self.emitter.output_symbol(symbol);
         try self.writer.print("(", .{});
-        try self.emitter.output_context_args(symbol.type().function.contexts.items);
+        try self.emitter.output_ability_args(symbol.type().function.abilities.items);
         try self.writer.print(");\n", .{});
     }
 
@@ -663,7 +664,7 @@ fn output_instruction_post_check(self: *Self, instr: *Instruction) CodeGen_Error
                     }
                 }
             }
-            // TODO: context args
+            // TODO: ability args
             try self.writer.print(");\n", .{});
         },
         .label,

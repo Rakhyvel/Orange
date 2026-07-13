@@ -1,16 +1,16 @@
 // custom printer: Hello, World!
-fn custom_printer(args: []&dyn core::Format) -> ()!() with core::IO {
+fn custom_printer(args: []&dyn core::Format) -> ()!() with core::Writing {
     try @print("custom printer: ")
     while let mut i = 0; i < args.length; i += 1 {
         if i % 2 == 0 {
             let arg = args[i]
-            arg.>format(core::IO.writer)
+            arg.>format(core::Writing)
         }
     }
     .ok
 }
 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     let ignore_me = "bye"
     try custom_printer(@format("Hello, {ignore_me}World!"))
     .ok

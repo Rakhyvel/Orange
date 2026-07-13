@@ -1,0 +1,15 @@
+// 590
+fn main() -> Int {
+    let doer = Doer[Int, My_Ability](scale)
+    with My_Ability(295) {
+        doer.f(2)
+    }
+}
+
+struct Doer[T, ability C] {
+    f: T -> T with C
+}
+
+ability My_Ability = Int
+
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

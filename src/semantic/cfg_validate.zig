@@ -44,7 +44,7 @@ pub fn validate_cfg(cfg: *CFG, errors: *errs_.Errors) error{CompileError}!void {
                 for (instr.data.call.arg_lval_list.items) |lval| {
                     try err_if_chain_undefd(lval, errors, cfg.return_symbol, instr.span);
                 }
-                for (instr.data.call.context_arg_lval_list.items) |lval| {
+                for (instr.data.call.ability_arg_lval_list.items) |lval| {
                     try err_if_chain_undefd(lval, errors, cfg.return_symbol, instr.span);
                 }
             }
@@ -53,7 +53,7 @@ pub fn validate_cfg(cfg: *CFG, errors: *errs_.Errors) error{CompileError}!void {
                 for (instr.data.invoke.arg_lval_list.items) |lval| {
                     try err_if_chain_undefd(lval, errors, cfg.return_symbol, instr.span);
                 }
-                for (instr.data.invoke.context_arg_lval_list.items) |lval| {
+                for (instr.data.invoke.ability_arg_lval_list.items) |lval| {
                     try err_if_chain_undefd(lval, errors, cfg.return_symbol, instr.span);
                 }
             }

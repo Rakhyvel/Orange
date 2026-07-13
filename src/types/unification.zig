@@ -260,11 +260,11 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             }
 
             try unify_inner(lhs.rhs(), rhs.rhs(), subst, visited_map, options);
-            if (lhs.function.contexts.items.len != rhs.function.contexts.items.len) {
+            if (lhs.function.abilities.items.len != rhs.function.abilities.items.len) {
                 return error.TypesMismatch;
             }
-            for (lhs.function.contexts.items, rhs.function.contexts.items) |A_ctx, B_ctx| {
-                try unify_inner(A_ctx, B_ctx, subst, visited_map, options);
+            for (lhs.function.abilities.items, rhs.function.abilities.items) |A_ab, B_ab| {
+                try unify_inner(A_ab, B_ab, subst, visited_map, options);
             }
         },
 
@@ -311,7 +311,7 @@ pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substi
             switch (param.*) {
                 .type_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
                 .const_param_decl => subst.put_const(param.symbol().?.name, arg.const_arg) catch unreachable,
-                .context_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
+                .ability_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
                 else => unreachable,
             }
         }
@@ -345,7 +345,7 @@ pub fn generic_arg_list_from_subst_map(subst: *const Substitutions, generic_para
     var retval = std.array_list.Managed(ast_.GenericArg).init(alloc);
     for (generic_params.items) |param| {
         switch (param.*) {
-            .type_param_decl, .context_param_decl => {
+            .type_param_decl, .ability_param_decl => {
                 const with_value = subst.get_type(param.symbol().?.name) orelse continue;
                 retval.append(.{ .type_arg = with_value }) catch unreachable;
             },

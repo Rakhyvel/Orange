@@ -1,0 +1,36 @@
+// 450
+trait Give_Num {
+    virtual fn get_num(&mut self) -> Int
+}
+
+struct Impler {
+    x: Int
+}
+impl Give_Num for Impler {
+    virtual fn get_num(&mut self) -> Int {
+        self.x += 400
+        self.x
+    }
+}
+
+ability Num = &mut dyn Give_Num
+
+fn get_num[T](x: Int) -> Int with Num {
+    x + Num.>get_num()
+}
+
+struct Wrapper[T] {}
+impl[T] for Wrapper[T] {
+    fn run(self) -> Int with Num {
+        _ = self
+        get_num[T](50)
+    }
+}
+
+fn main() -> Int {
+    let mut impler = Impler(0)
+    let wrapper = Wrapper[Int]()
+    with Num(&mut impler) {
+        wrapper.>run()
+    }
+}

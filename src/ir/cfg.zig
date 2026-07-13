@@ -174,10 +174,10 @@ pub fn collect_cfg_types(self: *Self, type_set: *Type_Set) void {
             _ = type_set.add_type(param.expanded_type());
         }
     }
-    const context_param_symbols = decl.context_param_symbols();
-    if (context_param_symbols != null) {
-        for (context_param_symbols.?.items) |context_param| {
-            _ = type_set.add_type(context_param.expanded_type());
+    const ability_param_symbols = decl.ability_param_symbols();
+    if (ability_param_symbols != null) {
+        for (ability_param_symbols.?.items) |ability_param| {
+            _ = type_set.add_type(ability_param.expanded_type());
         }
     }
     _ = type_set.add_type(self.return_symbol.expanded_type());
@@ -291,7 +291,7 @@ pub fn calculate_usage(self: *Self) void {
                 for (instr.data.call.arg_lval_list.items) |lval| {
                     lval.increment_usage();
                 }
-                for (instr.data.call.context_arg_lval_list.items) |lval| {
+                for (instr.data.call.ability_arg_lval_list.items) |lval| {
                     lval.increment_usage();
                 }
             }
@@ -305,7 +305,7 @@ pub fn calculate_usage(self: *Self) void {
                 for (instr.data.invoke.arg_lval_list.items) |lval| {
                     lval.increment_usage();
                 }
-                for (instr.data.invoke.context_arg_lval_list.items) |lval| {
+                for (instr.data.invoke.ability_arg_lval_list.items) |lval| {
                     lval.increment_usage();
                 }
             }
@@ -336,7 +336,7 @@ pub fn calculate_definitions(self: *Self) void {
                 for (instr.data.call.arg_lval_list.items) |lval| {
                     reset_defs(lval);
                 }
-                for (instr.data.call.context_arg_lval_list.items) |lval| {
+                for (instr.data.call.ability_arg_lval_list.items) |lval| {
                     reset_defs(lval);
                 }
             }
@@ -346,7 +346,7 @@ pub fn calculate_definitions(self: *Self) void {
                 for (instr.data.invoke.arg_lval_list.items) |lval| {
                     reset_defs(lval);
                 }
-                for (instr.data.invoke.context_arg_lval_list.items) |lval| {
+                for (instr.data.invoke.ability_arg_lval_list.items) |lval| {
                     reset_defs(lval);
                 }
             }

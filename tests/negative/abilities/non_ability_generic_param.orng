@@ -1,0 +1,15 @@
+// non_ability_generic_param.orng:8:24: error: expected an ability, got the type `Float`
+//     do_twice[Int, Float](scale, 146)
+//                       ^
+// 
+ability My_Ability = Int
+
+fn main() -> Int {
+    do_twice[Int, Float](scale, 146)
+}
+
+fn do_twice[T, ability C](f: T -> T with C, x: T) -> T with C {
+    f(f(x))
+}
+
+fn scale(x: Int) -> Int with My_Ability { x * My_Ability }

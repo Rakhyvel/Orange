@@ -1,0 +1,14 @@
+// 367
+ability Context1 = Int
+
+ability Context2 = Int
+
+fn add() -> Int with (Context1, Context2) {
+    Context1 + Context2
+}
+
+fn main() -> Int {
+    with Context1(300), Context2(67) {
+        add()
+    }
+}

@@ -28,7 +28,7 @@ zig build orng
 
 A hello-world example:
 ```rs
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     @println("Hello, World!")
 }
 ```
@@ -41,25 +41,23 @@ orng run
 ## Standout Features
 Orange comes with a wide range of features that make it a powerful and flexible programming language, including:
 
-### Implicit User-Defined Contexts
-This is probably Orange's largest standout feature. Orange allows the user to define contexts that can be passed around implicitly. This is how side-effects like allocation, IO, file operations, and networking are tracked in Orange.
-
+### Ability Tracking
+This is probably Orange's largest standout feature. Orange's ability system provides a way to explicitly track the capabilities required by a function. This allows resources like allocation, IO, filesystem access, and networking to remain visible in the type system while keeping function calls clean.
 ```rs
-context Allocating {
-    alloc: &mut dyn Allocator
+ability Allocating = &mut dyn Allocator // Define the Allocating ability, backed by an allocator object
+ability Writing = &mut dyn Writer       // Define the Writing ability, backed by a writer object
+
+fn main() with Allocating, Writing {
+    // Ability requirements propagate through function calls
+    write_greeting()
 }
 
-// Declare that a function uses a context
-fn main() with Allocating {
-    // A caller function must be able to provide a callee's context
-    let x = alloc_something()
-    x^ = 100
-}
+// The compiler infers that this function requires Allocating and Writing
+fn write_greeting() with ... {
+    let mut buffer = String_Buffer.init() // Call requires Allocating ability, added to inference set
+    buffer.append("Hello from Orange!")
 
-// Contexts can be inferred
-fn alloc_something() -> &mut Int with .. {
-    let retval: &mut Int = Allocating.alloc.new[Int]()
-    retval
+    @println("{buffer}")                  // Uses Writing ability, added to inference set
 }
 ```
 
@@ -100,7 +98,7 @@ impl Ord for Int {
     fn lt(self, other: Int) -> Bool { self < other }
 }
 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     let x = max(10, 20)
     @println("max is {x}")
 }
@@ -121,7 +119,7 @@ fn compile_regex(pattern: String) -> Regex {
 
 const number_regex = compile_regex("[0-9]+") // regex compiled at compile-time
 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     if number_regex.matches("12345") {
         @println("Matched a number!")
     }

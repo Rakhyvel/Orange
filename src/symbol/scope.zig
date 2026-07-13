@@ -97,7 +97,7 @@ pub fn lookup(self: *Self, name: []const u8, flags: Lookup_Flags) Lookup_Result 
     }
 }
 
-pub fn num_visible_contexts(self: *Self) usize {
+pub fn num_visible_abilities(self: *Self) usize {
     var result: usize = 0;
 
     for (self.symbols.keys()) |symbol_name| {
@@ -107,47 +107,43 @@ pub fn num_visible_contexts(self: *Self) usize {
             if (symbol_type.* == .addr_of) {
                 symbol_type = symbol_type.child();
             }
-            if (symbol_type.* == .context_type or std.mem.startsWith(u8, symbol.name, "context_value__")) {
+            if (symbol_type.* == .ability_type or std.mem.startsWith(u8, symbol.name, "ability_value__")) {
                 result += 1;
             }
         }
     }
 
     const parent_contrib = if (self.parent) |parent|
-        parent.num_visible_contexts()
+        parent.num_visible_abilities()
     else
         0;
 
     return result + parent_contrib;
 }
 
-pub fn context_lookup(self: *Self, context_type: *Type_AST, ctx: *Compiler_Context) !?*Symbol {
-    // Canonicalize the context type
-    const req_inner = if (context_type.* == .addr_of) context_type.child() else context_type;
-    if (try req_inner.resolve_context_reference(ctx)) |r| req_inner.* = r.*;
+pub fn ability_lookup(self: *Self, ability_type: *Type_AST, ctx: *Compiler_Context) !?*Symbol {
+    // Canonicalize the ability type
+    const req_inner = if (ability_type.* == .addr_of) ability_type.child() else ability_type;
+    if (try req_inner.resolve_ability_reference(ctx)) |r| req_inner.* = r.*;
 
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
-        if (symbol.kind == .let) {
-            var symbol_type = symbol.type();
-            if (symbol_type.* == .addr_of and context_type.* != .addr_of) {
-                symbol_type = symbol_type.child();
-            }
-            try walker_.walk_type(context_type, Decorate.new(ctx));
-            try walker_.walk_type(symbol_type, Decorate.new(ctx));
-            // Canonicalize the symbol type
-            const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
-            if (try cand_inner.resolve_context_reference(ctx)) |r| cand_inner.* = r.*;
-            const is_context_like = symbol_type.* == .context_type or
-                (symbol_type.* == .identifier and symbol_type.symbol() != null and symbol_type.symbol().?.kind == .context) or
-                std.mem.startsWith(u8, symbol.name, "context_value__");
-            if (!is_context_like) continue;
-            if (context_type.types_match(symbol_type)) {
-                return symbol;
-            }
+        // Skip if it's not ability-value-shaped
+        if (symbol.kind != .let or !std.mem.startsWith(u8, symbol.name, "ability_value__")) continue;
+        var symbol_type = symbol.type();
+        if (symbol_type.* == .addr_of and ability_type.* != .addr_of) {
+            symbol_type = symbol_type.child();
+        }
+        try walker_.walk_type(ability_type, Decorate.new(ctx));
+        try walker_.walk_type(symbol_type, Decorate.new(ctx));
+        // Canonicalize the symbol type
+        const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
+        if (try cand_inner.resolve_ability_reference(ctx)) |r| cand_inner.* = r.*;
+        if (ability_type.types_match(symbol_type)) {
+            return symbol;
         }
     } else if (self.parent) |parent| {
-        return parent.context_lookup(context_type, ctx);
+        return parent.ability_lookup(ability_type, ctx);
     } else {
         return null;
     }
@@ -492,7 +488,7 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
 pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitutions) bool {
     for (impl.impl._generic_params.items) |param| {
         switch (param.*) {
-            .type_param_decl, .context_param_decl => {
+            .type_param_decl, .ability_param_decl => {
                 const mapped = subst.get_type(param.symbol().?.name) orelse continue;
                 if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
                 if (mapped.is_generic()) return true;

@@ -1,0 +1,11 @@
+// select_ability.orng:9:20: error: the type `Int` is not selectable
+//         My_Ability.x
+//                   ^
+// 
+ability My_Ability = Int
+
+fn main() -> Int {
+    with My_Ability(4) {
+        My_Ability.x
+    }
+}

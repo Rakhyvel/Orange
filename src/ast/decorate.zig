@@ -242,13 +242,13 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                         const params = decl.generic_params().items;
                         for (ast.bracket._args.items, 0..) |arg, i| {
                             const wants_const = i < params.len and params[i].* == .const_param_decl;
-                            const wants_context = i < params.len and params[i].* == .context_param_decl;
+                            const wants_ability = i < params.len and params[i].* == .ability_param_decl;
                             switch (arg) {
                                 .const_arg => |v| if (wants_const) {
                                     try generic_args.append(.{ .const_arg = v });
-                                } else if (wants_context) {
+                                } else if (wants_ability) {
                                     self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                        .msg = "expected a context argument, got a value",
+                                        .msg = "expected an ability argument, got a value",
                                         .span = v.token().span,
                                     } });
                                     return error.CompileError;
@@ -262,9 +262,9 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
                                 .type_arg => |ty| if (wants_const) {
                                     try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) });
-                                } else if (wants_context) {
-                                    const resolved = (try ty.resolve_context_reference(self.ctx)) orelse {
-                                        self.ctx.errors.add_error(errs_.Error{ .expected_context = .{
+                                } else if (wants_ability) {
+                                    const resolved = (try ty.resolve_ability_reference(self.ctx)) orelse {
+                                        self.ctx.errors.add_error(errs_.Error{ .expected_ability = .{
                                             .span = ty.token().span,
                                             .got = ty,
                                         } });
@@ -305,7 +305,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                     if (td.* != .identifier or td.symbol() == null) break;
                     s = td.symbol().?;
                 }
-                if (s.kind == .context) child.set_symbol(s);
+                if (s.kind == .ability) child.set_symbol(s);
             }
             if (child.* == .identifier and child.symbol() != null and child.symbol().?.is_type()) {
                 const enum_value = ast_.AST.create_enum_value(ast.rhs().token(), self.ctx.allocator());
@@ -313,28 +313,6 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                 enum_value.enum_value.base.?.set_symbol(child.symbol());
                 ast.* = enum_value.*;
                 return;
-            }
-
-            // child points to a generic function
-            if (child.* != .identifier and child.* != .access) return;
-
-            const sym = child.symbol() orelse return;
-            const decl = sym.decl orelse return;
-
-            if (decl.* == .context_decl) {
-                const fn_ctx = decl.decl_typedef().?;
-                const context_val_symbol = try child.scope().?.parent.?.context_lookup(fn_ctx, self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
-                        .span = ast.token().span,
-                        .context = Type_AST.create_type_identifier(decl.token(), self.ctx.allocator()),
-                    } });
-                    return error.CompileError;
-                };
-                var token = ast.token();
-                token.data = context_val_symbol.name;
-                const context_val_ident = ast_.AST.create_identifier(token, self.ctx.allocator());
-                context_val_ident.set_symbol(context_val_symbol);
-                ast.set_lhs(context_val_ident);
             }
         },
 
@@ -347,25 +325,21 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
 
         .print => {
             const scope = ast.scope().?;
-            const context_val_symbol = try ast.scope().?.context_lookup(core_.io_context, self.ctx) orelse {
-                self.ctx.errors.add_error(errs_.Error{ .missing_context = .{
+            const ability_val_symbol = try ast.scope().?.ability_lookup(core_.writing_ability, self.ctx) orelse {
+                self.ctx.errors.add_error(errs_.Error{ .missing_ability = .{
                     .span = ast.token().span,
-                    .context = Type_AST.create_type_identifier(core_.io_context.token(), self.ctx.allocator()),
+                    .ability = Type_AST.create_type_identifier(core_.writing_ability.token(), self.ctx.allocator()),
                 } });
                 return error.CompileError;
             };
 
             // Append writer to the call args
             var writer_token = ast.token();
-            writer_token.data = context_val_symbol.name;
-            const io_context = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
-            io_context.set_symbol(context_val_symbol);
-            var writer_field_token = ast.token();
-            writer_field_token.data = "writer";
-            const writer_field = ast_.AST.create_field(writer_field_token, self.ctx.allocator());
-            const writer = ast_.AST.create_select(writer_token, io_context, writer_field, self.ctx.allocator());
+            writer_token.data = ability_val_symbol.name;
+            const writing_ability = ast_.AST.create_identifier(writer_token, self.ctx.allocator());
+            writing_ability.set_symbol(ability_val_symbol);
 
-            const format_all_call = try self.create_format_all_call(ast, writer);
+            const format_all_call = try self.create_format_all_call(ast, writing_ability);
             ast.* = format_all_call.*;
             try self.scope_subtree(ast, scope);
         },
@@ -619,7 +593,7 @@ fn resolve_access_const(self: Self, lhs: *Type_AST, rhs_token: Token, scope: *Sc
 fn extract_symbol_from_decl(decl: *ast_.AST) *Symbol {
     if (decl.* == .decl) {
         return decl.decl.name.symbol().?;
-    } else if (decl.* == .method_decl or decl.* == .fn_decl or decl.* == .trait or decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .type_alias or decl.* == .context_decl or decl.* == .type_param_decl) {
+    } else if (decl.* == .method_decl or decl.* == .fn_decl or decl.* == .trait or decl.* == .struct_decl or decl.* == .enum_decl or decl.* == .type_alias or decl.* == .ability_decl or decl.* == .type_param_decl) {
         return decl.symbol().?;
     } else if (decl.* == .binding) {
         return decl.binding.pattern.symbol().?;

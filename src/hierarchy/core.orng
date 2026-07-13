@@ -1010,19 +1010,8 @@ impl Sized for Int { const size = 8 }
 impl Sized for () { const size = 0 }
 impl[T] Sized for []T { const size = 16 }
 
-context Allocating {
-    alloc: &mut dyn Allocator
-}
-
-context IO {
-    writer: &mut dyn Writer
-    reader: &mut dyn Reader
-}
-
-context Args {
-    args: []String
-}
-
-context File_IO {
-    fs: &mut dyn File_System
-}
+ability Allocating = &mut dyn Allocator
+ability Writing = &mut dyn Writer
+ability Reading = &mut dyn Reader
+ability Args = []String
+ability File_IO = &mut dyn File_System

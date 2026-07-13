@@ -2,7 +2,7 @@
 //     try @print("Hello, } world!")
 //                         ^
 // 
-fn main() -> ()!() with core::IO {
+fn main() -> ()!() with core::Writing {
     try @print("Hello, } world!")
     .ok
 }
