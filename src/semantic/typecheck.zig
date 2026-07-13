@@ -1658,7 +1658,7 @@ fn validate_ability(self: *Self, function_type: *Type_AST, ast: *ast_.AST) Valid
 fn validate_L_Value(self: *Self, ast: *ast_.AST) Validate_Error_Enum!void {
     switch (ast.*) {
         // These are all good
-        .select, .positional_select, .identifier, .array_value, .ability_value, .string => {},
+        .select, .positional_select, .identifier, .access, .array_value, .ability_value, .string => {},
 
         // A dereference is an lvalue IF its a deref of an lval, thats not an address
         .dereference => if (ast.expr().* != .addr_of and ast.expr().* != .call) {

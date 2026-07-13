@@ -33,6 +33,13 @@ pub var reading_ability: *Type_AST = undefined;
 pub var args_ability: *Type_AST = undefined;
 pub var file_io_ability: *Type_AST = undefined;
 
+fn ability_reference(module_scope: *Scope, name: []const u8, allocator: std.mem.Allocator) *Type_AST {
+    const symbol = module_scope.lookup(name, .{}).found;
+    const id = Type_AST.create_type_identifier(symbol.decl.?.token(), allocator);
+    id.set_symbol(symbol);
+    return id;
+}
+
 var core: ?*Scope = null;
 pub var core_symbol: ?*Symbol = null;
 pub var core_package_name: []const u8 = undefined;
@@ -123,11 +130,11 @@ fn create_core(compiler: *Compiler_Context) !void {
     iterator_trait = module_scope.lookup("Iterator", .{}).found;
     file_system_trait = module_scope.lookup("File_System", .{}).found.decl.?;
 
-    allocating_ability = module_scope.lookup("Allocating", .{}).found.init_typedef().?;
-    writing_ability = module_scope.lookup("Writing", .{}).found.init_typedef().?;
-    reading_ability = module_scope.lookup("Reading", .{}).found.init_typedef().?;
-    args_ability = module_scope.lookup("Args", .{}).found.init_typedef().?;
-    file_io_ability = module_scope.lookup("File_IO", .{}).found.init_typedef().?;
+    allocating_ability = ability_reference(module_scope, "Allocating", compiler.allocator());
+    writing_ability = ability_reference(module_scope, "Writing", compiler.allocator());
+    reading_ability = ability_reference(module_scope, "Reading", compiler.allocator());
+    args_ability = ability_reference(module_scope, "Args", compiler.allocator());
+    file_io_ability = ability_reference(module_scope, "File_IO", compiler.allocator());
 
     _ = module_scope.lookup("Requirement", .{}).found.init_typedef().?;
 

@@ -1204,11 +1204,6 @@ pub const Type_AST = union(enum) {
             // If only B is an identifier, and B isn't an atom type, dive
             return types_match(A, B.expand_identifier());
         }
-        if (A.* == .ability_type) {
-            return types_match(A.child(), B);
-        } else if (B.* == .ability_type) {
-            return types_match(A, B.child());
-        }
         if (A.* == .poison or B.* == .poison) {
             return true; // Whatever
         }
@@ -1277,6 +1272,7 @@ pub const Type_AST = union(enum) {
                 }
                 return retval;
             },
+            .ability_type => return types_match(A.child(), B.child()),
             .function => {
                 if (!lengths_match(A.children(), B.children())) return false;
                 var retval = true;

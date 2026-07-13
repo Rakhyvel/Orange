@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-static inline orange_type_ArgsCtx orange__core__convert_args(int argc, char **argv)
+static inline orange_type_StringSlice orange__core__convert_args(int argc, char **argv)
 {
     orange_type_StringSlice result;
 
@@ -22,7 +22,7 @@ static inline orange_type_ArgsCtx orange__core__convert_args(int argc, char **ar
         result._0[i]._1 = (int64_t)len;
     }
 
-    return (orange_type_ArgsCtx){._0 = result};
+    return result;
 }
 
 #endif

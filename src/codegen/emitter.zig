@@ -199,14 +199,14 @@ pub fn output_ability_includes(self: *Self, abilities_used: *Type_Map(void)) Cod
     try self.output_common_types();
 
     for (abilities_used.pairs.items) |pair| {
-        var ctx = pair.key;
-        if (ctx.types_match(core_.allocating_ability)) {
+        var ab = pair.key;
+        if (ab.types_match(core_.allocating_ability)) {
             try self.writer.print("#include \"alloc.inc\"\n", .{});
-        } else if (ctx.types_match(core_.writing_ability) or ctx.types_match(core_.reading_ability)) {
+        } else if (ab.types_match(core_.writing_ability) or ab.types_match(core_.reading_ability)) {
             try self.writer.print("#include \"io.inc\"\n", .{});
-        } else if (ctx.types_match(core_.args_ability)) {
+        } else if (ab.types_match(core_.args_ability)) {
             try self.writer.print("#include \"args.inc\"\n", .{});
-        } else if (ctx.types_match(core_.file_io_ability)) {
+        } else if (ab.types_match(core_.file_io_ability)) {
             try self.writer.print("#include \"file_io.inc\"\n", .{});
         }
     }
@@ -215,7 +215,6 @@ pub fn output_ability_includes(self: *Self, abilities_used: *Type_Map(void)) Cod
 pub fn output_common_types(self: *Self) CodeGen_Error!void {
     try self.writer.print("typedef struct {f} orange_type_String;\n", .{Canonical_Type_Fmt{ .type = prelude_.string_type }});
     try self.writer.print("typedef struct {f} orange_type_StringSlice;\n", .{Canonical_Type_Fmt{ .type = Type_AST.create_slice_type(prelude_.string_type, false, std.heap.page_allocator) }});
-    try self.writer.print("typedef struct {f} orange_type_ArgsCtx;\n", .{Canonical_Type_Fmt{ .type = core_.args_ability }});
     try self.writer.print("typedef struct {f} orange_type_File;\n", .{Canonical_Type_Fmt{ .type = core_.file_system_trait.trait.method_decls.items[0].method_decl.ret_type }});
 }
 
