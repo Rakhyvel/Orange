@@ -4,7 +4,7 @@ fn main() -> ()!() with (core::Writing, core::Allocating, core::Args, core::File
         return .err
     }
 
-    let f = core::File_IO.fs.>open("test.txt", .write) orelse {return .err}
+    let f = core::File_IO.>open("test.txt", .write) orelse {return .err}
     defer f.>close()
 
     try @write(f as &mut dyn core::Writer, "Hello, {core::Args[1]} {core::Args[2]}!\n")
