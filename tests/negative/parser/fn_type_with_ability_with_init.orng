@@ -1,3 +1,7 @@
+// fn_type_with_ability_with_init.orng:8:38: error: expected `=`, got `(`
+//     let g: () -> Int with My_Ability(4) = f
+//                                     ^
+// 
 ability My_Ability = Int
 
 fn main() -> Int {
