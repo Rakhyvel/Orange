@@ -182,7 +182,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                     return error.CompileError;
                 };
                 ast.set_symbol(ability_val_symbol);
-                return resolved.symbol().?.init_typedef().?.expand_identifier().child();
+                if (resolved.symbol().?.init_typedef() != null) {
+                    return resolved.symbol().?.init_typedef().?.expand_identifier().child();
+                }
             }
             if (symbol.is_type() or symbol.kind == .ability) {
                 if (expected != null) {

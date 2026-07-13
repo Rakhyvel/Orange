@@ -1,0 +1,16 @@
+// use_generic_ability.orng:14:14: error: unexpected type
+//     let a = A
+//             ^
+// 
+fn main() -> Int {
+    with My_Ability(4) {
+        f[My_Ability]()
+    }
+}
+
+ability My_Ability = Int
+
+fn f[ability A]() -> A with A {
+    let a = A
+    a
+}

@@ -1,0 +1,19 @@
+// 589
+struct Storer {
+    x: Int
+}
+
+ability My_Ability = Int
+
+fn main() -> Int {
+    with My_Ability(589) {
+        let storer = make_storer()
+        storer.x
+    }
+}
+
+fn make_storer() -> Storer with My_Ability {
+    let mut retval = Storer(0)
+    retval.x = My_Ability
+    retval
+}
