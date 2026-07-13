@@ -1,4 +1,4 @@
-// with_non_context_type.orng:6:31: error: expected an ability, got the type `Int`
+// with_non_ability_type.orng:6:31: error: expected an ability, got the type `Int`
 //     let x: Int -> Int with Int = undefined
 //                              ^
 // 

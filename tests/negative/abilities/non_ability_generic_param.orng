@@ -1,4 +1,4 @@
-// non_context_generic_param.orng:8:24: error: expected an ability, got the type `Float`
+// non_ability_generic_param.orng:8:24: error: expected an ability, got the type `Float`
 //     do_twice[Int, Float](scale, 146)
 //                       ^
 // 

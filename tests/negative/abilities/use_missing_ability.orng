@@ -1,4 +1,4 @@
-// use_missing_context.orng:8:15: error: missing ability `My_Ability`
+// use_missing_ability.orng:8:15: error: missing ability `My_Ability`
 //     My_Ability
 //              ^
 // 

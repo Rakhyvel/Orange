@@ -1,0 +1,17 @@
+// 6
+ability Slice = []Int
+
+fn main() -> Int {
+    let arr = [1, 2, 3]
+    with Slice(&arr) {
+        sum()
+    }
+}
+
+fn sum() -> Int with Slice {
+    let mut retval = 0
+    for i in 0..Slice.length {
+        retval += Slice[i]
+    }
+    retval
+}

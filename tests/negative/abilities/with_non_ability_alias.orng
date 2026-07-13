@@ -1,4 +1,4 @@
-// with_non_context_alias.orng:7:17: error: expected an ability, got the type `A`
+// with_non_ability_alias.orng:7:17: error: expected an ability, got the type `A`
 //         f[Int, A](4)
 //                ^
 // 

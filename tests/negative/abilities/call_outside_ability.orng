@@ -1,4 +1,4 @@
-// call_outside_context.orng:8:14: error: missing ability `My_Ability`
+// call_outside_ability.orng:8:14: error: missing ability `My_Ability`
 //     get_four()
 //             ^
 // 

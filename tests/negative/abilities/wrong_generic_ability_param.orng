@@ -1,4 +1,4 @@
-// wrong_generic_context.orng:11:46: error: expected a value of type `Int->Int with My_Other_Context`, got a value of type `Int->Int with My_Ability`
+// wrong_generic_ability_param.orng:11:46: error: expected a value of type `Int->Int with My_Other_Context`, got a value of type `Int->Int with My_Ability`
 //         do_twice[Int, My_Other_Context](scale, 146)
 //                                             ^
 // 

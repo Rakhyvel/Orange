@@ -1,4 +1,4 @@
-// select_ability.orng:9:20: error: the type `My_Ability` is not selectable
+// select_ability.orng:9:20: error: the type `Int` is not selectable
 //         My_Ability.x
 //                   ^
 // 

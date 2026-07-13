@@ -1,4 +1,4 @@
-// with_wrong_structural_context.orng:11:24: error: missing ability `My_Ability`
+// with_wrong_structural_ability.orng:11:24: error: missing ability `My_Ability`
 //         use_my_context()
 //                       ^
 // 

@@ -128,23 +128,19 @@ pub fn ability_lookup(self: *Self, ability_type: *Type_AST, ctx: *Compiler_Conte
 
     for (self.symbols.keys()) |symbol_name| {
         const symbol = self.symbols.get(symbol_name).?;
-        if (symbol.kind == .let) {
-            var symbol_type = symbol.type();
-            if (symbol_type.* == .addr_of and ability_type.* != .addr_of) {
-                symbol_type = symbol_type.child();
-            }
-            try walker_.walk_type(ability_type, Decorate.new(ctx));
-            try walker_.walk_type(symbol_type, Decorate.new(ctx));
-            // Canonicalize the symbol type
-            const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
-            if (try cand_inner.resolve_ability_reference(ctx)) |r| cand_inner.* = r.*;
-            const is_ability_like = symbol_type.* == .ability_type or
-                (symbol_type.* == .identifier and symbol_type.symbol() != null and symbol_type.symbol().?.kind == .ability) or
-                std.mem.startsWith(u8, symbol.name, "ability_value__");
-            if (!is_ability_like) continue;
-            if (ability_type.types_match(symbol_type)) {
-                return symbol;
-            }
+        // Skip if it's not ability-value-shaped
+        if (symbol.kind != .let or !std.mem.startsWith(u8, symbol.name, "ability_value__")) continue;
+        var symbol_type = symbol.type();
+        if (symbol_type.* == .addr_of and ability_type.* != .addr_of) {
+            symbol_type = symbol_type.child();
+        }
+        try walker_.walk_type(ability_type, Decorate.new(ctx));
+        try walker_.walk_type(symbol_type, Decorate.new(ctx));
+        // Canonicalize the symbol type
+        const cand_inner = if (symbol_type.* == .addr_of) symbol_type.child() else symbol_type;
+        if (try cand_inner.resolve_ability_reference(ctx)) |r| cand_inner.* = r.*;
+        if (ability_type.types_match(symbol_type)) {
+            return symbol;
         }
     } else if (self.parent) |parent| {
         return parent.ability_lookup(ability_type, ctx);
