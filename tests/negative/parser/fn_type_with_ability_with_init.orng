@@ -1,0 +1,10 @@
+ability My_Ability = Int
+
+fn main() -> Int {
+    let g: () -> Int with My_Ability(4) = f
+    with My_Ability(4) {
+        g()
+    }
+}
+
+fn f() -> Int with My_Ability { My_Ability }

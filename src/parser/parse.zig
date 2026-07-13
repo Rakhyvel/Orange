@@ -1338,9 +1338,9 @@ fn with_expr(self: *Self) Parser_Error_Enum!*ast_.AST {
     const token = try self.expect(.with);
     var ability_list = std.array_list.Managed(*ast_.AST).init(self.allocator);
 
-    try ability_list.append(try self.ability_param());
+    try ability_list.append(try self.ability_param(true));
     while (self.accept(.comma) != null) {
-        try ability_list.append(try self.ability_param());
+        try ability_list.append(try self.ability_param(true));
     }
 
     const body_block = try self.block_expr();
@@ -1483,24 +1483,24 @@ fn ability_paramlist(self: *Self) Parser_Error_Enum!std.array_list.Managed(*ast_
     if (self.accept(.with)) |_| {
         if (self.accept(.left_parenthesis) != null) {
             while (!self.peek_kind(.right_parenthesis)) {
-                try retval.append(try self.ability_param());
+                try retval.append(try self.ability_param(false));
                 if (self.accept(.comma) == null) {
                     break;
                 }
             }
             _ = try self.expect(.right_parenthesis);
         } else {
-            try retval.append(try self.ability_param());
+            try retval.append(try self.ability_param(false));
         }
     }
     return retval;
 }
 
-fn ability_param(self: *Self) Parser_Error_Enum!*ast_.AST {
+fn ability_param(self: *Self, allow_init: bool) Parser_Error_Enum!*ast_.AST {
     const parent = try self.type_expr();
 
     var _init: ?*ast_.AST = null;
-    if (self.peek_kind(.left_parenthesis)) {
+    if (allow_init and self.peek_kind(.left_parenthesis)) {
         _init = try self.ability_value(parent);
     }
 
