@@ -314,28 +314,6 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
                 ast.* = enum_value.*;
                 return;
             }
-
-            // child points to a generic function
-            if (child.* != .identifier and child.* != .access) return;
-
-            const sym = child.symbol() orelse return;
-            const decl = sym.decl orelse return;
-
-            if (decl.* == .ability_decl) {
-                const fn_ab = decl.decl_typedef().?;
-                const ability_val_symbol = try child.scope().?.parent.?.ability_lookup(fn_ab, self.ctx) orelse {
-                    self.ctx.errors.add_error(errs_.Error{ .missing_ability = .{
-                        .span = ast.token().span,
-                        .ability = Type_AST.create_type_identifier(decl.token(), self.ctx.allocator()),
-                    } });
-                    return error.CompileError;
-                };
-                var token = ast.token();
-                token.data = ability_val_symbol.name;
-                const ability_val_ident = ast_.AST.create_identifier(token, self.ctx.allocator());
-                ability_val_ident.set_symbol(ability_val_symbol);
-                ast.set_lhs(ability_val_ident);
-            }
         },
 
         .write => {

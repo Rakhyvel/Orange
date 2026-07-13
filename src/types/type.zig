@@ -782,6 +782,10 @@ pub const Type_AST = union(enum) {
             if (!cur.has_symbol() or cur.symbol() == null) return null;
             const sym = cur.symbol().?;
             if (sym.kind == .ability) return cur;
+            if (sym.kind == .let) {
+                cur = sym.type();
+                continue;
+            }
             if (sym.is_alias()) {
                 cur = sym.init_typedef() orelse return null;
                 continue;
