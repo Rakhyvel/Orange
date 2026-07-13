@@ -261,6 +261,8 @@ pub fn output_ability_args(self: *Self, abilities: []const *Type_AST) CodeGen_Er
             try self.writer.print("allocator_ability", .{});
         } else if (ctx.types_match(core_.writing_ability)) {
             try self.writer.print("writing_ability", .{});
+        } else if (ctx.types_match(core_.reading_ability)) {
+            try self.writer.print("reading_ability", .{});
         } else if (ctx.types_match(core_.args_ability)) {
             try self.writer.print("args_ability", .{});
         } else if (ctx.types_match(core_.file_io_ability)) {
