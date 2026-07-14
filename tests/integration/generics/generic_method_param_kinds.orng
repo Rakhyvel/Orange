@@ -1,0 +1,20 @@
+// 592
+ability My_Ability = Int
+
+struct Box {}
+impl for Box {
+    fn map_array[T, const n: Int, ability A](f: &[n]T -> T with A, xs: &[n]T) -> T with A {
+        f(xs)
+    }
+}
+
+fn get_first(xs: &[3]Int) -> Int with My_Ability { xs[0] * My_Ability }
+
+fn main() -> Int {
+    let arr = [296, 295, 555]
+    let b = Box()
+    _ = b
+    with My_Ability(2) {
+        b.>map_array[Int, 3, My_Ability](get_first, &arr)
+    }
+}

@@ -1,0 +1,14 @@
+// 594
+trait Doubles { fn double(self) -> Self }
+impl Doubles for Int { fn double(self) -> Self { self + self } }
+
+struct Box {}
+impl for Box {
+    fn f[T: Doubles](x: T) -> T { x.>double() }
+}
+
+fn main() -> Int {
+    let b = Box()
+    _ = b
+    b.>f[Int](297)
+}

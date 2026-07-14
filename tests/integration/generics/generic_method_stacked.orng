@@ -1,0 +1,11 @@
+// 592
+struct Wrapper[T] { t: T }
+impl [T] for Wrapper[T] {
+    fn f[S](self, v: S) -> (T, S) { (self.t, v) }
+}
+
+fn main() -> Int {
+    let w = Wrapper[Int](586)
+    let (t, s) = w.>f[String]("Hello!")
+    t + s.length
+}
