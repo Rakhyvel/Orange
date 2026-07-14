@@ -232,6 +232,7 @@ pub const AST = union(enum) {
     invoke: struct {
         common: AST_Common,
         _lhs: *AST, // The subject of the invoke
+        generic_args: std.array_list.Managed(GenericArg),
         _rhs: *AST, // The method, usually a field AST
         _args: std.array_list.Managed(*AST), // The args of the invoke
         ability_args: std.array_list.Managed(*Symbol),
@@ -510,6 +511,7 @@ pub const AST = union(enum) {
     },
     method_decl: struct {
         common: AST_Common,
+        _generic_params: std.array_list.Managed(*AST),
         name: *AST,
         is_virtual: bool,
         receiver: ?*AST,
@@ -1020,6 +1022,7 @@ pub const AST = union(enum) {
     pub fn create_invoke(
         _token: Token,
         _lhs: *AST,
+        generic_args: std.array_list.Managed(GenericArg),
         _rhs: *AST,
         args: std.array_list.Managed(*AST),
         allocator: std.mem.Allocator,
@@ -1028,6 +1031,7 @@ pub const AST = union(enum) {
         return AST.box(AST{ .invoke = .{
             .common = _common,
             ._lhs = _lhs,
+            .generic_args = generic_args,
             ._rhs = _rhs,
             ._args = args,
             .ability_args = std.array_list.Managed(*Symbol).init(allocator),
@@ -1455,6 +1459,7 @@ pub const AST = union(enum) {
         _token: Token,
         name: *AST,
         is_virtual: bool,
+        _generic_params: std.array_list.Managed(*AST),
         receiver: ?*AST,
         params: std.array_list.Managed(*AST),
         ret_type: *Type_AST,
@@ -1467,6 +1472,7 @@ pub const AST = union(enum) {
             .common = AST_Common{ ._token = _token },
             .name = name,
             .is_virtual = is_virtual,
+            ._generic_params = _generic_params,
             .receiver = receiver,
             ._params = params,
             ._param_symbols = std.array_list.Managed(*Symbol).init(allocator),
@@ -1702,13 +1708,7 @@ pub const AST = union(enum) {
             .left_shift => return create_left_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .right_shift => return create_right_shift(self.token(), self.lhs().clone(substs, allocator), self.rhs().clone(substs, allocator), allocator),
             .bracket => {
-                var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
-                for (self.bracket._args.items) |arg| {
-                    switch (arg) {
-                        .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
-                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
-                    }
-                }
+                const cloned_args = clone_generic_args(self.bracket._args, substs, allocator);
                 return create_bracket(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
             },
             .child_addr => return create_child_addr(
@@ -1724,13 +1724,7 @@ pub const AST = union(enum) {
                 allocator,
             ),
             .generic_apply => {
-                var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
-                for (self.generic_apply._children.items) |arg| {
-                    switch (arg) {
-                        .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
-                        .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
-                    }
-                }
+                const cloned_args = clone_generic_args(self.generic_apply._children, substs, allocator);
                 return create_generic_apply(self.token(), self.lhs().clone(substs, allocator), cloned_args, allocator);
             },
             .positional_select => {
@@ -1806,10 +1800,12 @@ pub const AST = union(enum) {
                 return retval;
             },
             .invoke => {
+                const cloned_generic_args = clone_generic_args(self.invoke.generic_args, substs, allocator);
                 const cloned_args = clone_children(self.children().*, substs, allocator);
                 var retval = create_invoke(
                     self.token(),
                     self.lhs().clone(substs, allocator),
+                    cloned_generic_args,
                     self.rhs().clone(substs, allocator),
                     cloned_args,
                     allocator,
@@ -2066,12 +2062,14 @@ pub const AST = union(enum) {
                 return retval;
             },
             .method_decl => {
+                const cloned_generic_params = clone_children(self.method_decl._generic_params, substs, allocator);
                 const cloned_params = clone_children(self.children().*, substs, allocator);
                 const cloned_abilities = clone_children(self.method_decl.ability_decls, substs, allocator);
                 var retval = create_method_decl(
                     self.token(),
                     self.method_decl.name.clone(substs, allocator),
                     self.method_decl.is_virtual,
+                    cloned_generic_params,
                     if (self.method_decl.receiver) |receiver| receiver.clone(substs, allocator) else null,
                     cloned_params,
                     self.method_decl.ret_type.clone(substs, allocator),
@@ -2105,6 +2103,17 @@ pub const AST = union(enum) {
             retval.append(child.clone(substs, allocator)) catch unreachable;
         }
         return retval;
+    }
+
+    fn clone_generic_args(args: std.array_list.Managed(GenericArg), substs: *const unification_.Substitutions, allocator: std.mem.Allocator) std.array_list.Managed(GenericArg) {
+        var cloned_args = std.array_list.Managed(GenericArg).init(allocator);
+        for (args.items) |arg| {
+            switch (arg) {
+                .type_arg => |ty| cloned_args.append(.{ .type_arg = ty.clone(substs, allocator) }) catch unreachable,
+                .const_arg => |v| cloned_args.append(.{ .const_arg = v.clone(substs, allocator) }) catch unreachable,
+            }
+        }
+        return cloned_args;
     }
 
     /// Boxes an AST value into an allocator.
@@ -2309,7 +2318,7 @@ pub const AST = union(enum) {
 
     pub fn num_generic_params(self: *AST) usize {
         return switch (self.*) {
-            .struct_decl, .enum_decl, .type_alias, .impl, .fn_decl, .trait => self.generic_params().items.len,
+            .struct_decl, .enum_decl, .type_alias, .impl, .fn_decl, .trait, .method_decl => self.generic_params().items.len,
             else => 0,
         };
     }
@@ -2322,6 +2331,7 @@ pub const AST = union(enum) {
             .impl => &self.impl._generic_params,
             .fn_decl => &self.fn_decl._generic_params,
             .trait => &self.trait._generic_params,
+            .method_decl => &self.method_decl._generic_params,
             else => std.debug.panic("compiler error: cannot call `.generic_params()` on the AST `{t}`", .{self.*}),
         };
     }
@@ -2334,6 +2344,7 @@ pub const AST = union(enum) {
             .impl => self.impl._generic_params = _generic_params,
             .fn_decl => self.fn_decl._generic_params = _generic_params,
             .trait => self.trait._generic_params = _generic_params,
+            .method_decl => self.method_decl._generic_params = _generic_params,
             else => std.debug.panic("compiler error: cannot call `.set_generic_params()` on the AST `{t}`", .{self.*}),
         }
     }

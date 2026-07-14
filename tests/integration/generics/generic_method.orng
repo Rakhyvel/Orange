@@ -1,0 +1,12 @@
+// 590
+
+struct Box { x: Int }
+
+impl for Box {
+    fn f[T](v: T) -> T { v }
+}
+
+fn main() -> Int {
+    let b = Box(500)
+    b.x + b.>f[Int](90)
+}
