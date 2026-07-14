@@ -13,6 +13,6 @@ tests/fuzz/*.out
 orngdoc_old.md
 parser.py
 orng.out
-a.out
+*.out
 *.pyc
 diff.txt
