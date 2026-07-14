@@ -236,9 +236,11 @@ pub const AST = union(enum) {
         _rhs: *AST, // The method, usually a field AST
         _args: std.array_list.Managed(*AST), // The args of the invoke
         ability_args: std.array_list.Managed(*Symbol),
+        _symbol: ?*Symbol = null,
         _scope: ?*Scope = null, // Surrounding scope. Filled in at symbol-tree creation.
         method_decl: ?*AST = null,
         prepended: bool = false,
+        state: process_state_.Process_State = .unprocessed,
     },
     /// A struct-like-value of pointers to the vtable, and to the receiver
     dyn_value: struct {
@@ -2294,7 +2296,8 @@ pub const AST = union(enum) {
             .fn_decl => self.fn_decl.name = name,
             .ability_decl => self.ability_decl.name = name,
             .trait => self.trait.name = name,
-            else => std.debug.panic("compiler error: cannot call `.decl_name()` on the AST `{s}`", .{@tagName(self.*)}),
+            .method_decl => self.method_decl.name = name,
+            else => std.debug.panic("compiler error: cannot call `.set_decl_name()` on the AST `{s}`", .{@tagName(self.*)}),
         }
     }
 

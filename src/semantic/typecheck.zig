@@ -19,6 +19,7 @@ const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
 const unification_ = @import("../types/unification.zig");
 const union_fields_ = @import("../util/union_fields.zig");
+const generic_apply_ = @import("../ast/generic_apply.zig");
 
 const Validate_Error_Enum = error{
     // Returned when there is a type check compile error
@@ -1391,7 +1392,7 @@ fn select_method(
     for (candidate_method_decls.keys()) |method_decl| {
         switch (try self.method_fits(ast, expected, method_decl, true_lhs_type, subst)) {
             .fits => |plan| {
-                try viable.append(Viable_Method{ .method = method_decl, .plan = plan });
+                try viable.append(Viable_Method{ .method = plan.method_decl, .plan = plan });
             },
             else => |e| try rejection_reasons.append(errs_.Candidate{ .span = method_decl.token().span, .reason = e.not_viable }),
         }
@@ -1485,6 +1486,7 @@ const Receiver_Plan = struct {
     prepend: bool,
     receiver_expr: ?*ast_.AST,
     impl_subst: ?*unification_.Substitutions = null,
+    method_decl: *ast_.AST,
 };
 const Method_Result = union(enum) {
     fits: Receiver_Plan,
@@ -1505,6 +1507,7 @@ fn method_fits(
     const is_template = enclosing_impl != null and enclosing_impl.?.impl._generic_params.items.len > 0;
     var impl_subst: ?*unification_.Substitutions = null;
     var method_type = method_decl.decl_type();
+    var instantiated_method_decl = method_decl;
 
     // Try to unify the method's impl's for type with the true lhs type, if generic
     if (is_template) {
@@ -1521,12 +1524,20 @@ fn method_fits(
         method_type = method_decl.decl_type().clone(scratch, self.ctx.allocator());
     }
 
+    // Generic method, gotta monomorphize it
+    const method_is_generic = method_decl.generic_params().items.len > 0;
+    if (method_is_generic) {
+        try generic_apply_.todo_fixme_make_better_instantiate_invoke(method_decl.symbol().?, ast, self.ctx);
+        instantiated_method_decl = ast.symbol().?.decl.?;
+        method_type = instantiated_method_decl.decl_type();
+    }
+
     const domain: std.array_list.Managed(*Type_AST) = method_type.function.args;
 
     var temp_args = std.array_list.Managed(*ast_.AST).init(new_self.ctx.allocator());
     defer temp_args.deinit();
 
-    const maybe_receiver: ?*ast_.AST = new_self.extract_receiver(ast, method_decl, true_lhs_type) catch return .{ .not_viable = .receiver_mismatch };
+    const maybe_receiver: ?*ast_.AST = new_self.extract_receiver(ast, instantiated_method_decl, true_lhs_type) catch return .{ .not_viable = .receiver_mismatch };
     if (maybe_receiver) |receiver| {
         try temp_args.append(receiver);
     }
@@ -1590,7 +1601,12 @@ fn method_fits(
         }
     }
 
-    return .{ .fits = .{ .prepend = maybe_receiver != null, .receiver_expr = maybe_receiver, .impl_subst = impl_subst } };
+    return .{ .fits = .{
+        .prepend = maybe_receiver != null,
+        .receiver_expr = maybe_receiver,
+        .impl_subst = impl_subst,
+        .method_decl = instantiated_method_decl,
+    } };
 }
 
 fn extract_receiver(self: *Self, ast: *ast_.AST, method_decl: *ast_.AST, true_lhs_type: *Type_AST) !?*ast_.AST {

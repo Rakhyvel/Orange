@@ -164,6 +164,8 @@ pub fn collect_cfg_types(self: *Self, type_set: *Type_Set) void {
     if (self.symbol.decl.?.* == .method_decl) {
         const impl = self.symbol.decl.?.method_decl.impl.?;
         if (impl.num_generic_params() > 0) return;
+        const decl = self.symbol.decl.?;
+        if (decl.num_generic_params() > 0) return;
     }
 
     // Add parameter types to type set
