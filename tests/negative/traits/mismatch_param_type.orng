@@ -1,6 +1,6 @@
-// mismatch_param_type.orng:10:23: error: trait `My_Trait` specifies type `Int` for method `f`, got `Byte`
+// mismatch_param_type.orng:10:17: error: trait `My_Trait` specifies type `Int` for method `f`, got `Byte`
 //     fn f(self, x: Byte) -> () {}
-//                      ^
+//                ^
 // 
 trait My_Trait {
     fn f(self, x: Int) -> ()

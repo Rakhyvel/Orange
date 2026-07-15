@@ -52,6 +52,8 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     var subst = unification_.generate_substitutions(impl.impl._type, self.ctx.allocator());
     defer subst.deinit();
 
+    subst.put_type("Self", impl.impl._type) catch unreachable;
+
     _ = self.ctx.typecheck.typecheck_AST(impl.impl.trait.?, null, &subst) catch |e| switch (e) {
         error.UnexpectedTypeType => {
             self.ctx.errors.add_error(errs_.Error{ .basic = .{
@@ -142,6 +144,18 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         }
 
+        // Check that generic parameter arity matches
+        if (def.num_generic_params() != trait_decl.?.num_generic_params()) {
+            self.ctx.errors.add_error(errs_.Error{ .mismatch_method_generic_param_arity = .{
+                .span = def.token().span,
+                .method_name = def.method_decl.name.token().data,
+                .trait_name = trait_ast.token().data,
+                .trait_arity = trait_decl.?.num_generic_params(),
+                .impl_arity = def.num_generic_params(),
+            } });
+            return error.CompileError;
+        }
+
         // Check that paramter arity matches
         if (def.children().items.len != trait_decl.?.children().items.len) {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_param_arity = .{
@@ -154,16 +168,42 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         }
 
+        // Build the alpha-equiv rename subst map from the trait method's params to the impl's
+        var rename = unification_.Substitutions.init(self.ctx.allocator());
+        defer rename.deinit();
+        for (trait_decl.?.generic_params().items, def.generic_params().items) |trait_param, impl_param| {
+            if (!trait_param.is_typelike_param_decl() or !impl_param.is_typelike_param_decl()) continue;
+            const trait_param_ident = Type_AST.create_type_identifier(trait_param.token(), self.ctx.allocator());
+            trait_param_ident.set_symbol(trait_param.symbol().?);
+            // Key on the source name (what clone matches), not the possibly-mangled symbol name
+            rename.put_type(impl_param.token().data, trait_param_ident) catch unreachable;
+        }
+        if (std.mem.eql(u8, def.method_decl.name.token().data, "f")) {
+            const gp = trait_decl.?.generic_params().items[0];
+            const tp_type = trait_decl.?.children().items[0].binding.type;
+            std.debug.print("  DBG trait_gp_sym={*} trait_v_type_sym={*} same={}\n", .{ gp.symbol().?, if (tp_type.symbol()) |s| s else undefined, tp_type.symbol() == gp.symbol() });
+        }
+
+        // Un-rigify Self so a bare Self resolves to the for-type under allow_rigid=false while a Self::X assoc type stays abstract
+        var self_decls = std.array_list.Managed(*ast_.AST).init(self.ctx.allocator());
+        defer self_decls.deinit();
+        for (trait_decl.?.children().items) |trait_param| collect_self_decls(trait_param.binding.type, &self_decls);
+        collect_self_decls(trait_decl.?.method_decl.ret_type, &self_decls);
+        for (self_decls.items) |d| d.type_param_decl.rigid = false;
+        defer for (self_decls.items) |d| {
+            d.type_param_decl.rigid = true;
+        };
+
         // Check that parameters match
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
-            const impl_type = impl_param.binding.type;
-            unification_.unify(impl_type, trait_param.binding.type, &subst, .{}) catch {
+            const impl_type = impl_param.binding.type.clone(&rename, self.ctx.allocator());
+            unification_.unify(impl_type, trait_param.binding.type, &subst, .{ .allow_rigid = false }) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
-                    .span = impl_param.binding.type.token().span,
+                    .span = impl_param.token().span,
                     .method_name = def.method_decl.name.token().data,
                     .trait_name = trait_ast.token().data,
                     .trait_type = trait_param.binding.type,
-                    .impl_type = impl_type,
+                    .impl_type = impl_param.binding.type,
                 } });
                 return error.CompileError;
             };
@@ -171,7 +211,8 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
 
         // Check that return type matches
         _ = try walk_.walk_type(trait_decl.?.method_decl.ret_type, Decorate.new(self.ctx));
-        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst, .{}) catch {
+        const impl_ret = def.method_decl.ret_type.clone(&rename, self.ctx.allocator());
+        unification_.unify(impl_ret, trait_decl.?.method_decl.ret_type, &subst, .{ .allow_rigid = false }) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,
@@ -291,6 +332,29 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
                 return error.CompileError;
             },
         };
+    }
+}
+
+/// Collect the `Self` type param decls referenced anywhere within `ty`.
+fn collect_self_decls(ty: *Type_AST, list: *std.array_list.Managed(*ast_.AST)) void {
+    switch (ty.*) {
+        .identifier => if (ty.symbol()) |sym| {
+            if (sym.decl) |d| {
+                if (d.* == .type_param_decl and std.mem.eql(u8, sym.name, "Self")) list.append(d) catch unreachable;
+            }
+        },
+        .addr_of, .array_of, .annotation, .untagged_sum_type, .ability_type => collect_self_decls(ty.child(), list),
+        .access, .as_trait => collect_self_decls(ty.lhs(), list),
+        .tuple_type, .struct_type, .enum_type => for (ty.children().items) |c| collect_self_decls(c, list),
+        .function => {
+            for (ty.children().items) |c| collect_self_decls(c, list);
+            collect_self_decls(ty.rhs(), list);
+        },
+        .generic_apply => for (ty.generic_apply.args.items) |arg| switch (arg) {
+            .type_arg => |t| collect_self_decls(t, list),
+            .const_arg => {},
+        },
+        else => {},
     }
 }
 

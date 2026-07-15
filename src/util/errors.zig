@@ -183,6 +183,13 @@ pub const Error = union(enum) {
         method_name: []const u8,
         lhs_type: *Type_AST,
     },
+    mismatch_method_generic_param_arity: struct {
+        span: Span,
+        trait_arity: usize,
+        impl_arity: usize,
+        method_name: []const u8,
+        trait_name: []const u8,
+    },
     mismatch_method_param_arity: struct {
         span: Span,
         trait_arity: usize,
@@ -389,6 +396,7 @@ pub const Error = union(enum) {
             .type_not_in_impl => return self.type_not_in_impl.impl_span,
             .impl_receiver_mismatch => return self.impl_receiver_mismatch.receiver_span,
             .invoke_receiver_mismatch => return self.invoke_receiver_mismatch.receiver_span,
+            .mismatch_method_generic_param_arity => return self.mismatch_method_generic_param_arity.span,
             .mismatch_method_param_arity => return self.mismatch_method_param_arity.span,
             .mismatch_method_type => return self.mismatch_method_type.span,
             .mismatch_method_virtuality => return self.mismatch_method_virtuality.span,
@@ -581,6 +589,13 @@ pub const Error = union(enum) {
                 err.invoke_receiver_mismatch.lhs_type.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
             },
+            .mismatch_method_generic_param_arity => writer.print("trait `{s}` specifies {} generic parameter{s} for method `{s}`, got {}\n", .{
+                err.mismatch_method_generic_param_arity.trait_name,
+                err.mismatch_method_generic_param_arity.trait_arity,
+                if (err.mismatch_method_generic_param_arity.trait_arity != 1) "s" else "",
+                err.mismatch_method_generic_param_arity.method_name,
+                err.mismatch_method_generic_param_arity.impl_arity,
+            }) catch unreachable,
             .mismatch_method_param_arity => writer.print("trait `{s}` specifies {} parameter{s} for method `{s}`, got {}\n", .{
                 err.mismatch_method_param_arity.trait_name,
                 err.mismatch_method_param_arity.trait_arity,

@@ -1803,6 +1803,9 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     const name: *ast_.AST = ast_.AST.create_identifier(try self.expect(.identifier), self.allocator);
 
     const gen_params = try self.generic_params_list();
+    for (gen_params.items) |gen_param| {
+        if (gen_param.* == .type_param_decl) gen_param.type_param_decl.rigid = true;
+    }
     if (gen_params.items.len > 0 and virtual != null) {
         self.errors.add_error(errs_.Error{ .basic = .{
             .span = virtual.?.span,

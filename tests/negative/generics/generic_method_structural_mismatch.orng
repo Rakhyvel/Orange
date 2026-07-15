@@ -1,0 +1,14 @@
+// generic_method_structural_mismatch.orng:11:31: error: trait `Foo` specifies type `T` for method `f`, got `Int`
+//     fn f[S](self, x: S) -> Int { 0 }
+//                              ^
+// 
+trait Foo {
+    fn f[T](self, x: T) -> T
+}
+
+struct Box {}
+impl Foo for Box {
+    fn f[S](self, x: S) -> Int { 0 }
+}
+
+fn main() {}
