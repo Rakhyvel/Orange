@@ -583,6 +583,7 @@ pub const Type_AST = union(enum) {
     pub fn to_value_expr(self: *Type_AST, allocator: std.mem.Allocator) ?*AST {
         switch (self.*) {
             .identifier => {
+                if (self.symbol() != null and self.symbol().?.kind == .type) return null;
                 const id = AST.create_identifier(self.token(), allocator);
                 id.set_scope(self.scope());
                 id.set_symbol(self.symbol());

@@ -1,10 +1,10 @@
 // too_few_generic_args.orng:9:11: error: first takes 2 generic parameters, 1 argument given
-//     first[Int](x)
+//     first[3](x)
 //          ^
 // 
 fn first[const n: Int, T](arr: [n]T) -> T { arr[0] }
 
 fn main() -> Int {
     let x: [3]Int = [5, 10, 15]
-    first[Int](x)
+    first[3](x)
 }

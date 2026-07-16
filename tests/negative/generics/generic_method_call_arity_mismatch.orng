@@ -1,0 +1,13 @@
+// generic_method_call_arity_mismatch.orng:12:8: error: f takes 1 generic parameter, 2 arguments given
+//     b.>f[Int, String](1)
+//       ^
+// 
+struct Box {}
+impl for Box {
+    fn f[T](self, x: T) -> T { x }
+}
+
+fn main() -> Int {
+    let b = Box()
+    b.>f[Int, String](1)
+}

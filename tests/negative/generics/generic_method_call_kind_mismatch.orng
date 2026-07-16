@@ -1,0 +1,13 @@
+// generic_method_call_kind_mismatch.orng:12:13: error: expected a value, got a type
+//     b.>f[Int](1)
+//            ^
+// 
+struct Box {}
+impl for Box {
+    fn f[const n: Int](self, x: Int) -> Int { _ = self; x }
+}
+
+fn main() -> Int {
+    let b = Box()
+    b.>f[Int](1)
+}
