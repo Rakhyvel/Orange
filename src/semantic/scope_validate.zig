@@ -167,9 +167,12 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         }
 
+        // Generate the rename map that takes trait method generic param symbol names to their impl method counterpart type ident
         var rename = unification_.Substitutions.init(self.ctx.allocator());
         defer rename.deinit();
         for (trait_decl.?.generic_params().items, def.method_decl._generic_params.items) |trait_gp, impl_gp| {
+            // Shared decls (anon traits, monomorphized impls) need no rename, and renaming would unshare them
+            if (trait_gp.symbol() == impl_gp.symbol()) continue;
             const id = Type_AST.create_type_identifier(impl_gp.token(), self.ctx.allocator());
             id.set_symbol(impl_gp.symbol().?);
             rename.put_type(trait_gp.symbol().?.name, id) catch unreachable;
