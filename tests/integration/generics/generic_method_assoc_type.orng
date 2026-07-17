@@ -1,0 +1,22 @@
+// 602
+
+struct Box { x: Int }
+
+trait Get {
+    type Output
+    fn get[T](self, t: T) -> Self::Output
+}
+
+impl Get for Box {
+    type Output = Int
+
+    fn get[T](self, t: T) -> Self::Output {
+        _ = t
+        self.x
+    }
+}
+
+fn main() -> Int {
+    let b = Box(602)
+    b.>get[Int](4)
+}

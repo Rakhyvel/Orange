@@ -740,13 +740,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                 }
             }
             // Try to find the method that fits, and get the impl substitutions needed to make it work
-            const sel_subst = try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
+            const method_selection = try self.select_method(ast, expected, &candidate_method_decls, true_lhs_type, subst);
             method_decl = ast.invoke.method_decl;
-            var method_decl_type = method_decl.?.decl_type();
-            if (sel_subst != subst) {
-                // The impl required substitutions, make them to the method type
-                method_decl_type = method_decl_type.clone(sel_subst, self.ctx.allocator());
-            }
+            const method_decl_type = method_selection.method_type;
 
             const domain = method_decl_type.function.args;
             try self.validate_ability(method_decl_type, ast);
@@ -754,7 +750,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
             var args_validator = args_.init(.method, ast.children(), ast.token().span, &domain, &self.ctx.errors, self.ctx.allocator());
             ast.set_children(try args_validator.fill_default_args());
             try args_validator.validate_arity();
-            try args_validator.validate_type(sel_subst, self.ctx);
+            try args_validator.validate_type(method_selection.subst, self.ctx);
 
             return method_decl_type.function._rhs;
         },
@@ -1375,6 +1371,10 @@ fn find_self_type(trait_decl: *ast_.AST, method_name: []const u8) !?Self_Find_Re
     return null;
 }
 
+const Method_Selection = struct {
+    subst: *unification_.Substitutions,
+    method_type: *Type_AST,
+};
 fn select_method(
     self: *Self,
     ast: *ast_.AST,
@@ -1382,7 +1382,7 @@ fn select_method(
     candidate_method_decls: *const std.array_hash_map.AutoArrayHashMap(*ast_.AST, void),
     true_lhs_type: *Type_AST,
     subst: *unification_.Substitutions,
-) !*unification_.Substitutions {
+) !Method_Selection {
     const Viable_Method = struct { method: *ast_.AST, plan: Receiver_Plan };
     var viable = std.array_list.Managed(Viable_Method).init(self.ctx.allocator());
     defer viable.deinit();
@@ -1479,7 +1479,10 @@ fn select_method(
         try ast.children().insert(0, choice.plan.receiver_expr.?);
         ast.invoke.prepended = true;
     }
-    return sel_subst;
+    return .{
+        .subst = sel_subst,
+        .method_type = choice.plan.method_type,
+    };
 }
 
 const Receiver_Plan = struct {
@@ -1487,6 +1490,7 @@ const Receiver_Plan = struct {
     receiver_expr: ?*ast_.AST,
     impl_subst: ?*unification_.Substitutions = null,
     method_decl: *ast_.AST,
+    method_type: *Type_AST,
 };
 const Method_Result = union(enum) {
     fits: Receiver_Plan,
@@ -1504,13 +1508,13 @@ fn method_fits(
     defer new_self.deinit();
 
     const enclosing_impl = method_decl.method_decl.impl;
-    const is_template = enclosing_impl != null and enclosing_impl.?.impl._generic_params.items.len > 0;
+    const is_impl_template = enclosing_impl != null and enclosing_impl.?.impl._generic_params.items.len > 0;
     var impl_subst: ?*unification_.Substitutions = null;
     var method_type = method_decl.decl_type();
     var instantiated_method_decl = method_decl;
 
     // Try to unify the method's impl's for type with the true lhs type, if generic
-    if (is_template) {
+    if (is_impl_template) {
         var stripped_lhs = true_lhs_type;
         while (stripped_lhs.* == .as_trait) stripped_lhs = stripped_lhs.lhs();
         if (stripped_lhs.* == .addr_of and !stripped_lhs.addr_of.multiptr) stripped_lhs = stripped_lhs.child();
@@ -1530,6 +1534,12 @@ fn method_fits(
         try generic_apply_.todo_fixme_make_better_instantiate_invoke(method_decl.symbol().?, ast, self.ctx);
         instantiated_method_decl = ast.symbol().?.decl.?;
         method_type = instantiated_method_decl.decl_type();
+        if (instantiated_method_decl == method_decl) {
+            // Monomorphization deferred (abstract generic args), check against the renamed signature
+            var scratch = unification_.Substitutions.init(self.ctx.allocator());
+            unification_.generate_substitutions_from_args(instantiated_method_decl.generic_params().items, ast.invoke.generic_args.items, &scratch);
+            method_type = instantiated_method_decl.decl_type().clone(&scratch, self.ctx.allocator());
+        }
     }
 
     const domain: std.array_list.Managed(*Type_AST) = method_type.function.args;
@@ -1569,11 +1579,12 @@ fn method_fits(
         try walk_.walk_type(actual, Decorate.new(self.ctx)); // Type might not be decorated yet!
         if (impl_subst) |is| {
             // Impl was generic, try to unify return type with the substitutions
-            unification_.unify(actual, exp, is, .{}) catch
+            unification_.unify(actual, exp, is, .{}) catch {
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
+            };
         } else {
             // Impl wasn't generic, use the surrounding context's subst
-            unification_.unify(actual, exp, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
+            unification_.unify(actual, exp, subst, .{ .allow_rigid = false }) catch {
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = exp, .got = actual } } };
             };
         }
@@ -1582,8 +1593,9 @@ fn method_fits(
     // A template is only viable if every impl param got solved
     if (impl_subst) |is| {
         for (enclosing_impl.?.impl._generic_params.items) |param| {
-            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null)
+            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null) {
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
+            }
         }
 
         // Every solved param must satisfy its constraints, subst'd through the solution
@@ -1606,6 +1618,7 @@ fn method_fits(
         .receiver_expr = maybe_receiver,
         .impl_subst = impl_subst,
         .method_decl = instantiated_method_decl,
+        .method_type = method_type,
     } };
 }
 
