@@ -1,3 +1,4 @@
+// kcov-ignore-start
 const std = @import("std");
 
 pub const Color = enum {
@@ -101,3 +102,5 @@ pub fn outputColor(attr: Attr, contents: []const u8, writer: *std.io.Writer) !vo
     try writer.print("{s}", .{contents});
     try (Attr{}).dump(writer);
 }
+
+// kcov-ignore-end

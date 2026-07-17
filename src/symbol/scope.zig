@@ -682,6 +682,7 @@ pub fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     return null;
 }
 
+// kcov-ignore-start
 pub fn pprint(self: *Self) void {
     std.debug.print("scope_{}:\n", .{self.uid});
     for (self.symbols.keys()) |name| {
@@ -700,6 +701,7 @@ pub fn pprint(self: *Self) void {
         }
     }
 }
+// kcov-ignore-end
 
 pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{CompileError}!void {
     const res = scope.lookup(symbol.name, .{});

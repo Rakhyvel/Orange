@@ -401,6 +401,7 @@ pub fn const_arg_is_concrete(arg: *ast_.AST) bool {
     };
 }
 
+// kcov-ignore-start
 pub fn print_substitutions(subst: *const Substitutions) void {
     std.debug.print("{} substitutions: {{\n", .{subst.type_subst.keys().len + subst.const_subst.keys().len});
     for (subst.type_subst.keys()) |key| {
@@ -413,3 +414,4 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     }
     std.debug.print("}}\n", .{});
 }
+// kcov-ignore-end

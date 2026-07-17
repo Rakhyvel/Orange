@@ -123,13 +123,6 @@ pub fn get_node(self: *const Self, oldast_: *Type_AST) ?*Dependency_Node {
     return null;
 }
 
-/// Debug function to print out the type set
-pub fn print(self: *Self) void {
-    for (self.types.items) |dag| {
-        dag.print();
-    }
-}
-
 fn add_dependency_node(self: *Self, ast: *Type_AST) *Dependency_Node {
     const dag = Dependency_Node.init(ast, self.types.items.len, self.allocator);
     self.types.append(dag) catch unreachable;
@@ -140,9 +133,18 @@ pub fn len(self: *const Self) usize {
     return self.types.items.len;
 }
 
+// kcov-ignore-start
+/// Debug function to print out the type set
+pub fn print(self: *Self) void {
+    for (self.types.items) |dag| {
+        dag.print();
+    }
+}
+
 /// Prints out the graphviz representation for the type set
 pub fn graphviz(self: *const Self) void {
     for (self.types.items) |dep| {
         dep.graphviz();
     }
 }
+// kcov-ignore-end

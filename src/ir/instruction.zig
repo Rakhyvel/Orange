@@ -214,6 +214,7 @@ pub fn deinit(self: *Self) void {
     self.allocator.destroy(self);
 }
 
+// kcov-ignore-start
 pub fn pprint(self: Self, allocator: std.mem.Allocator) ![]const u8 {
     var out = std.array_list.Managed(u8).init(allocator);
     defer out.deinit();
@@ -387,6 +388,7 @@ fn print_lval_list(lval_list: std.array_list.Managed(*lval_.L_Value), writer: *s
         }
     }
 }
+// kcov-ignore-end
 
 pub fn copy_prop(self: *Self, src1_def: ?*Self, kind: Kind, errors: *errs_.Errors) error{CompileError}!bool {
     if (src1_def != null and src1_def.?.kind == kind) {
@@ -721,6 +723,7 @@ pub const Data = union(enum) {
     ast: *ast_.AST,
     none,
 
+    // kcov-ignore-start
     pub fn pprint(self: Data, allocator: std.mem.Allocator) ![]const u8 {
         var out = std.array_list.Managed(u8).init(allocator, "") catch unreachable;
         defer out.deinit();
@@ -752,6 +755,7 @@ pub const Data = union(enum) {
     pub fn format(self: Data, writer: *std.io.Writer) !void {
         try fmt_.indirect_format(self, writer);
     }
+    // kcov-ignore-end
 
     pub fn equals(self: Data, other: Data) bool {
         if (self == .branch and other == .branch) {

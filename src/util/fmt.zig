@@ -1,5 +1,7 @@
 const std = @import("std");
 
+// kcov-ignore-start
+
 pub fn List_Printer(Elem: type) type {
     return struct {
         list: *const std.array_list.Managed(*Elem),
@@ -30,3 +32,5 @@ pub fn indirect_format(obj: anytype, writer: *std.io.Writer) !void {
 
     try writer.print("{s}", .{out});
 }
+
+// kcov-ignore-end

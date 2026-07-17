@@ -76,6 +76,7 @@ pub fn deinit(self: *Self) void {
     self.allocator.destroy(self);
 }
 
+// kcov-ignore-start
 pub fn pprint(self: *Self) void {
     if (self.visited) {
         return;
@@ -125,6 +126,7 @@ pub fn pprint(self: *Self) void {
         }
     }
 }
+// kcov-ignore-end
 
 pub fn empty(self: *Self) bool {
     return self.instructions.items.len == 0;

@@ -2624,7 +2624,7 @@ pub const AST = union(enum) {
         return self;
     }
 
-    // TODO: Use Tree Writer, don't call writer print, recursively call pprint
+    // kcov-ignore-start
     pub fn pprint(self: AST, allocator: std.mem.Allocator) ![]const u8 {
         var out = std.array_list.Managed(u8).init(allocator);
         defer out.deinit();
@@ -2918,4 +2918,5 @@ pub const AST = union(enum) {
     pub fn format(self: AST, writer: *std.io.Writer) !void {
         try fmt_.indirect_format(self, writer);
     }
+    // kcov-ignore-end
 };

@@ -604,6 +604,7 @@ pub fn calculate_offsets(self: *Self) ?i64 //< Number of bytes used for locals b
     return local_offsets - locals_starting_offset;
 }
 
+// kcov-ignore-start
 pub fn print_instructions(self: *Self) void {
     // Print out the basic blocks
     std.debug.print("CFG {s}:\n", .{self.symbol.name});
@@ -611,3 +612,4 @@ pub fn print_instructions(self: *Self) void {
         bb.pprint();
     }
 }
+// kcov-ignore-end

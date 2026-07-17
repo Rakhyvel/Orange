@@ -31,6 +31,7 @@ pub fn mark_visited(self: *Self) void {
     self.visited = true;
 }
 
+// kcov-ignore-start
 pub fn print(self: *Self) void {
     std.debug.print("{} <= ", .{self.uid});
     for (self.dependencies.items) |dep| {
@@ -46,3 +47,4 @@ pub fn graphviz(self: *Self) void {
         std.debug.print("\"{f}\" {f} -> \"{f}\" {f};\n", .{ self.base, dep.base, Canonical_Type_Fmt{ .type = self.base }, Canonical_Type_Fmt{ .type = dep.base } });
     }
 }
+// kcov-ignore-end

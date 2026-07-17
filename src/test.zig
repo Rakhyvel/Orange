@@ -1,3 +1,4 @@
+// kcov-ignore-start
 const std = @import("std");
 const Compiler_Context = @import("hierarchy/compiler.zig");
 const Codegen_Context = @import("codegen/codegen.zig");
@@ -393,3 +394,5 @@ fn until_newline(str: []const u8) usize {
     while (i < str.len and str[i] != '\n') : (i += 1) {}
     return i;
 }
+
+// kcov-ignore-end

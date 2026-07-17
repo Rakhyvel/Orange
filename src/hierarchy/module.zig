@@ -380,11 +380,13 @@ pub const Module = struct {
         return self.local_imported_modules.keys();
     }
 
+    // kcov-ignore-start
     pub fn print_instructions(self: *Module) void {
         for (self.instructions.items) |instr| {
             std.debug.print("{}", .{instr});
         }
     }
+    // kcov-ignore-end
 
     /// A module is modified if:
     /// - Its source hash differs from what is stored in the package's json file
