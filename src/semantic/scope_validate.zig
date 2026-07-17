@@ -50,6 +50,15 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
 
     try self.ctx.validate_type.validate_type(impl.impl._type);
 
+    if (impl.impl._type.* != .generic_apply and impl.impl._type.has_symbol() and impl.impl._type.symbol().?.decl.?.num_generic_params() > 0) {
+        self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
+            .span = impl.impl._type.token().span,
+            .symbol_name = impl.impl._type.symbol().?.name,
+            .num_generics = impl.impl._type.symbol().?.decl.?.num_generic_params(),
+        } });
+        return error.CompileError;
+    }
+
     var subst = unification_.generate_substitutions(impl.impl._type, self.ctx.allocator());
     defer subst.deinit();
 

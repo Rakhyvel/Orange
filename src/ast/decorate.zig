@@ -130,6 +130,13 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 var subst = unification_.Substitutions.init(self.ctx.allocator());
                 defer subst.deinit();
                 try subst.put_type("Self", ast.impl._type);
+                // Wipe the methods generic params, so they get match up fresh
+                for (method_decl.method_decl._generic_params.items) |gp| {
+                    switch (gp.*) {
+                        .const_param_decl => try subst.put_const(gp.token().data, ast_.AST.create_identifier(gp.token(), self.ctx.allocator())),
+                        else => try subst.put_type(gp.token().data, Type_AST.create_type_identifier(gp.token(), self.ctx.allocator())),
+                    }
+                }
                 const new_method = method_decl.clone(&subst, self.ctx.allocator());
                 new_method.method_decl.impl = ast; // bind the template to this impl
                 ast.impl.method_defs.append(new_method) catch unreachable;
