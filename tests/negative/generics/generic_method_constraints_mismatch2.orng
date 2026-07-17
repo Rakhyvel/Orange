@@ -1,0 +1,21 @@
+// generic_method_constraints_mismatch2.orng:14:20: error: impl declares constraint `Doubles` on generic parameter `T` of method `f`, not required by trait `Take_Doubles`
+//     fn f[T: Doubles](x: T) -> T { x }
+//                   ^
+// 
+trait Doubles { fn double(self) -> Self }
+impl Doubles for Int { fn double(self) -> Self { self + self } }
+
+trait Take_Doubles {
+    fn f[T](x: T) -> T
+}
+
+struct Box {}
+impl Take_Doubles for Box {
+    fn f[T: Doubles](x: T) -> T { x }
+}
+
+fn main() -> Int {
+    let b = Box()
+    _ = b
+    b.>f[Int](297)
+}

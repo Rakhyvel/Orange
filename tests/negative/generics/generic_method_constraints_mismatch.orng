@@ -1,0 +1,21 @@
+// generic_method_constraints_mismatch.orng:14:11: error: trait `Take_Doubles` requires constraint `Doubles` on generic parameter `T` of method `f`
+//     fn f[T](x: T) -> T { x }
+//          ^
+// 
+trait Doubles { fn double(self) -> Self }
+impl Doubles for Int { fn double(self) -> Self { self + self } }
+
+trait Take_Doubles {
+    fn f[T: Doubles](x: T) -> T
+}
+
+struct Box {}
+impl Take_Doubles for Box {
+    fn f[T](x: T) -> T { x }
+}
+
+fn main() -> Int {
+    let b = Box()
+    _ = b
+    b.>f[Int](297)
+}

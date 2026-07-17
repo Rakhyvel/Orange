@@ -1,0 +1,14 @@
+// generic_method_trait_kind_mismatch.orng:11:11: error: generic parameter kind does not match the trait's declaration
+//     fn f[T](){}
+//          ^
+// 
+trait Some_Trait {
+    fn f[const n: Int]()
+}
+
+struct Box {}
+impl Some_Trait for Box {
+    fn f[T](){}
+}
+
+fn main() {}

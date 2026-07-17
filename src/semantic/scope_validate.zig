@@ -180,8 +180,49 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         var rename = unification_.Substitutions.init(self.ctx.allocator());
         defer rename.deinit();
         for (trait_decl.?.generic_params().items, def.method_decl._generic_params.items) |trait_gp, impl_gp| {
-            // Shared decls (anon traits, monomorphized impls) need no rename, and renaming would unshare them
+            if (@intFromEnum(trait_gp.*) != @intFromEnum(impl_gp.*)) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                    .span = impl_gp.token().span,
+                    .msg = "generic parameter kind does not match the trait's declaration",
+                } });
+                return error.CompileError;
+            }
+            // Shared decls (anon traits, monomorphized impls) share constraints too, and renaming would unshare them
             if (trait_gp.symbol() == impl_gp.symbol()) continue;
+            if (trait_gp.* == .type_param_decl) {
+                // Each constraint the trait requires must be guaranteed by the impl's param
+                for (trait_gp.type_param_decl.constraints.items) |trait_constraint| {
+                    if (trait_constraint.* == .eq_constraint) continue;
+                    const required = try Decorate.symbol(trait_constraint, self.ctx);
+                    if (!(try Scope.param_guarantees_trait(impl_gp, required, self.ctx))) {
+                        self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{
+                            .span = impl_gp.token().span,
+                            .param_name = impl_gp.token().data,
+                            .constraint_name = required.name,
+                            .method_name = def.method_decl.name.token().data,
+                            .trait_name = trait_ast.token().data,
+                            .impl_declares_extra = false,
+                        } });
+                        return error.CompileError;
+                    }
+                }
+                // The impl's param must not require more than the trait promises
+                for (impl_gp.type_param_decl.constraints.items) |impl_constraint| {
+                    if (impl_constraint.* == .eq_constraint) continue;
+                    const declared = try Decorate.symbol(impl_constraint, self.ctx);
+                    if (!(try Scope.param_guarantees_trait(trait_gp, declared, self.ctx))) {
+                        self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{
+                            .span = impl_constraint.token().span,
+                            .param_name = impl_gp.token().data,
+                            .constraint_name = declared.name,
+                            .method_name = def.method_decl.name.token().data,
+                            .trait_name = trait_ast.token().data,
+                            .impl_declares_extra = true,
+                        } });
+                        return error.CompileError;
+                    }
+                }
+            }
             const id = Type_AST.create_type_identifier(impl_gp.token(), self.ctx.allocator());
             id.set_symbol(impl_gp.symbol().?);
             rename.put_type(trait_gp.symbol().?.name, id) catch unreachable;

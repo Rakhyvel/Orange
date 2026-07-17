@@ -1458,6 +1458,7 @@ fn select_method(
     rejection_reasons.deinit();
     const choice = chosen.?;
     var sel_subst: *unification_.Substitutions = subst;
+    var method_type = choice.plan.method_type;
     if (choice.plan.impl_subst) |isub| {
         // Candidate came from a generic impl, instantiate a clone of it with the solved params
         const instantiated = try ast.scope().?.instantiate_generic_impl(choice.method.method_decl.impl.?, isub, self.ctx);
@@ -1472,6 +1473,8 @@ fn select_method(
             if (isub.get_const(entry.key_ptr.*) == null) isub.put_const(entry.key_ptr.*, entry.value_ptr.*) catch unreachable;
         }
         sel_subst = isub;
+        // The plan's method_type predates instantiation and the injected bindings, re-derive through them
+        method_type = ast.invoke.method_decl.?.decl_type().clone(sel_subst, self.ctx.allocator());
     } else {
         ast.invoke.method_decl = choice.method;
     }
@@ -1481,7 +1484,7 @@ fn select_method(
     }
     return .{
         .subst = sel_subst,
-        .method_type = choice.plan.method_type,
+        .method_type = method_type,
     };
 }
 
