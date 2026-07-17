@@ -154,6 +154,7 @@ pub const L_Value = union(enum) {
         }
     }
 
+    // kcov-ignore-start
     pub fn pprint(self: L_Value, allocator: std.mem.Allocator) ![]const u8 {
         var out = std.array_list.Managed(u8).init(allocator);
         defer out.deinit();
@@ -182,6 +183,7 @@ pub const L_Value = union(enum) {
     pub fn format(self: L_Value, writer: *std.io.Writer) !void {
         try fmt_.indirect_format(self, writer);
     }
+    // kcov-ignore-end
 
     pub fn extract_symbver(self: *L_Value) *Symbol_Version {
         return switch (self.*) {

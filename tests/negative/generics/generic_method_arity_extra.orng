@@ -1,0 +1,17 @@
+// generic_method_arity_extra.orng:11:7: error: trait `Foo` specifies 1 generic parameter for method `f`, got 2
+//     fn f[T, U](self, x: T, y: U) -> T {
+//      ^
+// 
+trait Foo {
+    fn f[T](self, x: T) -> T
+}
+
+struct Box {}
+impl Foo for Box {
+    fn f[T, U](self, x: T, y: U) -> T {
+        _ = self
+        x
+    }
+}
+
+fn main() -> Int { 3 }

@@ -246,16 +246,23 @@ pub fn monomorphize(
         return self;
     }
 
-    for (key.items) |k| {
-        switch (k) {
-            .type_arg => |ty| if (ty.* == .identifier and ty.symbol().?.decl.?.is_typelike_param_decl()) return self,
-            .const_arg => |v| if (v.is_const_param_ref()) return self,
-        }
-    }
-
     const Symbol_Tree = @import("../ast/symbol-tree.zig");
     const Decorate = @import("../ast/decorate.zig");
     const walker_ = @import("../ast/walker.zig");
+
+    for (key.items) |k| {
+        const deferred = switch (k) {
+            .type_arg => |ty| ty.* == .identifier and ty.symbol().?.decl.?.is_typelike_param_decl(),
+            .const_arg => |v| v.is_const_param_ref(),
+        };
+        if (deferred) {
+            // Monomorphization is deferred, but consumers still probe the generic signature, so decorate it.
+            // Only the signature: walking the body here can falsely trip recursive-definition detection
+            if (self.decl.?.* == .method_decl or self.decl.?.* == .fn_decl)
+                try walker_.walk_type(self.decl.?.decl_type(), Decorate.new(ctx));
+            return self;
+        }
+    }
 
     if (self.monomorphs.get(key)) |retval| {
         // std.debug.print("eat slop ({*})\n", .{retval});

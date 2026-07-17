@@ -985,22 +985,9 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
         if (self.peek_kind(.left_parenthesis)) {
             exp = ast_.AST.create_call(self.peek(), exp, try self.call_args(), self.allocator);
         } else if (self.accept(.left_square)) |token| {
-            const first = try self.bracket_arg();
             var args = std.array_list.Managed(GenericArg).init(self.allocator);
-            args.append(first) catch unreachable;
-            while (self.accept(.comma)) |_| {
-                if (self.peek_kind(.right_square)) {
-                    break;
-                }
-                args.append(try self.bracket_arg()) catch unreachable;
-            }
+            try self.bracket_args(token, &args);
             exp = ast_.AST.create_bracket(token, exp, args, self.allocator);
-            if (self.peek_kind(.right_square)) {
-                _ = self.expect(.right_square) catch {};
-            } else {
-                self.errors.add_error(errs_.Error{ .missing_close = .{ .expected = .right_square, .got = self.peek(), .open = token } });
-                return error.ParseError;
-            }
         } else if (self.accept(.period)) |token| {
             if (self.accept(.left_square)) |_| {
                 // Must be a positional select
@@ -1028,10 +1015,16 @@ fn apply_postfix(self: *Self, exp_init: *ast_.AST) Parser_Error_Enum!*ast_.AST {
                 self.allocator,
             );
         } else if (self.accept(.invoke)) |token| {
+            const method_name = ast_.AST.create_field(try self.expect(.identifier), self.allocator);
+            var generic_args = std.array_list.Managed(GenericArg).init(self.allocator);
+            if (self.accept(.left_square)) |opening_token| {
+                try self.bracket_args(opening_token, &generic_args);
+            }
             exp = ast_.AST.create_invoke(
                 token,
                 exp,
-                ast_.AST.create_field(try self.expect(.identifier), self.allocator),
+                generic_args,
+                method_name,
                 try self.call_args(),
                 self.allocator,
             );
@@ -1090,6 +1083,24 @@ fn generic_arg(self: *Self) Parser_Error_Enum!GenericArg {
         ty = Type_AST.create_eq_constraint(token, ty, try self.type_expr(), self.allocator);
     }
     return .{ .type_arg = ty };
+}
+
+/// Parses and fills a list of generic bracket args, assuming the first `[` has already been parsed.
+fn bracket_args(self: *Self, opening_token: Token, args: *std.array_list.Managed(GenericArg)) Parser_Error_Enum!void {
+    const first = try self.bracket_arg();
+    args.append(first) catch unreachable;
+    while (self.accept(.comma)) |_| {
+        if (self.peek_kind(.right_square)) {
+            break;
+        }
+        args.append(try self.bracket_arg()) catch unreachable;
+    }
+    if (self.peek_kind(.right_square)) {
+        _ = self.expect(.right_square) catch {};
+    } else {
+        self.errors.add_error(errs_.Error{ .missing_close = .{ .expected = .right_square, .got = self.peek(), .open = opening_token } });
+        return error.ParseError;
+    }
 }
 
 /// Parses a single argument inside an expression-position `Foo[...]`, where it is not yet known whether `Foo` is a generic or an indexable value.
@@ -1791,6 +1802,18 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
     const introducer = try self.expect(.@"fn");
     const name: *ast_.AST = ast_.AST.create_identifier(try self.expect(.identifier), self.allocator);
 
+    const gen_params = try self.generic_params_list();
+    for (gen_params.items) |gen_param| {
+        if (gen_param.* == .type_param_decl) gen_param.type_param_decl.rigid = true;
+    }
+    if (gen_params.items.len > 0 and virtual != null) {
+        self.errors.add_error(errs_.Error{ .basic = .{
+            .span = virtual.?.span,
+            .msg = "generic methods cannot be marked virtual",
+        } });
+        return error.ParseError;
+    }
+
     const params_and_receiver = try self.method_paramlist();
     const params = params_and_receiver.params;
     const _receiver = params_and_receiver.receiver;
@@ -1814,6 +1837,7 @@ fn method_definition(self: *Self) Parser_Error_Enum!*ast_.AST {
         introducer,
         name,
         virtual != null,
+        gen_params,
         _receiver,
         params,
         ret_type orelse Type_AST.create_unit_type(introducer, self.allocator),

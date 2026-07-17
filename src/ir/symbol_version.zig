@@ -27,6 +27,7 @@ pub fn deinit(self: *Self) void {
     // self.allocator.destroy(self); // TODO: Bwuh?!
 }
 
+// kcov-ignore-start
 pub fn format(self: ?*Self, out: *std.io.Writer) !void {
     if (self) |symbver| {
         try out.print("{s:<10}", .{symbver.symbol.name});
@@ -34,6 +35,7 @@ pub fn format(self: ?*Self, out: *std.io.Writer) !void {
         try out.print("<null>    ", .{});
     }
 }
+// kcov-ignore-end
 
 pub fn set_def(self: *Self, def: ?*Instruction) void {
     self.def = def;

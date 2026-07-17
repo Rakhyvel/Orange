@@ -1,0 +1,17 @@
+// generic_method_self_return_mismatch.orng:11:25: error: trait `Make` specifies type `Self` for method `make`, got `Int`
+//     fn make(self) -> Int {
+//                        ^
+// 
+trait Make {
+    fn make(self) -> Self
+}
+
+struct Box {}
+impl Make for Box {
+    fn make(self) -> Int {
+        _ = self
+        0
+    }
+}
+
+fn main() -> Int { 0 }

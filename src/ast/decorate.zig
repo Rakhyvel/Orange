@@ -130,6 +130,13 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 var subst = unification_.Substitutions.init(self.ctx.allocator());
                 defer subst.deinit();
                 try subst.put_type("Self", ast.impl._type);
+                // Wipe the methods generic params, so they get match up fresh
+                for (method_decl.method_decl._generic_params.items) |gp| {
+                    switch (gp.*) {
+                        .const_param_decl => try subst.put_const(gp.token().data, ast_.AST.create_identifier(gp.token(), self.ctx.allocator())),
+                        else => try subst.put_type(gp.token().data, Type_AST.create_type_identifier(gp.token(), self.ctx.allocator())),
+                    }
+                }
                 const new_method = method_decl.clone(&subst, self.ctx.allocator());
                 new_method.method_decl.impl = ast; // bind the template to this impl
                 ast.impl.method_defs.append(new_method) catch unreachable;
@@ -238,45 +245,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             if (child.* == .identifier or child.* == .access) {
                 if (child.symbol()) |sym| if (sym.decl) |decl| {
                     if (decl.num_generic_params() > 0) {
-                        var generic_args = std.array_list.Managed(ast_.GenericArg).init(self.ctx.allocator());
-                        const params = decl.generic_params().items;
-                        for (ast.bracket._args.items, 0..) |arg, i| {
-                            const wants_const = i < params.len and params[i].* == .const_param_decl;
-                            const wants_ability = i < params.len and params[i].* == .ability_param_decl;
-                            switch (arg) {
-                                .const_arg => |v| if (wants_const) {
-                                    try generic_args.append(.{ .const_arg = v });
-                                } else if (wants_ability) {
-                                    self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                        .msg = "expected an ability argument, got a value",
-                                        .span = v.token().span,
-                                    } });
-                                    return error.CompileError;
-                                } else {
-                                    self.ctx.errors.add_error(errs_.Error{ .basic = .{
-                                        .msg = "expected a type argument, got a value",
-                                        .span = v.token().span,
-                                    } });
-                                    return error.CompileError;
-                                },
-
-                                .type_arg => |ty| if (wants_const) {
-                                    try generic_args.append(.{ .const_arg = ty.to_value_expr(self.ctx.allocator()) orelse return self.value_expected(ty.token().span) });
-                                } else if (wants_ability) {
-                                    const resolved = (try ty.resolve_ability_reference(self.ctx)) orelse {
-                                        self.ctx.errors.add_error(errs_.Error{ .expected_ability = .{
-                                            .span = ty.token().span,
-                                            .got = ty,
-                                        } });
-                                        return error.CompileError;
-                                    };
-                                    ty.* = resolved.*;
-                                    try generic_args.append(.{ .type_arg = ty });
-                                } else {
-                                    try generic_args.append(.{ .type_arg = ty });
-                                },
-                            }
-                        }
+                        const generic_args = try generic_apply_.coerce_generic_params(decl.generic_params().items, ast.bracket._args.items, self.ctx);
                         ast.* = ast_.AST.create_generic_apply(ast.token(), child, generic_args, self.ctx.allocator()).*;
                         try generic_apply_.instantiate(ast, self.ctx);
                         return;

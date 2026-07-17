@@ -1,0 +1,14 @@
+// generic_method_param_shadow.orng:11:11: error: redefinition of symbol `T`
+//     fn f[T](self, x: T) -> T { x }
+//          ^
+// generic_method_param_shadow.orng:10:7: note: other definition of `T` here:
+// impl[T] for Wrapper[T] {
+//      ^
+// 
+struct Wrapper[T] { t: T }
+
+impl[T] for Wrapper[T] {
+    fn f[T](self, x: T) -> T { x }
+}
+
+fn main() {}

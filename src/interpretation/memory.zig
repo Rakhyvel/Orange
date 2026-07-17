@@ -103,6 +103,7 @@ pub fn load(self: *Self, comptime T: type, address: i64) T {
     return val;
 }
 
+// kcov-ignore-start
 pub fn print_memory(self: *Self, start: usize, end: usize) void {
     for (start..end) |i| {
         if (@rem(i, 8) == 0) {
@@ -117,3 +118,4 @@ pub fn print_memory(self: *Self, start: usize, end: usize) void {
         }
     }
 }
+// kcov-ignore-end

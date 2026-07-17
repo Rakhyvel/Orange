@@ -1,0 +1,16 @@
+// 605
+trait Return_605 {
+    fn get[T](self, t: T) -> Int {
+        _ = t
+        _ = self
+        605
+    }
+}
+
+struct Thingy {}
+impl Return_605 for Thingy {}
+
+fn main() -> Int {
+    let thing = Thingy()
+    thing.>get[Bool](false)
+}

@@ -1,0 +1,5 @@
+// generic_method_virtual.orng:5:20: error: generic methods cannot be marked virtual
+// trait Foo { virtual fn f[T](self, x: T) -> T }
+//                   ^
+// 
+trait Foo { virtual fn f[T](self, x: T) -> T }

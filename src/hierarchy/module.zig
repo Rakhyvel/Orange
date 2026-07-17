@@ -311,6 +311,7 @@ pub const Module = struct {
     fn collect_local_types(self: *Module) void {
         for (self.traits.keys()) |trait| {
             for (trait.trait.method_decls.items) |decl| {
+                if (decl.num_generic_params() > 0) continue;
                 const @"type" = decl.method_decl.c_type.?.expand_identifier();
                 if (@"type".is_generic()) continue;
                 _ = self.type_set.add_type(decl.method_decl.c_type.?.expand_identifier());
@@ -343,6 +344,7 @@ pub const Module = struct {
 
     fn collect_impl_cfgs(self: *Module, impl: *ast_.AST, compiler: *Compiler_Context) Module_Errors!void {
         for (impl.impl.method_defs.items) |def| {
+            if (def.num_generic_params() > 0) continue;
             const symbol = def.symbol().?;
             const interned_strings = compiler.lookup_interned_string_set(self.uid).?;
             try walk_.walk_ast(symbol.init_value(), Const_Eval.new(compiler));
@@ -378,11 +380,13 @@ pub const Module = struct {
         return self.local_imported_modules.keys();
     }
 
+    // kcov-ignore-start
     pub fn print_instructions(self: *Module) void {
         for (self.instructions.items) |instr| {
             std.debug.print("{}", .{instr});
         }
     }
+    // kcov-ignore-end
 
     /// A module is modified if:
     /// - Its source hash differs from what is stored in the package's json file

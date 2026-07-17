@@ -204,7 +204,7 @@ pub fn impl_trait_lookup(for_type: *Type_AST, trait: *Symbol, ctx: *Compiler_Con
 
 /// True when `candidate` is `target`, or transitively lists `target` among its super-traits.
 /// `visited` guards against cyclic trait inheritance
-fn trait_is_or_extends(candidate: *Symbol, target: *Symbol, ctx: *Compiler_Context, visited: *std.AutoHashMap(*Symbol, void)) error{ CompileError, OutOfMemory }!bool {
+pub fn trait_is_or_extends(candidate: *Symbol, target: *Symbol, ctx: *Compiler_Context, visited: *std.AutoHashMap(*Symbol, void)) error{ CompileError, OutOfMemory }!bool {
     if (candidate == target) return true;
     if (visited.contains(candidate)) return false;
     try visited.put(candidate, {});
@@ -213,6 +213,18 @@ fn trait_is_or_extends(candidate: *Symbol, target: *Symbol, ctx: *Compiler_Conte
     for (decl.trait.super_traits.items) |super_trait| {
         const super_sym = try Decorate.symbol(super_trait, ctx);
         if (try trait_is_or_extends(super_sym, target, ctx, visited)) return true;
+    }
+    return false;
+}
+
+/// True when `param_decl`s declared constraints guarantee `trait`
+pub fn param_guarantees_trait(param_decl: *ast_.AST, trait: *Symbol, ctx: *Compiler_Context) error{ CompileError, OutOfMemory }!bool {
+    for (param_decl.type_param_decl.constraints.items) |constraint| {
+        if (constraint.* == .eq_constraint) continue;
+        const constraint_symbol = try Decorate.symbol(constraint, ctx);
+        var visited = std.AutoHashMap(*Symbol, void).init(ctx.allocator());
+        defer visited.deinit();
+        if (try trait_is_or_extends(constraint_symbol, trait, ctx, &visited)) return true;
     }
     return false;
 }
@@ -670,6 +682,7 @@ pub fn search_impl(impl: *ast_.AST, name: []const u8) ?*ast_.AST {
     return null;
 }
 
+// kcov-ignore-start
 pub fn pprint(self: *Self) void {
     std.debug.print("scope_{}:\n", .{self.uid});
     for (self.symbols.keys()) |name| {
@@ -688,6 +701,7 @@ pub fn pprint(self: *Self) void {
         }
     }
 }
+// kcov-ignore-end
 
 pub fn put_symbol(scope: *Self, symbol: *Symbol, errors: *errs_.Errors) error{CompileError}!void {
     const res = scope.lookup(symbol.name, .{});

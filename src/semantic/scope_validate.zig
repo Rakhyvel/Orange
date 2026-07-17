@@ -7,6 +7,7 @@ const Compiler_Context = @import("../hierarchy/compiler.zig");
 const errs_ = @import("../util/errors.zig");
 const Scope = @import("../symbol/scope.zig");
 const Symbol = @import("../symbol/symbol.zig");
+const Symbol_Tree = @import("../ast/symbol-tree.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const unification_ = @import("../types/unification.zig");
@@ -48,6 +49,15 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
     }
 
     try self.ctx.validate_type.validate_type(impl.impl._type);
+
+    if (impl.impl._type.* != .generic_apply and impl.impl._type.has_symbol() and impl.impl._type.symbol().?.decl.?.num_generic_params() > 0) {
+        self.ctx.errors.add_error(errs_.Error{ .unapplied_generic = .{
+            .span = impl.impl._type.token().span,
+            .symbol_name = impl.impl._type.symbol().?.name,
+            .num_generics = impl.impl._type.symbol().?.decl.?.num_generic_params(),
+        } });
+        return error.CompileError;
+    }
 
     var subst = unification_.generate_substitutions(impl.impl._type, self.ctx.allocator());
     defer subst.deinit();
@@ -142,6 +152,18 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         }
 
+        // Check that generic parameter arity matches
+        if (def.num_generic_params() != trait_decl.?.num_generic_params()) {
+            self.ctx.errors.add_error(errs_.Error{ .mismatch_method_generic_param_arity = .{
+                .span = def.token().span,
+                .method_name = def.method_decl.name.token().data,
+                .trait_name = trait_ast.token().data,
+                .trait_arity = trait_decl.?.num_generic_params(),
+                .impl_arity = def.num_generic_params(),
+            } });
+            return error.CompileError;
+        }
+
         // Check that paramter arity matches
         if (def.children().items.len != trait_decl.?.children().items.len) {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_param_arity = .{
@@ -154,24 +176,79 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             return error.CompileError;
         }
 
+        // Generate the rename map that takes trait method generic param symbol names to their impl method counterpart type ident
+        var rename = unification_.Substitutions.init(self.ctx.allocator());
+        defer rename.deinit();
+        for (trait_decl.?.generic_params().items, def.method_decl._generic_params.items) |trait_gp, impl_gp| {
+            if (@intFromEnum(trait_gp.*) != @intFromEnum(impl_gp.*)) {
+                self.ctx.errors.add_error(errs_.Error{ .basic = .{
+                    .span = impl_gp.token().span,
+                    .msg = "generic parameter kind does not match the trait's declaration",
+                } });
+                return error.CompileError;
+            }
+            // Shared decls (anon traits, monomorphized impls) share constraints too, and renaming would unshare them
+            if (trait_gp.symbol() == impl_gp.symbol()) continue;
+            if (trait_gp.* == .type_param_decl) {
+                // Each constraint the trait requires must be guaranteed by the impl's param
+                for (trait_gp.type_param_decl.constraints.items) |trait_constraint| {
+                    if (trait_constraint.* == .eq_constraint) continue;
+                    const required = try Decorate.symbol(trait_constraint, self.ctx);
+                    if (!(try Scope.param_guarantees_trait(impl_gp, required, self.ctx))) {
+                        self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{
+                            .span = impl_gp.token().span,
+                            .param_name = impl_gp.token().data,
+                            .constraint_name = required.name,
+                            .method_name = def.method_decl.name.token().data,
+                            .trait_name = trait_ast.token().data,
+                            .impl_declares_extra = false,
+                        } });
+                        return error.CompileError;
+                    }
+                }
+                // The impl's param must not require more than the trait promises
+                for (impl_gp.type_param_decl.constraints.items) |impl_constraint| {
+                    if (impl_constraint.* == .eq_constraint) continue;
+                    const declared = try Decorate.symbol(impl_constraint, self.ctx);
+                    if (!(try Scope.param_guarantees_trait(trait_gp, declared, self.ctx))) {
+                        self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{
+                            .span = impl_constraint.token().span,
+                            .param_name = impl_gp.token().data,
+                            .constraint_name = declared.name,
+                            .method_name = def.method_decl.name.token().data,
+                            .trait_name = trait_ast.token().data,
+                            .impl_declares_extra = true,
+                        } });
+                        return error.CompileError;
+                    }
+                }
+            }
+            const id = Type_AST.create_type_identifier(impl_gp.token(), self.ctx.allocator());
+            id.set_symbol(impl_gp.symbol().?);
+            rename.put_type(trait_gp.symbol().?.name, id) catch unreachable;
+        }
+        rename.put_type("Self", impl.impl._type) catch unreachable;
+
         // Check that parameters match
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
-            const impl_type = impl_param.binding.type;
-            unification_.unify(impl_type, trait_param.binding.type, &subst, .{}) catch {
+            const trait_ty = trait_param.binding.type.clone(&rename, self.ctx.allocator());
+            unification_.unify(trait_ty, impl_param.binding.type, &subst, .{ .allow_rigid = false }) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
-                    .span = impl_param.binding.type.token().span,
+                    .span = impl_param.token().span,
                     .method_name = def.method_decl.name.token().data,
                     .trait_name = trait_ast.token().data,
                     .trait_type = trait_param.binding.type,
-                    .impl_type = impl_type,
+                    .impl_type = impl_param.binding.type,
                 } });
                 return error.CompileError;
             };
         }
 
         // Check that return type matches
-        _ = try walk_.walk_type(trait_decl.?.method_decl.ret_type, Decorate.new(self.ctx));
-        unification_.unify(def.method_decl.ret_type, trait_decl.?.method_decl.ret_type, &subst, .{}) catch {
+        const trait_ret_ty = trait_decl.?.method_decl.ret_type.clone(&rename, self.ctx.allocator());
+        _ = try walk_.walk_type(trait_ret_ty, Symbol_Tree.new(impl.scope().?, &self.ctx.errors, self.ctx.allocator()));
+        _ = try walk_.walk_type(trait_ret_ty, Decorate.new(self.ctx));
+        unification_.unify(trait_ret_ty, def.method_decl.ret_type, &subst, .{ .allow_rigid = false }) catch {
             self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                 .span = def.method_decl.ret_type.token().span,
                 .method_name = def.method_decl.name.token().data,

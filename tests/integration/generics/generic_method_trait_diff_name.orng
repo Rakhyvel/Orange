@@ -1,0 +1,21 @@
+// 591
+trait Pairer {
+    fn f[T, S](x: []T, y: S) -> (T, S)
+}
+
+struct Box {}
+impl Pairer for Box {
+    fn f[A, B](x: []A, y: B) -> (A, B) { (x[0], y) }
+}
+
+fn main() -> Int {
+    let bools = [true, false, false]
+    let b = Box()
+    _ = b
+    let (s, t) = b.>f[Bool, Int](&bools, 591)
+    if s {
+        t
+    } else {
+        unreachable
+    }
+}

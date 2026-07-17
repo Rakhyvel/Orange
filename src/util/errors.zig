@@ -183,6 +183,13 @@ pub const Error = union(enum) {
         method_name: []const u8,
         lhs_type: *Type_AST,
     },
+    mismatch_method_generic_param_arity: struct {
+        span: Span,
+        trait_arity: usize,
+        impl_arity: usize,
+        method_name: []const u8,
+        trait_name: []const u8,
+    },
     mismatch_method_param_arity: struct {
         span: Span,
         trait_arity: usize,
@@ -196,6 +203,14 @@ pub const Error = union(enum) {
         impl_type: *Type_AST,
         method_name: []const u8,
         trait_name: []const u8,
+    },
+    mismatch_method_constraint: struct {
+        span: Span,
+        param_name: []const u8,
+        constraint_name: []const u8,
+        method_name: []const u8,
+        trait_name: []const u8,
+        impl_declares_extra: bool,
     },
     mismatch_method_virtuality: struct {
         span: Span,
@@ -389,8 +404,10 @@ pub const Error = union(enum) {
             .type_not_in_impl => return self.type_not_in_impl.impl_span,
             .impl_receiver_mismatch => return self.impl_receiver_mismatch.receiver_span,
             .invoke_receiver_mismatch => return self.invoke_receiver_mismatch.receiver_span,
+            .mismatch_method_generic_param_arity => return self.mismatch_method_generic_param_arity.span,
             .mismatch_method_param_arity => return self.mismatch_method_param_arity.span,
             .mismatch_method_type => return self.mismatch_method_type.span,
+            .mismatch_method_constraint => return self.mismatch_method_constraint.span,
             .mismatch_method_virtuality => return self.mismatch_method_virtuality.span,
             .trait_virtual_refers_to_self => return self.trait_virtual_refers_to_self.span,
             .invoke_not_virtual => return self.invoke_not_virtual.span,
@@ -581,6 +598,13 @@ pub const Error = union(enum) {
                 err.invoke_receiver_mismatch.lhs_type.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
             },
+            .mismatch_method_generic_param_arity => writer.print("trait `{s}` specifies {} generic parameter{s} for method `{s}`, got {}\n", .{
+                err.mismatch_method_generic_param_arity.trait_name,
+                err.mismatch_method_generic_param_arity.trait_arity,
+                if (err.mismatch_method_generic_param_arity.trait_arity != 1) "s" else "",
+                err.mismatch_method_generic_param_arity.method_name,
+                err.mismatch_method_generic_param_arity.impl_arity,
+            }) catch unreachable,
             .mismatch_method_param_arity => writer.print("trait `{s}` specifies {} parameter{s} for method `{s}`, got {}\n", .{
                 err.mismatch_method_param_arity.trait_name,
                 err.mismatch_method_param_arity.trait_arity,
@@ -594,6 +618,21 @@ pub const Error = union(enum) {
                 writer.print("` for method `{s}`, got `", .{err.mismatch_method_type.method_name}) catch unreachable;
                 err.mismatch_method_type.impl_type.print_type(writer) catch unreachable;
                 writer.print("`\n", .{}) catch unreachable;
+            },
+            .mismatch_method_constraint => if (err.mismatch_method_constraint.impl_declares_extra) {
+                writer.print("impl declares constraint `{s}` on generic parameter `{s}` of method `{s}`, not required by trait `{s}`\n", .{
+                    err.mismatch_method_constraint.constraint_name,
+                    err.mismatch_method_constraint.param_name,
+                    err.mismatch_method_constraint.method_name,
+                    err.mismatch_method_constraint.trait_name,
+                }) catch unreachable;
+            } else {
+                writer.print("trait `{s}` requires constraint `{s}` on generic parameter `{s}` of method `{s}`\n", .{
+                    err.mismatch_method_constraint.trait_name,
+                    err.mismatch_method_constraint.constraint_name,
+                    err.mismatch_method_constraint.param_name,
+                    err.mismatch_method_constraint.method_name,
+                }) catch unreachable;
             },
             .mismatch_method_virtuality => {
                 writer.print("trait `{s}` specifies the method `{s}` as {s}, got {s}\n", .{

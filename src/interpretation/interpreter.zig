@@ -659,6 +659,7 @@ fn extract_array_type(self: *Self, address: i64, array_type: *Type_AST, span: Sp
     return ast_.AST.create_array_value(array_type.token(), value_terms, self.ctx.allocator());
 }
 
+// kcov-ignore-start
 /// Prints the values of the interpreter's registers
 fn print_registers(self: *Self) void {
     const module: ?*module_.Module = self.curr_module() catch null;
@@ -683,6 +684,7 @@ fn print_debug_stack(self: *Self) void {
     }
     std.debug.print("\n", .{});
 }
+// kcov-ignore-end
 
 fn curr_instruction(self: *Self) error{CompileError}!*Instruction {
     const module = try self.curr_module();

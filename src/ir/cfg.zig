@@ -164,6 +164,8 @@ pub fn collect_cfg_types(self: *Self, type_set: *Type_Set) void {
     if (self.symbol.decl.?.* == .method_decl) {
         const impl = self.symbol.decl.?.method_decl.impl.?;
         if (impl.num_generic_params() > 0) return;
+        const decl = self.symbol.decl.?;
+        if (decl.num_generic_params() > 0) return;
     }
 
     // Add parameter types to type set
@@ -602,6 +604,7 @@ pub fn calculate_offsets(self: *Self) ?i64 //< Number of bytes used for locals b
     return local_offsets - locals_starting_offset;
 }
 
+// kcov-ignore-start
 pub fn print_instructions(self: *Self) void {
     // Print out the basic blocks
     std.debug.print("CFG {s}:\n", .{self.symbol.name});
@@ -609,3 +612,4 @@ pub fn print_instructions(self: *Self) void {
         bb.pprint();
     }
 }
+// kcov-ignore-end

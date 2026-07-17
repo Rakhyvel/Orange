@@ -1,0 +1,13 @@
+// 606
+struct Box[T] { x: T }
+
+impl[U] for Box[U] {
+    fn f[T](v: T) -> Box[T] { Box[T](v) }
+}
+
+fn main() -> Int {
+    let b = Box[Int](0)
+    _ = b
+    let b2 = b.>f[Int](606)
+    b2.x
+}

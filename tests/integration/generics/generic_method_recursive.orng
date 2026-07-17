@@ -1,0 +1,18 @@
+// 603
+struct Box { x: Int }
+
+impl for Box {
+    fn get[T](self, xs: []T) -> Int {
+        if xs.length == 0 {
+            self.x
+        } else {
+            1 + self.>get[T](xs.>subslice(1..))
+        }
+    }
+}
+
+fn main() -> Int {
+    let arr = [1, 2, 3]
+    let b = Box(600)
+    b.>get[Int](&arr)
+}

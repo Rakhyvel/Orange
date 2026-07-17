@@ -9,7 +9,7 @@
 
 ## 🍊 What is Orange?
 
-Orange is a versatile systems programming language I've been developing that gives developers control without sacrificing expressiveness. It is designed to be both lightweight and simple, making it a great choice for enthusiasts and professionals alike.
+Orange is a systems programming language I've been developing, designed around my frustrations with currently existing languages.
 
 * Visit [the website (coming soon)](http://ornglang.org) to learn more about Orange.
 * Tutorials can be found [here (coming soon)](http://ornglang.org/tutorials).
@@ -38,11 +38,9 @@ Run it with:
 orng run
 ```
 
-## Standout Features
-Orange comes with a wide range of features that make it a powerful and flexible programming language, including:
-
+## Features
 ### Ability Tracking
-This is probably Orange's largest standout feature. Orange's ability system provides a way to explicitly track the capabilities required by a function. This allows resources like allocation, IO, filesystem access, and networking to remain visible in the type system while keeping function calls clean.
+Orange's ability system provides a way to explicitly track the capabilities required by a function. This allows resources like allocation, IO, filesystem access, and networking to remain visible in the type system while keeping function calls clean.
 ```rs
 ability Allocating = &mut dyn Allocator // Define the Allocating ability, backed by an allocator object
 ability Writing = &mut dyn Writer       // Define the Writing ability, backed by a writer object
@@ -60,6 +58,8 @@ fn write_greeting() with ... {
     @println("{buffer}")                  // Uses Writing ability, added to inference set
 }
 ```
+
+This particularly makes Orange attractive for flight software (and probably other applications too like health and automotive) where allocations after init are prohibited.
 
 ### Algebraic Data Types & Pattern Matching
 Algebraic Data Types (ADTs) allow you to define types that can be one of several variants with zero runtime overhead. Pattern matching in Orange lets you elagantly deconstruct those ADTs with a single, readable expression.
@@ -83,7 +83,7 @@ fn eval(e: Expr) -> Int {
 [More examples](https://github.com/Rakhyvel/Orange/blob/main/tests/integration/pattern)
 
 ### Generics & Traits
-Geerics and traits offer a flexible way to write code for any type.
+Generics and traits offer a flexible way to write code for any type.
 
 ```rs
 trait Ord {
@@ -103,11 +103,6 @@ fn main() -> ()!() with core::Writing {
     @println("max is {x}")
 }
 ```
-
-### Seamless C Interoperability
-Compile to C and parse C header files with ease. Orange bridges the gap between low-level system programming and high-level expressiveness.
-
-[More examples](https://github.com/Rakhyvel/Orange/blob/main/tests/integration/build)
 
 ### Arbitrary Compile-Time Execution
 Orange has a robust compile-time execution model that allows any function to be ran at compile-time.

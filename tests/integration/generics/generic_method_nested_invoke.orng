@@ -1,0 +1,12 @@
+// 605
+struct Box { x: Int }
+
+impl for Box {
+    fn f[T](v: T) -> T { v }
+}
+
+fn main() -> Int {
+    let b = Box(500)
+    _ = b
+    b.>f[Int](if b.>f[Bool](true) {b.>f[Int](605)} else {b.>f[Int](506)})
+}

@@ -622,6 +622,7 @@ fn append_library_flags(
     }
 }
 
+// kcov-ignore-start
 const debug: bool = false;
 fn print_cmd(cmd: *const std.array_list.Managed([]const u8)) void {
     if (debug) {
@@ -631,3 +632,4 @@ fn print_cmd(cmd: *const std.array_list.Managed([]const u8)) void {
         std.debug.print("\n", .{});
     }
 }
+// kcov-ignore-end

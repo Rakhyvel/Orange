@@ -1,0 +1,15 @@
+// 6
+trait Scale {
+    fn base(self) -> Int
+    fn scaled[const n: Int](self) -> Int { self.>base() * n }
+}
+
+struct Thingy {}
+impl Scale for Thingy {
+    fn base(self) -> Int { _ = self; 2 }
+}
+
+fn main() -> Int {
+    let t = Thingy()
+    t.>scaled[3]()
+}

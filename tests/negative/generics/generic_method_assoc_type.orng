@@ -1,0 +1,29 @@
+// generic_method_assoc_type.orng:15:34: error: trait `Get` specifies type `Self::Output` for method `get`, got `Bool`
+//     fn get[T](self, t: T) -> Bool {
+//                                 ^
+// 
+struct Box { x: Int }
+
+trait Get {
+    type Output
+    fn get[T](self, t: T) -> Self::Output
+}
+
+impl Get for Box {
+    type Output = Int
+
+    fn get[T](self, t: T) -> Bool {
+        _ = t
+        _ = self
+        false
+    }
+}
+
+fn main() -> Int {
+    let b = Box(602)
+    if b.>get[Int](4) {
+        unreachable
+    } else {
+        602
+    }
+}

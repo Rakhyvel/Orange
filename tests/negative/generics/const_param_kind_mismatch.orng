@@ -1,6 +1,6 @@
-// const_param_kind_mismatch.orng:10:17: error: expected a type argument, got a value
+// const_param_kind_mismatch.orng:10:14: error: expected a value, got a type
 //     first[Int, 3](x)
-//                ^
+//             ^
 // 
 fn first[const n: Int, T](arr: [n]T) -> T {
     arr[0]

@@ -3,6 +3,7 @@ const ast_ = @import("../ast/ast.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const Symbol = @import("../symbol/symbol.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
+const GenericArg = @import("../ast/generic_arg.zig").GenericArg;
 
 pub const Substitutions = struct {
     type_subst: std.StringArrayHashMap(*Type_AST),
@@ -305,18 +306,21 @@ pub fn generate_substitutions(_type: *Type_AST, alloc: std.mem.Allocator) Substi
         const constructor = _type.lhs();
         const params = constructor.symbol().?.decl.?.generic_params().items;
         const args = _type.generic_apply.args.items;
-        std.debug.assert(params.len == args.len);
-        errdefer subst.deinit();
-        for (params, args) |param, arg| {
-            switch (param.*) {
-                .type_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
-                .const_param_decl => subst.put_const(param.symbol().?.name, arg.const_arg) catch unreachable,
-                .ability_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
-                else => unreachable,
-            }
-        }
+        generate_substitutions_from_args(params, args, &subst);
     }
     return subst;
+}
+
+pub fn generate_substitutions_from_args(params: []*ast_.AST, args: []GenericArg, subst: *Substitutions) void {
+    std.debug.assert(params.len == args.len);
+    for (params, args) |param, arg| {
+        switch (param.*) {
+            .type_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
+            .const_param_decl => subst.put_const(param.symbol().?.name, arg.const_arg) catch unreachable,
+            .ability_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
+            else => unreachable,
+        }
+    }
 }
 
 fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
@@ -397,6 +401,7 @@ pub fn const_arg_is_concrete(arg: *ast_.AST) bool {
     };
 }
 
+// kcov-ignore-start
 pub fn print_substitutions(subst: *const Substitutions) void {
     std.debug.print("{} substitutions: {{\n", .{subst.type_subst.keys().len + subst.const_subst.keys().len});
     for (subst.type_subst.keys()) |key| {
@@ -409,3 +414,4 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     }
     std.debug.print("}}\n", .{});
 }
+// kcov-ignore-end

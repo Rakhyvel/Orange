@@ -167,6 +167,12 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
         .invoke => {
             try walk_ast(ast.lhs(), new_context);
+            for (ast.invoke.generic_args.items) |arg| {
+                switch (arg) {
+                    .type_arg => |ty| try walk_type(ty, new_context),
+                    .const_arg => |v| try walk_ast(v, new_context),
+                }
+            }
             try walk_ast(ast.rhs(), new_context);
             try walk_asts(ast.children(), new_context);
         },
@@ -304,6 +310,7 @@ pub fn walk_ast(maybe_ast: ?*ast_.AST, context: anytype) Error!void {
         },
         .method_decl => {
             try walk_asts(&ast.method_decl.ability_decls, new_context);
+            try walk_asts(ast.generic_params(), new_context);
             try walk_ast(ast.method_decl.init, new_context);
             try walk_asts(ast.children(), new_context);
             try walk_type(ast.method_decl._decl_type, new_context);

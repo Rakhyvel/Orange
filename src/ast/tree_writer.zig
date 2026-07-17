@@ -1,6 +1,8 @@
 //! This file represents a struct for an AST walk, and expands complex import pattern ASTs into simpler forms which
 //! are easier to work with.
 
+// kcov-ignore-start
+
 const std = @import("std");
 const ast_ = @import("../ast/ast.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
@@ -93,3 +95,5 @@ fn tree_writer_prefix_type(self: Self, _type: *Type_AST) walker_.Error!?Self {
     std.debug.print(")\n", .{});
     return Self.new(self.indent + 4);
 }
+
+// kcov-ignore-end
