@@ -1375,6 +1375,7 @@ const Method_Selection = struct {
     subst: *unification_.Substitutions,
     method_type: *Type_AST,
 };
+/// Finds the appropriate method decl for an invoke, if it exists and is unambiguous. Updates `ast.invoke.method_decl` to point to the correct method decl.
 fn select_method(
     self: *Self,
     ast: *ast_.AST,
@@ -1461,8 +1462,8 @@ fn select_method(
     var method_type = choice.plan.method_type;
     if (choice.plan.impl_subst) |isub| {
         // Candidate came from a generic impl, instantiate a clone of it with the solved params
-        const instantiated = try ast.scope().?.instantiate_generic_impl(choice.method.method_decl.impl.?, isub, self.ctx);
-        ast.invoke.method_decl = Scope.search_impl(instantiated, ast.rhs().token().data).?;
+        const instantiated_impl = try ast.scope().?.instantiate_generic_impl(choice.method.method_decl.impl.?, isub, self.ctx);
+        const new_method_decl = Scope.search_impl(instantiated_impl, ast.rhs().token().data).?;
         // Inject the caller's bindings with the impl solution
         var t_it = subst.type_subst.iterator();
         while (t_it.next()) |entry| {
@@ -1474,7 +1475,15 @@ fn select_method(
         }
         sel_subst = isub;
         // The plan's method_type predates instantiation and the injected bindings, re-derive through them
-        method_type = ast.invoke.method_decl.?.decl_type().clone(sel_subst, self.ctx.allocator());
+        if (new_method_decl != choice.method) {
+            // an instantiation happened and we gotta frickin deal with it
+            method_type = new_method_decl.decl_type().clone(sel_subst, self.ctx.allocator());
+            ast.invoke.method_decl = new_method_decl;
+        } else {
+            // no real instantiation happened, keep using the plans stuff because its most current
+            method_type = choice.plan.method_type;
+            ast.invoke.method_decl = choice.plan.method_decl;
+        }
     } else {
         ast.invoke.method_decl = choice.method;
     }
@@ -1534,12 +1543,13 @@ fn method_fits(
     // Generic method, gotta monomorphize it
     const method_is_generic = method_decl.generic_params().items.len > 0;
     if (method_is_generic) {
-        try generic_apply_.todo_fixme_make_better_instantiate_invoke(method_decl.symbol().?, ast, self.ctx);
+        try generic_apply_.instantiate_generic_invoke(method_decl.symbol().?, ast, self.ctx);
         instantiated_method_decl = ast.symbol().?.decl.?;
         method_type = instantiated_method_decl.decl_type();
         if (instantiated_method_decl == method_decl) {
             // Monomorphization deferred (abstract generic args), check against the renamed signature
             var scratch = unification_.Substitutions.init(self.ctx.allocator());
+            defer scratch.deinit();
             unification_.generate_substitutions_from_args(instantiated_method_decl.generic_params().items, ast.invoke.generic_args.items, &scratch);
             method_type = instantiated_method_decl.decl_type().clone(&scratch, self.ctx.allocator());
         }

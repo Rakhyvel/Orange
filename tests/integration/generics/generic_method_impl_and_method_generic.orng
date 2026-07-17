@@ -1,0 +1,23 @@
+// 42
+trait Getter {
+    fn get1[S](self, x: S) -> Int
+    fn get2[U](self, y: U) -> Int
+}
+
+struct Box[T] { t: T }
+impl [T] Getter for Box[T] {
+    fn get1[S](self, x: S) -> Int {
+        _ = x
+        self.>get2[S](x)
+    }
+    fn get2[U](self, y: U) -> Int {
+        _ = y
+        _ = self
+        42
+    }
+}
+
+fn main() -> Int {
+    let b = Box[Int](42)
+    b.>get1[Bool](true)
+}

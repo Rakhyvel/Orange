@@ -1,0 +1,31 @@
+// generic_method_ambiguous_candidates.orng:30:8: error: multiple applicable members `lmao` for the type `Box`
+//     b.>lmao[Int](5)
+//       ^
+// generic_method_ambiguous_candidates.orng:21:7: note: candidate:
+//     fn lmao[T](self, x: T) -> Int { 1 }
+//      ^
+// generic_method_ambiguous_candidates.orng:25:7: note: candidate:
+//     fn lmao[T](self, x: T) -> Int { 2 }
+//      ^
+// 
+trait Foo {
+    fn lmao[T](self, x: T) -> Int
+}
+
+trait Bar {
+    fn lmao[T](self, x: T) -> Int
+}
+
+struct Box {}
+impl Foo for Box {
+    fn lmao[T](self, x: T) -> Int { 1 }
+}
+
+impl Bar for Box {
+    fn lmao[T](self, x: T) -> Int { 2 }
+}
+
+fn main() -> Int {
+    let b = Box()
+    b.>lmao[Int](5)
+}

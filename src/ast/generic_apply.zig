@@ -20,8 +20,7 @@ pub fn instantiate(generic_apply: anytype, ctx: *Compiler_Context) !void {
     }
 }
 
-pub fn todo_fixme_make_better_instantiate_invoke(sym: *Symbol, ast: *AST, ctx: *Compiler_Context) !void {
-    if (ast.symbol()) |_| return;
+pub fn instantiate_generic_invoke(sym: *Symbol, ast: *AST, ctx: *Compiler_Context) !void {
     ast.set_symbol(try monomorphize_generic_apply(sym, ast.invoke.generic_args, ast.token().span, &ast.invoke.state, ctx));
 }
 
