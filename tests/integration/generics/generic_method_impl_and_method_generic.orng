@@ -13,7 +13,7 @@ impl [T] Getter for Box[T] {
     fn get2[U](self, y: U) -> Int {
         _ = y
         _ = self
-        42
+        4
     }
 }
 
