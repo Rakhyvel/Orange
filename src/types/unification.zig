@@ -86,12 +86,14 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (lhs.* == .identifier and lhs.symbol() != null and subst.get_type(lhs.symbol().?) != null) {
         if (!lhs.symbol().?.decl.?.is_typelike_param_decl() or !lhs.symbol().?.decl.?.is_rigid_type_param()) {
             const sub = subst.get_type(lhs.symbol().?).?;
-            return try unify_inner(sub, rhs, subst, visited_map, options);
+            // A self-mapping carries no information, redirecting to it just re-hits the cycle guard
+            if (sub != lhs) return try unify_inner(sub, rhs, subst, visited_map, options);
         }
     }
     if (rhs.* == .identifier and rhs.symbol() != null and subst.get_type(rhs.symbol().?) != null) {
         const sub = subst.get_type(rhs.symbol().?).?;
-        if (!rhs.symbol().?.decl.?.is_typelike_param_decl() or !rhs.symbol().?.decl.?.is_rigid_type_param()) {
+        // A self-mapping carries no information, redirecting to it just re-hits the cycle guard
+        if (sub != rhs and (!rhs.symbol().?.decl.?.is_typelike_param_decl() or !rhs.symbol().?.decl.?.is_rigid_type_param())) {
             return try unify_inner(lhs, sub, subst, visited_map, options);
         }
     }

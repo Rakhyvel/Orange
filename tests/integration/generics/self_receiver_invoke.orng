@@ -1,0 +1,24 @@
+// 42
+struct Wrapper[T] {
+    value: T
+}
+
+impl[T] for Wrapper[T] {
+    fn init(value: T) -> Self {
+        Self(value)
+    }
+
+    fn set(&mut self, value: T) {
+        self.value = value
+    }
+
+    fn make(value: T) -> Self {
+        let mut retval = Self::init(value)
+        retval.>set(value)
+        retval
+    }
+}
+
+fn main() -> Int {
+    Wrapper[Int]::make(42).value
+}
