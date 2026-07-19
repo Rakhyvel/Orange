@@ -136,6 +136,33 @@ pub fn typecheck_AST(
 }
 
 var depth: usize = 0;
+/// Expands a type, substituting the args of a deferred monomorph
+/// `Box[T]` in a generic body expands to `Box`'s template, whose fields still name `Box`'s own params
+fn expand_deferred_generic(self: *Self, _type: *Type_AST) *Type_AST {
+    const expanded = _type.expand_identifier();
+    if (_type.* != .generic_apply) return expanded;
+    const sym = _type.symbol() orelse return expanded;
+    const params = sym.decl.?.generic_params().items;
+    if (params.len == 0) return expanded; // fully monomorphized, nothing left to substitute
+    var s = unification_.Substitutions.init(self.ctx.allocator());
+    var param_i: usize = 0;
+    for (_type.generic_apply.args.items) |arg| {
+        if (param_i >= params.len) break;
+        switch (arg) {
+            .type_arg => |ty| {
+                if (ty.* == .eq_constraint) continue;
+                s.put_type(params[param_i].symbol().?, ty) catch unreachable;
+                param_i += 1;
+            },
+            .const_arg => |v| {
+                s.put_const(params[param_i].symbol().?, v) catch unreachable;
+                param_i += 1;
+            },
+        }
+    }
+    return expanded.clone(&s, self.ctx.allocator());
+}
+
 fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, subst: *unification_.Substitutions) Validate_Error_Enum!*Type_AST {
     // TODO: Ugh this function is too long
     depth += 1;
@@ -837,7 +864,7 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .struct_value => {
             try self.ctx.validate_type.validate_type(ast.struct_value.parent);
-            const expanded_expected: *Type_AST = if (expected == null) ast.struct_value.parent.expand_identifier() else expected.?.expand_identifier();
+            const expanded_expected: *Type_AST = self.expand_deferred_generic(if (expected == null) ast.struct_value.parent else expected.?);
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.@"struct", ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
