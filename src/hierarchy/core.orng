@@ -875,14 +875,30 @@ trait Iterator {
 
     fn next(&mut self) -> ?Self::Item
 
-    fn filter(self, predicate: &Self::Item -> Bool) -> Filter[Self, &Self::Item -> Bool] {
-        Filter[Self, &Self::Item -> Bool](self, predicate)
+    fn filter(self, predicate: &Self::Item -> Bool) -> Filter[Self] {
+        Filter[Self](self, predicate)
     }
 }
 
-struct Filter[Iter, P] {
-    i: Iter
-    predicate: P
+struct Filter[Iter: Iterator] {
+    inner: Iter
+    predicate: &Iter::Item -> Bool
+}
+
+impl[Iter: Iterator] Iterator for Filter[Iter] {
+    type Item = Iter::Item
+
+    fn next(&mut self) -> ?Self::Item {
+        while true {
+            match self.inner.>next() {
+                .none => {return .none}
+                .some(x) => if self.predicate(x) {
+                    return .some(x)
+                }
+            }
+        }
+        .none
+    }
 }
 
 trait Into_Iterator {

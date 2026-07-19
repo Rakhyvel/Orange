@@ -64,6 +64,7 @@ param: bool, // True when the symbol is a parameter in a function
 is_temp: bool = false, // Whether this symbol is a temporary when lowered
 is_monomorphed: bool = false, // Whether this symbol came from monomorphing a generic
 in_generic_impl: bool = false, // Whether this symbol is declared inside a generic impl template, whose init cannot be comptime evaluated
+baking_typedef: bool = false, // Guards against re-decorating a self-referential typedef mid-bake
 
 // Offset
 offset: ?i64, // The offset from the BP that this symbol, for local variables and parameters
