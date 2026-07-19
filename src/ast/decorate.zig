@@ -424,9 +424,9 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
             const exp = base.expand_identifier();
             if (exp.* == .addr_of and !exp.addr_of.multiptr) base = exp.child() else break;
         }
-        stripped_lhs.as_trait._lhs = base;
+        // Don't write `base` back, that bakes a template's resolution into nodes monomorphs clone
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
-            var res = try Scope.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
+            var res = try Scope.impl_trait_lookup(base, constraint.symbol().?, self.ctx);
             if (res.impl_ast) |impl_ast| {
                 const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
                 // Decorate the original member first so associated types resolve before any remap
@@ -443,7 +443,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
                 }
                 return decl.symbol().?;
             } else {
-                const decl = try Scope.lookup_member_in_trait(constraint.symbol().?.decl.?, stripped_lhs.lhs(), rhs.data, self.ctx);
+                const decl = try Scope.lookup_member_in_trait(constraint.symbol().?.decl.?, base, rhs.data, self.ctx);
                 return decl.?.symbol().?;
             }
         }

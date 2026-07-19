@@ -28,6 +28,9 @@ pub const Type_AST_Common = struct {
     /// What this type was expanded from
     _unexpanded_type: ?*Type_AST = null,
 
+    /// The `@typeof` expr this was resolved from, so clones re-resolve instead of inheriting
+    _from_type_of: ?*AST = null,
+
     /// The number of bytes a value in an AST type takes up.
     /// Memoized, use `sizeof()`.
     _size: ?i64 = null,
@@ -618,6 +621,10 @@ pub const Type_AST = union(enum) {
 
     pub fn set_unexpanded_type(self: *Type_AST, _unexpanded_type: *Type_AST) void {
         union_fields_.get_field_ref(self, "common")._unexpanded_type = _unexpanded_type;
+    }
+
+    pub fn set_from_type_of(self: *Type_AST, _expr: *AST) void {
+        union_fields_.get_field_ref(self, "common")._from_type_of = _expr;
     }
 
     pub fn token(self: *const Type_AST) Token {
@@ -1519,6 +1526,10 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn clone(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
+        // Monomorphs re-resolve `@typeof` rather than inherit the template's resolution
+        if (self.common()._from_type_of) |_expr| {
+            return create_type_of(self.token(), _expr.clone(substs, allocator), allocator);
+        }
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
             .identifier => {
@@ -1613,7 +1624,7 @@ pub const Type_AST = union(enum) {
 
     pub fn is_generic(_type: *Type_AST) bool {
         return switch (_type.*) {
-            .anyptr_type, .unit_type, .dyn_type, .as_trait, .ability_type => false, // I added as_trait, not sure if it should actually do more stuff or just be false
+            .anyptr_type, .unit_type, .dyn_type, .as_trait, .ability_type => false,
             .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.is_typelike_param_decl(),
             .addr_of => _type.child().is_generic(),
             .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),

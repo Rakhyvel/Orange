@@ -465,9 +465,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         base = exp.child();
                     } else break;
                 }
-                as_trait_node.as_trait._lhs = base;
-
-                const for_type = as_trait_node.lhs();
+                // Don't write `base` back, that bakes a template's resolution into nodes monomorphs clone
+                const for_type = base;
                 try self.ctx.validate_type.validate_type(for_type);
                 var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                 defer candidate_method_decls.deinit();
