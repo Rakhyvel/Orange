@@ -138,6 +138,8 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     }
 
     if (lhs_is_type_param) {
+        // Occurs check, reject binding a param into a term that contains it (`X::Item` into `&X::Item`)
+        if (!refers_to_same_param(rhs, lhs.symbol().?) and occurs(lhs.symbol().?, rhs)) return error.TypesMismatch;
         if (!options.allow_rigid and lhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
@@ -148,6 +150,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         return;
     }
     if (rhs_is_type_param) {
+        if (!refers_to_same_param(lhs, rhs.symbol().?) and occurs(rhs.symbol().?, lhs)) return error.TypesMismatch;
         if (!options.allow_rigid and rhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
@@ -331,6 +334,38 @@ fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
     }
     const expanded_arg = arg.expand_identifier();
     return param.types_match(expanded_arg);
+}
+
+/// Whether `ty` is itself a bare reference to `sym`, `X::Item` naming `Item` or a param `T` naming `T`
+fn refers_to_same_param(ty: *Type_AST, sym: *Symbol) bool {
+    return (ty.* == .identifier or ty.* == .access) and ty.has_symbol() and ty.symbol() == sym;
+}
+
+/// Occurs check, whether `sym` appears anywhere in `ty`. Guards unification against infinite types
+fn occurs(sym: *Symbol, ty: *Type_AST) bool {
+    if (refers_to_same_param(ty, sym)) return true;
+    return switch (ty.*) {
+        .access, .as_trait => occurs(sym, ty.lhs()),
+        .addr_of, .array_of, .annotation, .untagged_sum_type, .ability_type => occurs(sym, ty.child()),
+        .function => blk: {
+            for (ty.function.args.items) |arg| if (occurs(sym, arg)) break :blk true;
+            break :blk occurs(sym, ty.rhs());
+        },
+        .generic_apply => blk: {
+            if (occurs(sym, ty.lhs())) break :blk true;
+            for (ty.generic_apply.args.items) |arg| switch (arg) {
+                .type_arg => |t| if (occurs(sym, t)) break :blk true,
+                .const_arg => {},
+            };
+            break :blk false;
+        },
+        .struct_type, .tuple_type, .enum_type => blk: {
+            for (ty.children().items) |c| if (occurs(sym, c)) break :blk true;
+            break :blk false;
+        },
+        .eq_constraint => occurs(sym, ty.lhs()) or occurs(sym, ty.rhs()),
+        else => false,
+    };
 }
 
 fn lengths_match(as: *const std.array_list.Managed(*Type_AST), bs: *const std.array_list.Managed(*Type_AST)) bool {

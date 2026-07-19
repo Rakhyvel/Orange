@@ -1,0 +1,28 @@
+// generic_impl_body.orng:21:44: error: expected a value of type `&I::Item`, got a value of type `I::Item`
+//             .some(x) => if self.predicate(x) { .some(x) } else { .none }
+//                                           ^
+// 
+trait It {
+    type Item
+    fn next(&mut self) -> ?Self::Item
+}
+
+struct Wrap[I: It] {
+    inner: I
+    predicate: &I::Item -> Bool
+}
+
+impl[I: It] It for Wrap[I] {
+    type Item = I::Item
+
+    fn next(&mut self) -> ?Self::Item {
+        match self.inner.>next() {
+            .none => .none
+            .some(x) => if self.predicate(x) { .some(x) } else { .none }
+        }
+    }
+}
+
+fn main() -> Int {
+    0
+}

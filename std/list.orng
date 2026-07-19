@@ -373,6 +373,36 @@ test "iter_mut" with core::Allocating {
     .ok
 }
 
+// TODO: Move to core Filter Iterator impl
+test "filter" with core::Allocating {
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
+    defer list.>deinit()
+
+    let mut sum = 0
+    for x in list.>into_iter().>filter(fn (x: &Int) -> Bool {x^ > 2}) {
+        sum += x
+    }
+
+    try testing::expect(sum == 7)
+
+    .ok
+}
+
+// TODO: Move to core Filter Iterator impl
+test "filter empty" with core::Allocating {
+    let mut list = List[Int]::init()
+    defer list.>deinit()
+
+    let mut sum = 0
+    for x in list.>into_iter().>filter(fn (x: &Int) -> Bool {x^ > 2}) {
+        sum += x
+    }
+
+    try testing::expect(sum == 0)
+
+    .ok
+}
+
 test "index" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()

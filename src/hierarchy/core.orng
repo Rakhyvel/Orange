@@ -892,7 +892,7 @@ impl[Iter: Iterator] Iterator for Filter[Iter] {
         while true {
             match self.inner.>next() {
                 .none => {return .none}
-                .some(x) => if self.predicate(x) {
+                .some(x) => if self.predicate(&x) {
                     return .some(x)
                 }
             }
