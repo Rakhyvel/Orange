@@ -411,13 +411,20 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .call => {
             const lhs_span = ast.lhs().token().span;
-            if (ast.lhs().* == .type_access) {
+            // A generic method's type_access sits under a generic_apply holding the type args
+            const fqs_node: ?*ast_.AST = if (ast.lhs().* == .type_access)
+                ast.lhs()
+            else if (ast.lhs().* == .generic_apply and ast.lhs().lhs().* == .type_access)
+                ast.lhs().lhs()
+            else
+                null;
+            if (fqs_node) |fqs| {
                 // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
-                const lhs_type_node = ast.lhs().type_access._lhs_type;
+                const lhs_type_node = fqs.type_access._lhs_type;
                 if ((lhs_type_node.* == .identifier or lhs_type_node.* == .access or lhs_type_node.* == .generic_apply) and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
                     // Search for where the Self type should be extracted given the trait method decl
                     const trait_decl = lhs_type_node.symbol().?.decl.?;
-                    const method_name = ast.lhs().rhs().token().data;
+                    const method_name = fqs.rhs().token().data;
                     const res = try find_self_type(trait_decl, method_name);
                     if (res == null) {
                         self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot select method implementation, trait method's signature does not mention `Self`" } });
@@ -450,7 +457,14 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type.strip_as_trait(), .candidates = null } });
                         return error.CompileError;
                     }
-                    ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
+                    const concrete = candidate_methods.keys()[0].symbol().?;
+                    fqs.set_symbol(concrete);
+                    if (ast.lhs().* == .generic_apply) {
+                        // The generic_apply monomorphized the abstract trait method, redo it against the impl's
+                        var coerced = try generic_apply_.coerce_generic_params(concrete.decl.?.generic_params().items, ast.lhs().generic_apply._children.items, self.ctx);
+                        defer coerced.deinit();
+                        ast.lhs().set_symbol(try concrete.monomorphize(coerced, self.ctx));
+                    }
                 }
             }
 
