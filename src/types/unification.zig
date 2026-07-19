@@ -365,17 +365,6 @@ pub fn generic_arg_list_from_subst_map(subst: *const Substitutions, generic_para
     return retval;
 }
 
-pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
-    for (subst.type_subst.values()) |ty| {
-        std.debug.assert(ty.* != .identifier or ty.symbol() != null);
-        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.is_typelike_param_decl();
-        if (bad) {
-            return true;
-        }
-    }
-    return false;
-}
-
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
     for (subst.type_subst.values()) |ty| {
         const bad = ty.is_generic();

@@ -90,7 +90,6 @@ pub fn generic_args_match(lhs: std.array_list.Managed(GenericArg), rhs: std.arra
                     var subst = unification_.Substitutions.init(std.heap.page_allocator);
                     defer subst.deinit();
                     unification_.unify(rt, lt, &subst, .{}) catch return false;
-                    if (subst.type_subst.keys().len != 0 and !unification_.substitution_contains_type_params(&subst)) return false;
                 },
                 .const_arg => return false,
             },
@@ -126,8 +125,6 @@ pub fn type_lists_match(lhs: std.array_list.Managed(*Type_AST), rhs: std.array_l
         var subst = unification_.Substitutions.init(std.heap.page_allocator);
         defer subst.deinit();
         unification_.unify(lhs_item, rhs_item, &subst, .{}) catch return false;
-
-        if (subst.type_subst.keys().len != 0 and !unification_.substitution_contains_type_params(&subst)) return false;
     }
 
     return true;
