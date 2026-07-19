@@ -278,13 +278,13 @@ pub fn monomorphize(
                     if (param.type_param_decl.constraints.items.len > 0) {
                         to_be_substd = Type_AST.create_as_trait(to_be_substd.token(), to_be_substd, param.type_param_decl.constraints, ctx.allocator());
                     }
-                    try subst.put_type(param.symbol().?.name, to_be_substd);
+                    try subst.put_type(param.symbol().?, to_be_substd);
                 },
                 .const_param_decl => {
-                    try subst.put_const(param.symbol().?.name, arg.const_arg);
+                    try subst.put_const(param.symbol().?, arg.const_arg);
                 },
                 .ability_param_decl => {
-                    try subst.put_type(param.symbol().?.name, arg.type_arg);
+                    try subst.put_type(param.symbol().?, arg.type_arg);
                 },
                 else => unreachable,
             }
@@ -296,7 +296,7 @@ pub fn monomorphize(
                 for (body.block._statements.items) |stmt| {
                     if (stmt.* == .type_alias) {
                         if (stmt.type_alias.init) |aliased| {
-                            try subst.put_type(stmt.type_alias.name.token().data, aliased.clone(&subst, ctx.allocator()));
+                            try subst.put_type(stmt.symbol().?, aliased.clone(&subst, ctx.allocator()));
                         }
                     }
                 }
@@ -326,6 +326,11 @@ pub fn monomorphize(
         ));
 
         try walker_.walk_ast(decl, symbol_tree_context);
+
+        if (decl.* == .trait) {
+            // Keep the Self symbol
+            decl.trait.self_symbol = self.decl.?.trait.self_symbol;
+        }
 
         const clone = decl.symbol().?;
         std.debug.assert(clone.cfg == null);

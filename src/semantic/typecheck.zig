@@ -511,11 +511,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         switch (arg) {
                             .type_arg => |ty| {
                                 if (ty.* == .eq_constraint) continue;
-                                s.put_type(callee_params[param_i].symbol().?.name, ty) catch unreachable;
+                                s.put_type(callee_params[param_i].symbol().?, ty) catch unreachable;
                                 param_i += 1;
                             },
                             .const_arg => |v| {
-                                s.put_const(callee_params[param_i].symbol().?.name, v) catch unreachable;
+                                s.put_const(callee_params[param_i].symbol().?, v) catch unreachable;
                                 param_i += 1;
                             },
                         }
@@ -1533,7 +1533,7 @@ fn method_fits(
 
         const scratch = self.ctx.allocator().create(unification_.Substitutions) catch unreachable;
         scratch.* = unification_.Substitutions.init(self.ctx.allocator());
-        scratch.put_type("Self", stripped_lhs) catch unreachable;
+        scratch.put_type(enclosing_impl.?.impl.self_symbol.?, stripped_lhs) catch unreachable;
         unification_.unify(enclosing_impl.?.impl._type, stripped_lhs, scratch, .{}) catch
             return .{ .not_viable = .receiver_mismatch };
         impl_subst = scratch;
@@ -1606,7 +1606,7 @@ fn method_fits(
     // A template is only viable if every impl param got solved
     if (impl_subst) |is| {
         for (enclosing_impl.?.impl._generic_params.items) |param| {
-            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null) {
+            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?) == null) {
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
             }
         }
@@ -1614,7 +1614,7 @@ fn method_fits(
         // Every solved param must satisfy its constraints, subst'd through the solution
         for (enclosing_impl.?.impl._generic_params.items) |param| {
             if (param.* != .type_param_decl) continue;
-            const solved = is.get_type(param.symbol().?.name).?;
+            const solved = is.get_type(param.symbol().?).?;
             for (param.type_param_decl.constraints.items) |constraint| {
                 const substd_constraint = constraint.clone(is, self.ctx.allocator());
                 const sat_res = solved.satisfies_all_constraints(&[_]*Type_AST{substd_constraint}, null, self.ctx) catch

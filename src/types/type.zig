@@ -1521,9 +1521,10 @@ pub const Type_AST = union(enum) {
     pub fn clone(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
-            .identifier => if (substs.get_type(self.token().data)) |replacement| {
-                return replacement;
-            } else {
+            .identifier => {
+                if (self.symbol()) |sym| {
+                    if (substs.get_type(sym)) |replacement| return replacement;
+                }
                 return self;
             },
             .field => return self,
@@ -1539,10 +1540,12 @@ pub const Type_AST = union(enum) {
             },
             .array_of => {
                 const _expr = clone(self.child(), substs, allocator);
-                const new_len = if (self.array_of.len.* == .identifier)
-                    substs.get_const(self.array_of.len.token().data) orelse self.array_of.len
-                else
-                    self.array_of.len;
+                const new_len = if (self.array_of.len.* == .identifier) blk: {
+                    if (self.array_of.len.symbol()) |sym| {
+                        if (substs.get_const(sym)) |replacement| break :blk replacement;
+                    }
+                    break :blk self.array_of.len;
+                } else self.array_of.len;
                 return create_array_of(self.token(), _expr, new_len, allocator);
             },
             .annotation => {

@@ -225,9 +225,9 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
             }
             const id = Type_AST.create_type_identifier(impl_gp.token(), self.ctx.allocator());
             id.set_symbol(impl_gp.symbol().?);
-            rename.put_type(trait_gp.symbol().?.name, id) catch unreachable;
+            rename.put_type(trait_gp.symbol().?, id) catch unreachable;
         }
-        rename.put_type("Self", impl.impl._type) catch unreachable;
+        rename.put_type(trait_ast.trait.self_symbol.?, impl.impl._type) catch unreachable;
 
         // Check that parameters match
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {

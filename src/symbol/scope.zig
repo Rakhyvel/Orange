@@ -394,7 +394,7 @@ pub fn lookup_member_in_trait(trait_decl: *ast_.AST, for_type: *Type_AST, name: 
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put_type("Self", for_type) catch unreachable;
+        subst.put_type(trait_decl.trait.self_symbol.?, for_type) catch unreachable;
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, method_decl.symbol().?.scope.uid_gen, compiler.allocator());
         // new_scope skips the trait scope, so re-bind the trait's generic params so a default body referencing them still resolves
@@ -426,7 +426,7 @@ pub fn lookup_member_in_trait(trait_decl: *ast_.AST, for_type: *Type_AST, name: 
 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
-        subst.put_type("Self", for_type) catch unreachable;
+        subst.put_type(trait_decl.trait.self_symbol.?, for_type) catch unreachable;
         const cloned = const_decl.clone(&subst, compiler.allocator());
         // Parent at the const's declaring (module) scope, not the call site, so re-registering the
         // cloned const does not collide with the same-named const already visible at the call site
@@ -485,10 +485,12 @@ fn lookup_impl_member_impls(self: *Self, for_type: *Type_AST, name: []const u8, 
         if (search_impl(instantiated_impl, name)) |res| {
             // `instantiate_generic_impl` returns the impl un-substituted when the subst maps this impl's params onto other generic params (like a super-trait's associated type from a sibling generic impl)
             // The found member still references this impl's own param symbols, so remap through the subst
-            const remapped = if (instantiated_impl == impl and subst_renames_params(impl, &subst))
-                remap_impl_member(res, &subst, compiler)
-            else
-                res;
+            const remapped = if (instantiated_impl == impl and subst_renames_params(impl, &subst)) blk: {
+                try walker_.walk_ast(impl, Decorate.new(compiler));
+                // Bake `Self` to the queried type, not this impl's own type
+                if (impl.impl.self_symbol) |ss| subst.put_type(ss, for_type) catch unreachable;
+                break :blk remap_impl_member(res, &subst, compiler);
+            } else res;
             try matches.put(remapped, void{});
         }
         if (short_circuit and matches.keys().len > 0) return;
@@ -501,12 +503,12 @@ pub fn subst_renames_params(impl: *ast_.AST, subst: *const unification_.Substitu
     for (impl.impl._generic_params.items) |param| {
         switch (param.*) {
             .type_param_decl, .ability_param_decl => {
-                const mapped = subst.get_type(param.symbol().?.name) orelse continue;
+                const mapped = subst.get_type(param.symbol().?) orelse continue;
                 if (mapped.* == .identifier and mapped.symbol() == param.symbol()) continue;
                 if (mapped.is_generic()) return true;
             },
             .const_param_decl => {
-                const mapped = subst.get_const(param.symbol().?.name) orelse continue;
+                const mapped = subst.get_const(param.symbol().?) orelse continue;
                 if ((mapped.* == .identifier) and mapped.symbol() == param.symbol()) continue;
                 if (!unification_.const_arg_is_concrete(mapped)) return true;
             },
@@ -587,16 +589,39 @@ pub fn instantiate_generic_impl(self: *Self, impl: *ast_.AST, subst: *const unif
     // A param not covered by the subst (e.g. Into's U, absent from the for-type)
     // means this impl can't be instantiated yet - return the template
     for (impl.impl._generic_params.items) |param| {
-        if (param.* == .type_param_decl and subst.get_type(param.symbol().?.name) == null) return impl;
-        if (param.* == .const_param_decl and subst.get_const(param.symbol().?.name) == null) return impl;
+        if (param.* == .type_param_decl and subst.get_type(param.symbol().?) == null) return impl;
+        if (param.* == .const_param_decl and subst.get_const(param.symbol().?) == null) return impl;
     }
 
     // Already instantiated, return the memoized impl
     const generic_arg_list = unification_.generic_arg_list_from_subst_map(subst, impl.impl._generic_params, compiler.allocator());
     if (impl.impl.instantiations.get(generic_arg_list)) |instantiated| return instantiated;
 
-    // Create a new impl
-    const new_impl: *ast_.AST = impl.clone(subst, compiler.allocator());
+    // Force decorate before cloning to prevent identifiers resolving to the wrong type
+    try walker_.walk_ast(impl, Decorate.new(compiler));
+
+    // Map `Self` to the concrete for-type
+    var full_subst = unification_.Substitutions.init(compiler.allocator());
+    defer full_subst.deinit();
+    {
+        var t_it = subst.type_subst.iterator();
+        while (t_it.next()) |e| full_subst.put_type(e.key_ptr.*, e.value_ptr.*) catch unreachable;
+        var c_it = subst.const_subst.iterator();
+        while (c_it.next()) |e| full_subst.put_const(e.key_ptr.*, e.value_ptr.*) catch unreachable;
+    }
+    if (impl.impl.self_symbol) |self_sym| {
+        full_subst.put_type(self_sym, impl.impl._type.clone(subst, compiler.allocator())) catch unreachable;
+    }
+    // Map method generic params
+    for (impl.impl.method_defs.items) |method_def| {
+        for (method_def.method_decl._generic_params.items) |gp| {
+            switch (gp.*) {
+                .const_param_decl => full_subst.put_const(gp.symbol().?, ast_.AST.create_identifier(gp.token(), compiler.allocator())) catch unreachable,
+                else => full_subst.put_type(gp.symbol().?, Type_AST.create_type_identifier(gp.token(), compiler.allocator())) catch unreachable,
+            }
+        }
+    }
+    const new_impl: *ast_.AST = impl.clone(&full_subst, compiler.allocator());
     // Pass on the virtual method count onto the monomorph
     new_impl.impl.num_virtual_methods = impl.impl.num_virtual_methods;
     impl.impl.instantiations.put(generic_arg_list, new_impl) catch unreachable;

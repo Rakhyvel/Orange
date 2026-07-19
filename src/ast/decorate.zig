@@ -123,18 +123,19 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             const trait_symbol = try symbol(ast.impl.trait.?, self.ctx);
             const trait_ast = trait_symbol.decl.?;
             if (trait_ast.* != .trait) return self; // error, catch it later
+            try walk_.walk_ast(trait_ast, self); // decorate early-returns on decorated nodes
             for (trait_ast.trait.method_decls.items) |method_decl| {
                 if (method_decl.method_decl.init == null) continue; // not defaulted, ignore
                 if (impl_provides_method(ast, method_decl.method_decl.name.token().data)) continue; // overridden
 
                 var subst = unification_.Substitutions.init(self.ctx.allocator());
                 defer subst.deinit();
-                try subst.put_type("Self", ast.impl._type);
+                try subst.put_type(trait_ast.trait.self_symbol.?, ast.impl._type);
                 // Wipe the methods generic params, so they get match up fresh
                 for (method_decl.method_decl._generic_params.items) |gp| {
                     switch (gp.*) {
-                        .const_param_decl => try subst.put_const(gp.token().data, ast_.AST.create_identifier(gp.token(), self.ctx.allocator())),
-                        else => try subst.put_type(gp.token().data, Type_AST.create_type_identifier(gp.token(), self.ctx.allocator())),
+                        .const_param_decl => try subst.put_const(gp.symbol().?, ast_.AST.create_identifier(gp.token(), self.ctx.allocator())),
+                        else => try subst.put_type(gp.symbol().?, Type_AST.create_type_identifier(gp.token(), self.ctx.allocator())),
                     }
                 }
                 const new_method = method_decl.clone(&subst, self.ctx.allocator());
@@ -242,7 +243,7 @@ fn decorate_postfix(self: Self, ast: *ast_.AST) walk_.Error!void {
             const child = ast.lhs();
 
             // Rewrite bracket to generic apply if its a generic apply
-            if (child.* == .identifier or child.* == .access) {
+            if (child.* == .identifier or child.* == .access or child.* == .type_access) {
                 if (child.symbol()) |sym| if (sym.decl) |decl| {
                     if (decl.num_generic_params() > 0) {
                         const generic_args = try generic_apply_.coerce_generic_params(decl.generic_params().items, ast.bracket._args.items, self.ctx);
@@ -425,15 +426,18 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
         }
         stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
-            const res = try Scope.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
+            var res = try Scope.impl_trait_lookup(stripped_lhs.lhs(), constraint.symbol().?, self.ctx);
             if (res.impl_ast) |impl_ast| {
                 const decl = Scope.search_impl(impl_ast, rhs.data) orelse continue;
-                // Decorate the original member first so `Self::Output` etc resolve before any remap
+                // Decorate the original member first so associated types resolve before any remap
                 try walk_.walk_ast(decl, self);
                 if (res.subst) |*s| {
-                    // Generic impl came back un-substituted, remap the member's signature through
-                    // the subst so its types refer to the querying impl's params
+                    // Generic impl came back still generic, remap the member's signature through the subst so its types refer to the querying impl's params
                     if (Scope.subst_renames_params(impl_ast, s)) {
+                        // Also bake `Self` to the concrete receiver type so associated types resolve against the final querying type
+                        if (impl_ast.impl.self_symbol) |self_sym| {
+                            s.put_type(self_sym, base) catch unreachable;
+                        }
                         return Scope.remap_impl_member(decl, s, self.ctx).symbol().?;
                     }
                 }
@@ -470,7 +474,15 @@ fn resolve_access_symbol(self: Self, sym: *Symbol, rhs: Token, scope: ?*Scope, s
             return self.resolve_access_symbol(new_symbol, rhs, scope, stripped_lhs_type);
         },
 
-        .type => return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?),
+        .type => {
+            if (sym.decl.?.* == .type_alias) {
+                // route aliases to their child type so sibling associated types route the same as their written out versions
+                if (sym.init_typedef()) |aliased| {
+                    return try self.resolve_access_const(aliased, rhs, scope.?);
+                }
+            }
+            return try self.resolve_access_const(stripped_lhs_type, rhs, scope.?);
+        },
 
         .trait => {
             // bind abstract method_decl, typecheck resolves concrete impl at call site.
