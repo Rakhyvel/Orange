@@ -1526,10 +1526,16 @@ pub const Type_AST = union(enum) {
     }
 
     pub fn clone(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
-        // Monomorphs re-resolve `@typeof` rather than inherit the template's resolution
         if (self.common()._from_type_of) |_expr| {
-            return create_type_of(self.token(), _expr.clone(substs, allocator), allocator);
+            const substituted = self.clone_resolved(substs, allocator);
+            // Substitution left it generic, so re-resolve `@typeof` against the monomorph instead
+            if (substituted.is_generic()) return create_type_of(self.token(), _expr.clone(substs, allocator), allocator);
+            return substituted;
         }
+        return self.clone_resolved(substs, allocator);
+    }
+
+    fn clone_resolved(self: *Type_AST, substs: *const unification_.Substitutions, allocator: std.mem.Allocator) *Type_AST {
         switch (self.*) {
             .anyptr_type, .dyn_type, .unit_type => return self,
             .identifier => {

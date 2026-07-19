@@ -424,7 +424,7 @@ fn resolve_lhs_type_access(self: Self, lhs: *Type_AST, rhs: Token, scope: ?*Scop
             const exp = base.expand_identifier();
             if (exp.* == .addr_of and !exp.addr_of.multiptr) base = exp.child() else break;
         }
-        // Don't write `base` back, that bakes a template's resolution into nodes monomorphs clone
+        stripped_lhs.as_trait._lhs = base;
         for (stripped_lhs.as_trait.constraints.items) |constraint| {
             var res = try Scope.impl_trait_lookup(base, constraint.symbol().?, self.ctx);
             if (res.impl_ast) |impl_ast| {

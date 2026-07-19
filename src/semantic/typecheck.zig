@@ -456,6 +456,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
 
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const as_trait_node = ast.lhs().type_access._lhs_type;
+                // Resolve any `@typeof` first, a clone carries it unresolved
+                try walk_.walk_type(as_trait_node, Type_Decorate.new(self.ctx));
                 // Auto-deref the receiver type to its base type
                 // This lets stuff like `(@typeof(self) as Index)::index(self, i)` work when `self: &[]T`
                 var base = as_trait_node.lhs();
