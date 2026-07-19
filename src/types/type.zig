@@ -1628,25 +1628,38 @@ pub const Type_AST = union(enum) {
         return retval;
     }
 
+    const expansion_depth_limit: usize = 64;
+
     pub fn is_generic(_type: *Type_AST) bool {
+        return is_generic_internal(_type, 0);
+    }
+
+    /// `depth` bounds expansion, a recursive type reaches itself through an alias or a pointer field
+    fn is_generic_internal(_type: *Type_AST, depth: usize) bool {
+        if (depth > expansion_depth_limit) return false;
         return switch (_type.*) {
             .anyptr_type, .unit_type, .dyn_type, .as_trait, .ability_type => false,
-            .identifier, .access => _type.symbol() != null and _type.symbol().?.decl.?.is_typelike_param_decl(),
-            .addr_of => _type.child().is_generic(),
-            .array_of => _type.child().is_generic() or _type.array_of.len.is_const_param_ref(),
-            .annotation => _type.child().is_generic(),
+            .identifier, .access => blk: {
+                if (_type.symbol() != null and _type.symbol().?.decl.?.is_typelike_param_decl()) break :blk true;
+                // An alias can name a generic type, `Self` for `Box[K]` is generic though `Self` isn't a param
+                const expanded = _type.expand_identifier();
+                break :blk expanded != _type and is_generic_internal(expanded, depth + 1);
+            },
+            .addr_of => is_generic_internal(_type.child(), depth + 1),
+            .array_of => is_generic_internal(_type.child(), depth + 1) or _type.array_of.len.is_const_param_ref(),
+            .annotation => is_generic_internal(_type.child(), depth + 1),
             .function => {
                 for (_type.function.args.items) |arg| {
-                    if (arg.is_generic()) {
+                    if (is_generic_internal(arg, depth + 1)) {
                         return true;
                     }
                 }
-                return _type.rhs().is_generic();
+                return is_generic_internal(_type.rhs(), depth + 1);
             },
             .generic_apply => {
                 for (_type.generic_apply.args.items) |arg| {
                     switch (arg) {
-                        .type_arg => |ty| if (ty.is_generic()) return true,
+                        .type_arg => |ty| if (is_generic_internal(ty, depth + 1)) return true,
                         .const_arg => |v| if (v.is_const_param_ref()) return true,
                     }
                 }
@@ -1654,7 +1667,7 @@ pub const Type_AST = union(enum) {
             },
             .struct_type, .tuple_type, .enum_type => {
                 for (_type.children().items) |item| {
-                    if (item.is_generic()) {
+                    if (is_generic_internal(item, depth + 1)) {
                         return true;
                     }
                 }

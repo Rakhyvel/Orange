@@ -299,6 +299,15 @@ pub fn monomorphize(
                             try subst.put_type(stmt.symbol().?, aliased.clone(&subst, ctx.allocator()));
                         }
                     }
+                    // Wipe a nested generic fn's params, so they get matched up fresh
+                    if (stmt.* == .fn_decl) {
+                        for (stmt.generic_params().items) |gp| {
+                            switch (gp.*) {
+                                .const_param_decl => try subst.put_const(gp.symbol().?, ast_.AST.create_identifier(gp.token(), ctx.allocator())),
+                                else => try subst.put_type(gp.symbol().?, Type_AST.create_type_identifier(gp.token(), ctx.allocator())),
+                            }
+                        }
+                    }
                 }
             }
         }
