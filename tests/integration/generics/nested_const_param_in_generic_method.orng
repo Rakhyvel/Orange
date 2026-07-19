@@ -1,0 +1,13 @@
+// 246
+struct Box[T] { v: T }
+
+impl[T] for Box[T] {
+    fn twice[const k: Int](x: Int) -> Int {
+        fn scale[const m: Int](y: Int) -> Int { y * m }
+        scale[k](x)
+    }
+}
+
+fn main() -> Int {
+    Box[Int]::twice[2](123)
+}
