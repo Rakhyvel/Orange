@@ -761,6 +761,13 @@ pub const Type_AST = union(enum) {
     pub fn expand_identifier(self: *Type_AST) *Type_AST {
         var res = self;
         while (true) {
+            // A deferred monomorph memoizes its arg-substituted expansion, its symbol is only the template
+            if (res.common()._expanded_type) |memo| {
+                if (memo != res) {
+                    res = memo;
+                    continue;
+                }
+            }
             if ((res.* == .identifier or res.* == .access or res.* == .generic_apply) and res.symbol() != null and res.symbol().?.init_typedef() != null) {
                 const new = res.symbol().?.init_typedef().?;
                 // An access (`X::Output`) contains its own resolved type, so back-linking it as the
