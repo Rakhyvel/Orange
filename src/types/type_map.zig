@@ -83,14 +83,14 @@ pub fn generic_args_match(lhs: std.array_list.Managed(GenericArg), rhs: std.arra
     const unification_ = @import("../types/unification.zig");
     if (lhs.items.len != rhs.items.len) return false;
 
+    // Same monomorph only if unifying the two keys needs no param bindings
+    var subst = unification_.Substitutions.init(std.heap.page_allocator);
+    defer subst.deinit();
+
     for (lhs.items, rhs.items) |l, r| {
         switch (l) {
             .type_arg => |lt| switch (r) {
-                .type_arg => |rt| {
-                    var subst = unification_.Substitutions.init(std.heap.page_allocator);
-                    defer subst.deinit();
-                    unification_.unify(rt, lt, &subst, .{}) catch return false;
-                },
+                .type_arg => |rt| unification_.unify(rt, lt, &subst, .{}) catch return false,
                 .const_arg => return false,
             },
             .const_arg => |lv| switch (r) {
@@ -100,6 +100,18 @@ pub fn generic_args_match(lhs: std.array_list.Managed(GenericArg), rhs: std.arra
                 },
             },
         }
+    }
+
+    // Ignore identity self-bindings, any binding to a different type means distinct monomorphs
+    var type_it = subst.type_subst.iterator();
+    while (type_it.next()) |entry| {
+        const val = entry.value_ptr.*;
+        if (!(val.* == .identifier and val.symbol() == entry.key_ptr.*)) return false;
+    }
+    var const_it = subst.const_subst.iterator();
+    while (const_it.next()) |entry| {
+        const val = entry.value_ptr.*;
+        if (!(val.* == .identifier and val.symbol() == entry.key_ptr.*)) return false;
     }
 
     return true;

@@ -229,9 +229,11 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
         }
         rename.put_type(trait_ast.trait.self_symbol.?, impl.impl._type) catch unreachable;
 
-        // Check that parameters match
+        // Check that parameter types match
         for (def.children().items, trait_decl.?.children().items) |impl_param, trait_param| {
             const trait_ty = trait_param.binding.type.clone(&rename, self.ctx.allocator());
+            _ = try walk_.walk_type(trait_ty, Symbol_Tree.new(impl.scope().?, &self.ctx.errors, self.ctx.allocator()));
+            _ = try walk_.walk_type(trait_ty, Decorate.new(self.ctx));
             unification_.unify(trait_ty, impl_param.binding.type, &subst, .{ .allow_rigid = false }) catch {
                 self.ctx.errors.add_error(errs_.Error{ .mismatch_method_type = .{
                     .span = impl_param.token().span,

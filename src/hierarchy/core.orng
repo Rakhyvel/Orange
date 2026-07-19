@@ -874,6 +874,15 @@ trait Iterator {
     type Item
 
     fn next(&mut self) -> ?Self::Item
+
+    fn filter(self, predicate: &Self::Item -> Bool) -> Filter[Self, &Self::Item -> Bool] {
+        Filter[Self, &Self::Item -> Bool](self, predicate)
+    }
+}
+
+struct Filter[Iter, P] {
+    i: Iter
+    predicate: P
 }
 
 trait Into_Iterator {

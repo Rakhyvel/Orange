@@ -396,10 +396,10 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     for (subst.type_subst.keys()) |key| {
         const ty = subst.get_type(key).?;
         const bad = ty.is_generic();
-        std.debug.print("    {s}: {?f} ({})\n", .{ key.name, subst.get_type(key), bad });
+        std.debug.print("    {s}@{}: {?f} ({})\n", .{ key.name, key.scope.uid, subst.get_type(key), bad });
     }
     for (subst.const_subst.keys()) |key| {
-        std.debug.print("    {s}: {?f}\n", .{ key.name, subst.get_const(key) });
+        std.debug.print("    {s}@{}: {?f}\n", .{ key.name, key.scope.uid, subst.get_const(key) });
     }
     std.debug.print("}}\n", .{});
 }
