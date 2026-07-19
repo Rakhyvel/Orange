@@ -1,0 +1,16 @@
+// 246
+trait Scaler { fn scaled[const k: Int](&self) -> Int }
+
+struct Box[T] { v: T }
+
+impl[T] Scaler for Box[T] {
+    fn scaled[const k: Int](&self) -> Int {
+        _ = self
+        k
+    }
+}
+
+fn main() -> Int {
+    let b = Box[Int](123)
+    (Box[Int] as Scaler)::scaled[246](&b)
+}

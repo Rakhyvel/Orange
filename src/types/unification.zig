@@ -6,14 +6,14 @@ const Tree_Writer = @import("../ast/tree_writer.zig");
 const GenericArg = @import("../ast/generic_arg.zig").GenericArg;
 
 pub const Substitutions = struct {
-    type_subst: std.StringArrayHashMap(*Type_AST),
-    const_subst: std.StringArrayHashMap(*ast_.AST),
+    type_subst: std.AutoArrayHashMap(*Symbol, *Type_AST),
+    const_subst: std.AutoArrayHashMap(*Symbol, *ast_.AST),
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Substitutions {
         return .{
-            .type_subst = std.StringArrayHashMap(*Type_AST).init(allocator),
-            .const_subst = std.StringArrayHashMap(*ast_.AST).init(allocator),
+            .type_subst = std.AutoArrayHashMap(*Symbol, *Type_AST).init(allocator),
+            .const_subst = std.AutoArrayHashMap(*Symbol, *ast_.AST).init(allocator),
             .allocator = allocator,
         };
     }
@@ -23,20 +23,20 @@ pub const Substitutions = struct {
         self.const_subst.deinit();
     }
 
-    pub fn put_type(self: *Substitutions, name: []const u8, ty: *Type_AST) !void {
-        try self.type_subst.put(name, ty);
+    pub fn put_type(self: *Substitutions, sym: *Symbol, ty: *Type_AST) !void {
+        try self.type_subst.put(sym, ty);
     }
 
-    pub fn get_type(self: *const Substitutions, name: []const u8) ?*Type_AST {
-        return self.type_subst.get(name);
+    pub fn get_type(self: *const Substitutions, sym: *Symbol) ?*Type_AST {
+        return self.type_subst.get(sym);
     }
 
-    pub fn put_const(self: *Substitutions, name: []const u8, val: *ast_.AST) !void {
-        try self.const_subst.put(name, val);
+    pub fn put_const(self: *Substitutions, sym: *Symbol, val: *ast_.AST) !void {
+        try self.const_subst.put(sym, val);
     }
 
-    pub fn get_const(self: *const Substitutions, name: []const u8) ?*ast_.AST {
-        return self.const_subst.get(name);
+    pub fn get_const(self: *const Substitutions, sym: *Symbol) ?*ast_.AST {
+        return self.const_subst.get(sym);
     }
 };
 
@@ -74,8 +74,8 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (rhs.* == .annotation) return try unify_inner(lhs, rhs.child(), subst, visited_map, options);
 
     // Check if the lhs/rhs are type params whose name does not appear in the substitutions (meaning they're unbound/free type variables)
-    const lhs_unbound_tp = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(lhs.symbol().?.name) == null;
-    const rhs_unbound_tp = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(rhs.symbol().?.name) == null;
+    const lhs_unbound_tp = (lhs.* == .identifier or lhs.* == .access) and lhs.symbol() != null and lhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(lhs.symbol().?) == null;
+    const rhs_unbound_tp = (rhs.* == .identifier or rhs.* == .access) and rhs.symbol() != null and rhs.symbol().?.decl.?.* == .type_param_decl and subst.get_type(rhs.symbol().?) == null;
     // Check if lhs/rhs binds the other, as an as-trait
     const lhs_binds_rhs = rhs.* == .as_trait and lhs_unbound_tp and !(rhs.lhs().* == .identifier and rhs.lhs().symbol() == lhs.symbol());
     const rhs_binds_lhs = lhs.* == .as_trait and rhs_unbound_tp and !(lhs.lhs().* == .identifier and lhs.lhs().symbol() == rhs.symbol());
@@ -83,15 +83,17 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
     if (lhs.* == .as_trait and !rhs_binds_lhs) return try unify_inner(lhs.lhs(), rhs, subst, visited_map, options);
     if (rhs.* == .as_trait and !lhs_binds_rhs) return try unify_inner(lhs, rhs.lhs(), subst, visited_map, options);
 
-    if (lhs.* == .identifier and lhs.symbol() != null and subst.get_type(lhs.symbol().?.name) != null) {
+    if (lhs.* == .identifier and lhs.symbol() != null and subst.get_type(lhs.symbol().?) != null) {
         if (!lhs.symbol().?.decl.?.is_typelike_param_decl() or !lhs.symbol().?.decl.?.is_rigid_type_param()) {
-            const sub = subst.get_type(lhs.symbol().?.name).?;
-            return try unify_inner(sub, rhs, subst, visited_map, options);
+            const sub = subst.get_type(lhs.symbol().?).?;
+            // A self-mapping carries no information, redirecting to it just re-hits the cycle guard
+            if (sub != lhs) return try unify_inner(sub, rhs, subst, visited_map, options);
         }
     }
-    if (rhs.* == .identifier and rhs.symbol() != null and subst.get_type(rhs.symbol().?.name) != null) {
-        const sub = subst.get_type(rhs.symbol().?.name).?;
-        if (!rhs.symbol().?.decl.?.is_typelike_param_decl() or !rhs.symbol().?.decl.?.is_rigid_type_param()) {
+    if (rhs.* == .identifier and rhs.symbol() != null and subst.get_type(rhs.symbol().?) != null) {
+        const sub = subst.get_type(rhs.symbol().?).?;
+        // A self-mapping carries no information, redirecting to it just re-hits the cycle guard
+        if (sub != rhs and (!rhs.symbol().?.decl.?.is_typelike_param_decl() or !rhs.symbol().?.decl.?.is_rigid_type_param())) {
             return try unify_inner(lhs, sub, subst, visited_map, options);
         }
     }
@@ -139,7 +141,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         if (!options.allow_rigid and lhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
-        try subst.put_type(lhs.symbol().?.name, rhs);
+        try subst.put_type(lhs.symbol().?, rhs);
         if (!options.allow_rigid and lhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(lhs, rhs)) {
             return error.TypesMismatch;
         }
@@ -149,7 +151,7 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         if (!options.allow_rigid and rhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
-        try subst.put_type(rhs.symbol().?.name, lhs);
+        try subst.put_type(rhs.symbol().?, lhs);
         if (!options.allow_rigid and rhs.symbol().?.decl.?.is_rigid_type_param() and !can_unify_rigid(rhs, lhs)) {
             return error.TypesMismatch;
         }
@@ -229,10 +231,10 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             const l_is_param = l_len.is_const_param_ref();
             const r_is_param = r_len.is_const_param_ref();
             if (l_is_param) {
-                try subst.put_const(l_len.token().data, r_len);
+                try subst.put_const(l_len.symbol().?, r_len);
             } else if (r_is_param) {
                 if (!options.allow_rigid) return error.TypesMismatch;
-                try subst.put_const(r_len.token().data, l_len);
+                try subst.put_const(r_len.symbol().?, l_len);
             } else {
                 if (l_len.int.data != r_len.int.data) return error.TypesMismatch;
             }
@@ -284,10 +286,10 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
                     .const_arg => |l_v| {
                         const r_v = r_arg.const_arg;
                         if (l_v.is_const_param_ref()) {
-                            try subst.put_const(l_v.token().data, r_v);
+                            try subst.put_const(l_v.symbol().?, r_v);
                         } else if (r_v.is_const_param_ref()) {
                             if (!options.allow_rigid) return error.TypesMismatch;
-                            try subst.put_const(r_v.token().data, l_v);
+                            try subst.put_const(r_v.symbol().?, l_v);
                         } else {
                             if (l_v.int.data != r_v.int.data) return error.TypesMismatch;
                         }
@@ -315,9 +317,9 @@ pub fn generate_substitutions_from_args(params: []*ast_.AST, args: []GenericArg,
     std.debug.assert(params.len == args.len);
     for (params, args) |param, arg| {
         switch (param.*) {
-            .type_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
-            .const_param_decl => subst.put_const(param.symbol().?.name, arg.const_arg) catch unreachable,
-            .ability_param_decl => subst.put_type(param.symbol().?.name, arg.type_arg) catch unreachable,
+            .type_param_decl => subst.put_type(param.symbol().?, arg.type_arg) catch unreachable,
+            .const_param_decl => subst.put_const(param.symbol().?, arg.const_arg) catch unreachable,
+            .ability_param_decl => subst.put_type(param.symbol().?, arg.type_arg) catch unreachable,
             else => unreachable,
         }
     }
@@ -339,7 +341,7 @@ pub fn type_param_list_from_subst_map(subst: *const Substitutions, generic_param
     var retval = std.array_list.Managed(*Type_AST).init(alloc);
     for (generic_params.items) |type_param| {
         if (!type_param.is_typelike_param_decl()) continue;
-        const with_value = subst.get_type(type_param.symbol().?.name) orelse continue;
+        const with_value = subst.get_type(type_param.symbol().?) orelse continue;
         retval.append(with_value) catch unreachable;
     }
     return retval;
@@ -350,11 +352,11 @@ pub fn generic_arg_list_from_subst_map(subst: *const Substitutions, generic_para
     for (generic_params.items) |param| {
         switch (param.*) {
             .type_param_decl, .ability_param_decl => {
-                const with_value = subst.get_type(param.symbol().?.name) orelse continue;
+                const with_value = subst.get_type(param.symbol().?) orelse continue;
                 retval.append(.{ .type_arg = with_value }) catch unreachable;
             },
             .const_param_decl => {
-                const with_value = subst.get_const(param.symbol().?.name) orelse continue;
+                const with_value = subst.get_const(param.symbol().?) orelse continue;
                 retval.append(.{ .const_arg = with_value }) catch unreachable;
             },
             else => {},
@@ -363,29 +365,16 @@ pub fn generic_arg_list_from_subst_map(subst: *const Substitutions, generic_para
     return retval;
 }
 
-pub fn substitution_contains_type_params(subst: *const Substitutions) bool {
-    for (subst.type_subst.keys()) |key| {
-        const ty = subst.get_type(key).?;
-        std.debug.assert(ty.* != .identifier or ty.symbol() != null);
-        const bad = (ty.* == .identifier) and ty.symbol().?.decl.?.is_typelike_param_decl();
-        if (bad) {
-            return true;
-        }
-    }
-    return false;
-}
-
 pub fn substitution_contains_generics(subst: *const Substitutions) bool {
-    for (subst.type_subst.keys()) |key| {
-        const ty = subst.get_type(key).?;
+    for (subst.type_subst.values()) |ty| {
         const bad = ty.is_generic();
         if (bad) {
             return true;
         }
     }
     // A const arg that is not a concrete literal (like an unresolved const param `n`) is still generic
-    for (subst.const_subst.keys()) |key| {
-        if (!const_arg_is_concrete(subst.get_const(key).?)) {
+    for (subst.const_subst.values()) |val| {
+        if (!const_arg_is_concrete(val)) {
             return true;
         }
     }
@@ -407,10 +396,10 @@ pub fn print_substitutions(subst: *const Substitutions) void {
     for (subst.type_subst.keys()) |key| {
         const ty = subst.get_type(key).?;
         const bad = ty.is_generic();
-        std.debug.print("    {s}: {?f} ({})\n", .{ key, subst.get_type(key), bad });
+        std.debug.print("    {s}: {?f} ({})\n", .{ key.name, subst.get_type(key), bad });
     }
     for (subst.const_subst.keys()) |key| {
-        std.debug.print("    {s}: {?f}\n", .{ key, subst.get_const(key) });
+        std.debug.print("    {s}: {?f}\n", .{ key.name, subst.get_const(key) });
     }
     std.debug.print("}}\n", .{});
 }

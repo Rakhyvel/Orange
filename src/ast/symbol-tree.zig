@@ -279,6 +279,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 self.allocator,
             );
             try walk_.walk_ast(self_type_decl, new_self);
+            ast.trait.self_symbol = self_type_decl.symbol().?;
 
             return new_self;
         },
@@ -303,26 +304,7 @@ fn symbol_tree_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
                 self.allocator,
             );
             try walk_.walk_ast(self_type_decl, new_self);
-
-            // Substitute Self for the impl's for-type in methods
-            for (ast.impl.method_defs.items, 0..) |method_def, i| {
-                var subst = unification_.Substitutions.init(self.allocator);
-                defer subst.deinit();
-
-                try subst.put_type("Self", ast.impl._type);
-
-                ast.impl.method_defs.items[i] = method_def.clone(&subst, self.allocator);
-            }
-
-            // Substitute Self for the impl's for-type in consts
-            for (ast.impl.const_defs.items, 0..) |const_def, i| {
-                var subst = unification_.Substitutions.init(self.allocator);
-                defer subst.deinit();
-
-                try subst.put_type("Self", ast.impl._type);
-
-                ast.impl.const_defs.items[i] = const_def.clone(&subst, self.allocator);
-            }
+            ast.impl.self_symbol = self_type_decl.symbol().?;
 
             if (ast.impl.trait == null) {
                 // impl'd for an anon trait, create an anon trait for it

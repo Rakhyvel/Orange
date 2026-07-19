@@ -1,0 +1,16 @@
+// 609
+struct Box {}
+
+impl for Box {
+    fn pair[T, S](x: []T, y: S) -> (T, S) { (x[0], y) }
+}
+
+fn main() -> Int {
+    let bools = [true, false, false]
+    let (s, t) = Box::pair[Bool, Int](&bools, 609)
+    if s {
+        t
+    } else {
+        unreachable
+    }
+}

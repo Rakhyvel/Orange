@@ -32,8 +32,36 @@ fn instantiate_ast(ast: *AST, ctx: *Compiler_Context) !void {
 
 fn instantiate_type(_type: *Type_AST, ctx: *Compiler_Context) !void {
     std.debug.assert(_type.* == .generic_apply);
-    if (_type.symbol()) |_| return;
-    _type.set_symbol(try monomorphize_generic_apply(_type.lhs().symbol().?, _type.generic_apply.args, _type.token().span, &_type.generic_apply.state, ctx));
+    // An AST-to-type conversion can hand us a node that already has a symbol, it still needs baking
+    if (_type.symbol()) |already| return bake_deferred_args(_type, already, ctx);
+    const sym = try monomorphize_generic_apply(_type.lhs().symbol().?, _type.generic_apply.args, _type.token().span, &_type.generic_apply.state, ctx);
+    _type.set_symbol(sym);
+    bake_deferred_args(_type, sym, ctx);
+}
+
+/// Memoizes a deferred monomorph's arg-substituted expansion, its symbol is only the template
+fn bake_deferred_args(_type: *Type_AST, sym: *Symbol, ctx: *Compiler_Context) void {
+    if (_type.common()._expanded_type != null) return; // already baked
+    const params = sym.decl.?.generic_params().items;
+    if (params.len == 0) return; // fully monomorphized, its typedef is already concrete
+    const typedef = sym.init_typedef() orelse return;
+    var subst = unification_.Substitutions.init(ctx.allocator());
+    var param_i: usize = 0;
+    for (_type.generic_apply.args.items) |arg| {
+        if (param_i >= params.len) break;
+        switch (arg) {
+            .type_arg => |ty| {
+                if (ty.* == .eq_constraint) continue;
+                subst.put_type(params[param_i].symbol().?, ty) catch unreachable;
+                param_i += 1;
+            },
+            .const_arg => |v| {
+                subst.put_const(params[param_i].symbol().?, v) catch unreachable;
+                param_i += 1;
+            },
+        }
+    }
+    _type.set_expanded_type(typedef.clone(&subst, ctx.allocator()));
 }
 
 fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(GenericArg), span: Span, state: *process_state_.Process_State, ctx: *Compiler_Context) !*Symbol {
@@ -75,8 +103,8 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
     for (coerced_args.items, 0..) |arg, i| {
         const param = params.items[i];
         switch (arg) {
-            .type_arg => |ty| if (param.is_typelike_param_decl()) constraint_subst.put_type(param.symbol().?.name, ty) catch unreachable,
-            .const_arg => |v| if (param.* == .const_param_decl) constraint_subst.put_const(param.symbol().?.name, v) catch unreachable,
+            .type_arg => |ty| if (param.is_typelike_param_decl()) constraint_subst.put_type(param.symbol().?, ty) catch unreachable,
+            .const_arg => |v| if (param.* == .const_param_decl) constraint_subst.put_const(param.symbol().?, v) catch unreachable,
         }
     }
 

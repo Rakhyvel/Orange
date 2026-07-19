@@ -411,13 +411,20 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .call => {
             const lhs_span = ast.lhs().token().span;
-            if (ast.lhs().* == .type_access) {
+            // A generic method's type_access sits under a generic_apply holding the type args
+            const fqs_node: ?*ast_.AST = if (ast.lhs().* == .type_access)
+                ast.lhs()
+            else if (ast.lhs().* == .generic_apply and ast.lhs().lhs().* == .type_access)
+                ast.lhs().lhs()
+            else
+                null;
+            if (fqs_node) |fqs| {
                 // FQS call, overwrite abstract symbol with concrete impl, lhs_type stays identifier(Trait) to avoid nested as_trait on monomorphized clones
-                const lhs_type_node = ast.lhs().type_access._lhs_type;
+                const lhs_type_node = fqs.type_access._lhs_type;
                 if ((lhs_type_node.* == .identifier or lhs_type_node.* == .access or lhs_type_node.* == .generic_apply) and lhs_type_node.symbol() != null and lhs_type_node.symbol().?.kind == .trait) {
                     // Search for where the Self type should be extracted given the trait method decl
                     const trait_decl = lhs_type_node.symbol().?.decl.?;
-                    const method_name = ast.lhs().rhs().token().data;
+                    const method_name = fqs.rhs().token().data;
                     const res = try find_self_type(trait_decl, method_name);
                     if (res == null) {
                         self.ctx.errors.add_error(errs_.Error{ .basic = .{ .span = ast.token().span, .msg = "cannot select method implementation, trait method's signature does not mention `Self`" } });
@@ -450,12 +457,21 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         self.ctx.errors.add_error(errs_.Error{ .type_not_impl_method = .{ .span = ast.token().span, .method_name = method_name, ._type = concrete_type.strip_as_trait(), .candidates = null } });
                         return error.CompileError;
                     }
-                    ast.lhs().set_symbol(candidate_methods.keys()[0].symbol().?);
+                    const concrete = candidate_methods.keys()[0].symbol().?;
+                    fqs.set_symbol(concrete);
+                    if (ast.lhs().* == .generic_apply) {
+                        // The generic_apply monomorphized the abstract trait method, redo it against the impl's
+                        var coerced = try generic_apply_.coerce_generic_params(concrete.decl.?.generic_params().items, ast.lhs().generic_apply._children.items, self.ctx);
+                        defer coerced.deinit();
+                        ast.lhs().set_symbol(try concrete.monomorphize(coerced, self.ctx));
+                    }
                 }
             }
 
             if (ast.lhs().* == .type_access and ast.lhs().type_access._lhs_type.* == .as_trait) {
                 const as_trait_node = ast.lhs().type_access._lhs_type;
+                // Resolve any `@typeof` first, a clone carries it unresolved
+                try walk_.walk_type(as_trait_node, Type_Decorate.new(self.ctx));
                 // Auto-deref the receiver type to its base type
                 // This lets stuff like `(@typeof(self) as Index)::index(self, i)` work when `self: &[]T`
                 var base = as_trait_node.lhs();
@@ -465,9 +481,8 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         base = exp.child();
                     } else break;
                 }
-                as_trait_node.as_trait._lhs = base;
-
-                const for_type = as_trait_node.lhs();
+                // Don't write `base` back, that bakes a template's resolution into nodes monomorphs clone
+                const for_type = base;
                 try self.ctx.validate_type.validate_type(for_type);
                 var candidate_method_decls = std.array_hash_map.AutoArrayHashMap(*ast_.AST, void).init(self.ctx.allocator());
                 defer candidate_method_decls.deinit();
@@ -511,11 +526,11 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
                         switch (arg) {
                             .type_arg => |ty| {
                                 if (ty.* == .eq_constraint) continue;
-                                s.put_type(callee_params[param_i].symbol().?.name, ty) catch unreachable;
+                                s.put_type(callee_params[param_i].symbol().?, ty) catch unreachable;
                                 param_i += 1;
                             },
                             .const_arg => |v| {
-                                s.put_const(callee_params[param_i].symbol().?.name, v) catch unreachable;
+                                s.put_const(callee_params[param_i].symbol().?, v) catch unreachable;
                                 param_i += 1;
                             },
                         }
@@ -836,7 +851,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .struct_value => {
             try self.ctx.validate_type.validate_type(ast.struct_value.parent);
-            const expanded_expected: *Type_AST = if (expected == null) ast.struct_value.parent.expand_identifier() else expected.?.expand_identifier();
+            // Check fields against the literal's own type, so a wrong type arg outranks the field value
+            const from_parent = ast.struct_value.parent.expand_identifier();
+            const expanded_expected: *Type_AST = if (from_parent.* == .struct_type or expected == null) from_parent else expected.?.expand_identifier();
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.@"struct", ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
@@ -1533,7 +1550,7 @@ fn method_fits(
 
         const scratch = self.ctx.allocator().create(unification_.Substitutions) catch unreachable;
         scratch.* = unification_.Substitutions.init(self.ctx.allocator());
-        scratch.put_type("Self", stripped_lhs) catch unreachable;
+        scratch.put_type(enclosing_impl.?.impl.self_symbol.?, stripped_lhs) catch unreachable;
         unification_.unify(enclosing_impl.?.impl._type, stripped_lhs, scratch, .{}) catch
             return .{ .not_viable = .receiver_mismatch };
         impl_subst = scratch;
@@ -1606,7 +1623,7 @@ fn method_fits(
     // A template is only viable if every impl param got solved
     if (impl_subst) |is| {
         for (enclosing_impl.?.impl._generic_params.items) |param| {
-            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?.name) == null) {
+            if ((param.is_typelike_param_decl()) and is.get_type(param.symbol().?) == null) {
                 return .{ .not_viable = .{ .ret_type_mismatch = .{ .expected = expected orelse method_type.function._rhs, .got = method_type.function._rhs } } };
             }
         }
@@ -1614,7 +1631,7 @@ fn method_fits(
         // Every solved param must satisfy its constraints, subst'd through the solution
         for (enclosing_impl.?.impl._generic_params.items) |param| {
             if (param.* != .type_param_decl) continue;
-            const solved = is.get_type(param.symbol().?.name).?;
+            const solved = is.get_type(param.symbol().?).?;
             for (param.type_param_decl.constraints.items) |constraint| {
                 const substd_constraint = constraint.clone(is, self.ctx.allocator());
                 const sat_res = solved.satisfies_all_constraints(&[_]*Type_AST{substd_constraint}, null, self.ctx) catch

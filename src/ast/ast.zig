@@ -188,6 +188,7 @@ pub const AST = union(enum) {
         const_decls: std.array_list.Managed(*AST),
         type_decls: std.array_list.Managed(*AST),
         num_virtual_methods: i64 = 0,
+        self_symbol: ?*Symbol = null, // Filled by symbol-tree
         _symbol: ?*Symbol = null, // Filled by symbol-tree pass.
         _scope: ?*Scope = null, // Filled by symbol-tree pass.
 
@@ -225,6 +226,7 @@ pub const AST = union(enum) {
         type_defs: std.array_list.Managed(*AST),
         _generic_params: std.array_list.Managed(*AST), // list of annotations
         num_virtual_methods: i64 = 0,
+        self_symbol: ?*Symbol = null, // Filled by symbol-tree
         _scope: ?*Scope = null, // Scope used for `impl` methods, rooted in `impl`'s scope.
         impls_anon_trait: bool = false, // true when this impl implements an anonymous trait
         instantiations: Monomorph_Map(*AST),
@@ -1567,16 +1569,18 @@ pub const AST = union(enum) {
             .field => return create_field(self.token(), allocator),
             .identifier => {
                 if (self.refers_to_type()) {
-                    if (substs.get_type(self.token().data)) |replacement| {
-                        // A composite replacement type cannot be a bare identifier, so rebuild its value expr to keep the structure. Falls back to the token for plain types
-                        if (replacement.* != .identifier) {
-                            if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
+                    if (self.symbol()) |sym| {
+                        if (substs.get_type(sym)) |replacement| {
+                            // A composite replacement type cannot be a bare identifier, so rebuild its value expr to keep the structure. Falls back to the token for plain types
+                            if (replacement.* != .identifier) {
+                                if (replacement.to_value_expr(allocator)) |value_expr| return value_expr;
+                            }
+                            return create_identifier(replacement.token(), allocator);
                         }
-                        return create_identifier(replacement.token(), allocator);
                     }
                 } else if (self.is_const_param_ref()) {
-                    if (substs.get_const(self.token().data)) |replacement| {
-                        return replacement;
+                    if (self.symbol()) |sym| {
+                        if (substs.get_const(sym)) |replacement| return replacement;
                     }
                 }
                 return create_identifier(self.token(), allocator);

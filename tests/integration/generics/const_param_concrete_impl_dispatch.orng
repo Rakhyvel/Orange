@@ -1,0 +1,18 @@
+// 3
+struct Buf[const n: Int, T] { data: [n]T }
+
+impl[T] for Buf[3, T] {
+    fn tag(&self) -> Int {
+        _ = self
+        3
+    }
+}
+
+impl[const n: Int, T] for Buf[n, T] {
+    fn probe(&self) -> Int { self.>tag() }
+}
+
+fn main() -> Int {
+    let b = Buf[3, Int](([3]Int)::default)
+    b.>probe()
+}

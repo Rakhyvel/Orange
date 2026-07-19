@@ -36,7 +36,10 @@ pub fn postfix_type(self: Self, _type: *Type_AST) walk_.Error!void {
                     error.CompileError => return error.CompileError,
                     error.OutOfMemory => return error.OutOfMemory,
                 };
+                const typeof_source = _type.type_of._expr;
                 _type.* = typeof_expr.*;
+                // Resolving overwrites the node, remember the expr so clones re-resolve
+                _type.set_from_type_of(typeof_source);
             },
             .domain_of => {
                 var child = _type.domain_of._child;

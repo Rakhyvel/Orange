@@ -1,0 +1,6 @@
+// 246
+fn outer[T](x: Int) -> Int {
+    fn scale[const m: Int](y: Int) -> Int { y * m }
+    scale[2](x)
+}
+fn main() -> Int { outer[Int](123) }

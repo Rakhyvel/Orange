@@ -1,0 +1,17 @@
+// 609
+struct Box { seed: Int }
+
+impl for Box {
+    fn combine[T](&self, x: []T) -> (Int, T) { (self.seed, x[0]) }
+}
+
+fn main() -> Int {
+    let b = Box(609)
+    let xs = [true, false]
+    let (n, flag) = Box::combine[Bool](&b, &xs)
+    if flag {
+        n
+    } else {
+        unreachable
+    }
+}

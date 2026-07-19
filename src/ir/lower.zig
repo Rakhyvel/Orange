@@ -651,7 +651,8 @@ fn lower_AST_inner(
             return self.lval_from_unit_value(ast);
         },
         .decl => return self.lval_from_unit_value(ast),
-        .fn_decl => return try self.lval_from_symbol_cfg(ast.symbol().?, ast.token().span),
+        // A generic template gets no CFG of its own, only its monomorphs do
+        .fn_decl => return if (ast.num_generic_params() > 0) null else try self.lval_from_symbol_cfg(ast.symbol().?, ast.token().span),
         .@"errdefer", .@"defer" => return self.lval_from_unit_value(ast),
         .@"continue" => {
             self.instructions.append(Instruction.init_jump(labels.continue_label, ast.token().span, self.ctx.allocator())) catch unreachable;
