@@ -32,16 +32,16 @@ fn instantiate_ast(ast: *AST, ctx: *Compiler_Context) !void {
 
 fn instantiate_type(_type: *Type_AST, ctx: *Compiler_Context) !void {
     std.debug.assert(_type.* == .generic_apply);
-    if (_type.symbol()) |_| return;
+    // An AST-to-type conversion can hand us a node that already has a symbol, it still needs baking
+    if (_type.symbol()) |already| return bake_deferred_args(_type, already, ctx);
     const sym = try monomorphize_generic_apply(_type.lhs().symbol().?, _type.generic_apply.args, _type.token().span, &_type.generic_apply.state, ctx);
     _type.set_symbol(sym);
     bake_deferred_args(_type, sym, ctx);
 }
 
-/// Monomorphization defers on abstract args and hands back the template, whose typedef still names
-/// the template's own params. Memoize an arg-substituted expansion so `expand_identifier` sees the
-/// caller's types instead
+/// Memoizes a deferred monomorph's arg-substituted expansion, its symbol is only the template
 fn bake_deferred_args(_type: *Type_AST, sym: *Symbol, ctx: *Compiler_Context) void {
+    if (_type.common()._expanded_type != null) return; // already baked
     const params = sym.decl.?.generic_params().items;
     if (params.len == 0) return; // fully monomorphized, its typedef is already concrete
     const typedef = sym.init_typedef() orelse return;

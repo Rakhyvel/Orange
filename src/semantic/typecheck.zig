@@ -837,7 +837,9 @@ fn typecheck_AST_internal(self: *Self, ast: *ast_.AST, expected: ?*Type_AST, sub
         },
         .struct_value => {
             try self.ctx.validate_type.validate_type(ast.struct_value.parent);
-            const expanded_expected: *Type_AST = if (expected == null) ast.struct_value.parent.expand_identifier() else expected.?.expand_identifier();
+            // Check fields against the literal's own type, so a wrong type arg outranks the field value
+            const from_parent = ast.struct_value.parent.expand_identifier();
+            const expanded_expected: *Type_AST = if (from_parent.* == .struct_type or expected == null) from_parent else expected.?.expand_identifier();
             if (expanded_expected.* == .struct_type) {
                 // Expecting ast to be a product value of some product type
                 var args_validator = args_.init(.@"struct", ast.children(), ast.token().span, expanded_expected.children(), &self.ctx.errors, self.ctx.allocator());
