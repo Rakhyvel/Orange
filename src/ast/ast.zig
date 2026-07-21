@@ -2284,6 +2284,7 @@ pub const AST = union(enum) {
             .const_param_decl => null,
             .module => null,
             .trait => null, // Traits are not types, callers should check decl kind first
+            .decl => null, // A value binding has no type definition
             else => std.debug.panic("compiler error: cannot call `.decl_typedef()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }

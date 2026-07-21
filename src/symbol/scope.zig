@@ -395,6 +395,13 @@ pub fn lookup_member_in_trait(trait_decl: *ast_.AST, for_type: *Type_AST, name: 
         var subst = unification_.Substitutions.init(compiler.allocator());
         defer subst.deinit();
         subst.put_type(trait_decl.trait.self_symbol.?, for_type) catch unreachable;
+        // Wipe the method's own generic params so refs remap to the clone's fresh param decl, not the template
+        for (method_decl.method_decl._generic_params.items) |gp| {
+            switch (gp.*) {
+                .const_param_decl => subst.put_const(gp.symbol().?, ast_.AST.create_identifier(gp.token(), compiler.allocator())) catch unreachable,
+                else => subst.put_type(gp.symbol().?, Type_AST.create_type_identifier(gp.token(), compiler.allocator())) catch unreachable,
+            }
+        }
         const cloned = method_decl.clone(&subst, compiler.allocator());
         const new_scope = init(method_decl.symbol().?.scope.parent.?.parent.?, method_decl.symbol().?.scope.uid_gen, compiler.allocator());
         // new_scope skips the trait scope, so re-bind the trait's generic params so a default body referencing them still resolves

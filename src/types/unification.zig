@@ -117,6 +117,12 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
+    // Accesses match when the field is the same and their base types unify
+    if (lhs.* == .access and rhs.* == .access and std.mem.eql(u8, lhs.rhs().token().data, rhs.rhs().token().data)) base_match: {
+        unify_inner(lhs.lhs(), rhs.lhs(), subst, visited_map, options) catch break :base_match;
+        return;
+    }
+
     if (lhs.* == .access) {
         if (lhs.symbol() != null and lhs.symbol().?.init_typedef() != null) {
             return try unify_inner(lhs.symbol().?.init_typedef().?, rhs, subst, visited_map, options);
@@ -278,7 +284,10 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
             if (rhs.* != .generic_apply) return error.TypesMismatch;
             std.debug.assert(lhs.lhs().symbol() != null);
             std.debug.assert(rhs.lhs().symbol() != null);
-            if (lhs.lhs().symbol() != rhs.lhs().symbol()) return error.TypesMismatch;
+            // Two monomorphs of the same generic share a base, the type args disambiguate
+            const l_base = lhs.lhs().symbol().?;
+            const r_base = rhs.lhs().symbol().?;
+            if ((l_base.generic_template orelse l_base) != (r_base.generic_template orelse r_base)) return error.TypesMismatch;
             const l_args = lhs.generic_apply.args.items;
             const r_args = rhs.generic_apply.args.items;
             if (l_args.len != r_args.len) return error.TypesMismatch;
