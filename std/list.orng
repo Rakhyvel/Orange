@@ -403,6 +403,20 @@ test "filter empty" with core::Allocating {
     .ok
 }
 
+// TODO: Move to core Map Iterator impl
+test "map" with core::Allocating {
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
+    defer list.>deinit()
+
+    let mut i = 0
+    for x in list.>into_iter().>map[Int](fn (x: Int) -> Int {x * 2}) {
+        try testing::expect(2 * list[i] == x)
+        i += 1
+    }
+
+    .ok
+}
+
 test "index" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()

@@ -1,0 +1,16 @@
+// default_generic_method_impl_collision.orng:14:7: error: redefinition of symbol `A`
+// impl[A] Some_Trait for Thingy[A] {}
+//      ^
+// default_generic_method_impl_collision.orng:9:21: note: other definition of `A` here:
+//     fn some_method[A](a: A) -> A { a }
+//                    ^
+// 
+trait Some_Trait {
+    fn some_method[A](a: A) -> A { a }
+}
+
+struct Thingy[A] { a: A }
+
+impl[A] Some_Trait for Thingy[A] {}
+
+fn main() {}

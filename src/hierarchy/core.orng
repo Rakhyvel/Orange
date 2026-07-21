@@ -878,6 +878,10 @@ trait Iterator {
     fn filter(self, predicate: &Self::Item -> Bool) -> Filter[Self] {
         Filter[Self](self, predicate)
     }
+
+    fn map[B](self, f: Self::Item -> B) -> Map[Self, B] {
+        Map[Self, B](self, f)
+    }
 }
 
 struct Filter[Iter: Iterator] {
@@ -898,6 +902,22 @@ impl[Iter: Iterator] Iterator for Filter[Iter] {
             }
         }
         .none
+    }
+}
+
+struct Map[Iter: Iterator, B] {
+    inner: Iter
+    f: Iter::Item -> B
+}
+
+impl[Iter: Iterator, Co] Iterator for Map[Iter, Co] {
+    type Item = Co
+
+    fn next(&mut self) -> ?Self::Item {
+        match self.inner.>next() {
+            .none => .none
+            .some(x) => .some(self.f(x))
+        }
     }
 }
 

@@ -105,6 +105,15 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
     var coerced_args = try coerce_generic_params(params.items, filtered_args.items, ctx);
     defer coerced_args.deinit();
 
+    if (coerced_args.items.len == 0 and params.items.len > 0) {
+        ctx.errors.add_error(.{ .unapplied_generic = .{
+            .span = span,
+            .symbol_name = sym.name,
+            .num_generics = params.items.len,
+        } });
+        return error.CompileError;
+    }
+
     // Check arity
     if (params.items.len != coerced_args.items.len) {
         ctx.errors.add_error(errs_.Error{ .mismatch_arity = .{

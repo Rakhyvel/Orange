@@ -124,9 +124,25 @@ fn decorate_prefix(self: Self, ast: *ast_.AST) walk_.Error!?Self {
             const trait_ast = trait_symbol.decl.?;
             if (trait_ast.* != .trait) return self; // error, catch it later
             try walk_.walk_ast(trait_ast, self); // decorate early-returns on decorated nodes
+
+            // Copy over the default methods
             for (trait_ast.trait.method_decls.items) |method_decl| {
                 if (method_decl.method_decl.init == null) continue; // not defaulted, ignore
-                if (impl_provides_method(ast, method_decl.method_decl.name.token().data)) continue; // overridden
+                if (impl_provides_method(ast, method_decl.method_decl.name.token().data)) continue; // overridden, ignore
+
+                // A default method's generic param sharing the impl's param name collides, blame the impl's param
+                for (method_decl.method_decl._generic_params.items) |m_gp| {
+                    for (ast.impl._generic_params.items) |i_gp| {
+                        if (std.mem.eql(u8, m_gp.token().data, i_gp.token().data)) {
+                            self.ctx.errors.add_error(errs_.Error{ .redefinition = .{
+                                .redefined_span = i_gp.token().span,
+                                .first_defined_span = m_gp.token().span,
+                                .name = i_gp.token().data,
+                            } });
+                            return error.CompileError;
+                        }
+                    }
+                }
 
                 var subst = unification_.Substitutions.init(self.ctx.allocator());
                 defer subst.deinit();
