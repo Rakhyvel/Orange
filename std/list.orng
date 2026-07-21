@@ -428,6 +428,24 @@ test "fold" with core::Allocating {
     .ok
 }
 
+// TODO: Move to under core Zip Iterator impl
+test "zip" with core::Allocating {
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
+    defer list.>deinit()
+
+    let mut list2 = List[Int]::init_from_slice(&[4, 3, 2, 1]) catch {return .err}
+    defer list2.>deinit()
+
+    let sum = list.>into_iter().>fold[Int](0, fn (x: Int, y: Int) -> Int {x + y})
+    try testing::expect(sum == 10)
+
+    for (a, b) in list.>into_iter().>zip[List[Int]](list2) {
+        try testing::expect(a + b == 5)
+    }
+
+    .ok
+}
+
 test "index" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()
