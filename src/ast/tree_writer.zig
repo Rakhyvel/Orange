@@ -89,6 +89,10 @@ fn tree_writer_prefix_type(self: Self, _type: *Type_AST) walker_.Error!?Self {
             if (_type.symbol()) |sym| sym.name else null,
             if (_type.symbol()) |sym| sym.scope.uid else null,
         }),
+        .access => std.debug.print(".symbol={?s}@{?}", .{
+            if (_type.symbol()) |sym| sym.name else null,
+            if (_type.symbol()) |sym| sym.scope.uid else null,
+        }),
         .annotation => std.debug.print(".name={f}", .{_type.annotation.pattern}),
         .field => std.debug.print(".data={s}", .{_type.token().data}),
     }

@@ -45,6 +45,22 @@ fn bake_deferred_args(_type: *Type_AST, sym: *Symbol, ctx: *Compiler_Context) vo
     const params = sym.decl.?.generic_params().items;
     if (params.len == 0) return; // fully monomorphized, its typedef is already concrete
     const typedef = sym.init_typedef() orelse return;
+
+    const Symbol_Tree = @import("../ast/symbol-tree.zig");
+    const Decorate = @import("../ast/decorate.zig");
+    const walk_ = @import("../ast/walker.zig");
+
+    // bake can run before the template's typedef is decorated, so its param refs still lack symbols and
+    // the subst below (keyed by param symbol) would match nothing. Decorate it in the param scope first.
+    // Skip if this typedef is already mid-decoration, a self-referential field would recurse forever
+    if (!sym.baking_typedef) {
+        sym.baking_typedef = true;
+        defer sym.baking_typedef = false;
+        const param_scope = params[0].symbol().?.scope;
+        walk_.walk_type(typedef, Symbol_Tree.new(param_scope, &ctx.errors, ctx.allocator())) catch unreachable;
+        walk_.walk_type(typedef, Decorate.new(ctx)) catch unreachable;
+    }
+
     var subst = unification_.Substitutions.init(ctx.allocator());
     var param_i: usize = 0;
     for (_type.generic_apply.args.items) |arg| {
@@ -61,7 +77,12 @@ fn bake_deferred_args(_type: *Type_AST, sym: *Symbol, ctx: *Compiler_Context) vo
             },
         }
     }
-    _type.set_expanded_type(typedef.clone(&subst, ctx.allocator()));
+
+    const expanded = typedef.clone(&subst, ctx.allocator());
+    // Clone wipes scopes, replay Symbol_Tree so accesses like `Iter::Item` resolve after substitution
+    const scope = _type.scope() orelse sym.scope;
+    walk_.walk_type(expanded, Symbol_Tree.new(scope, &ctx.errors, ctx.allocator())) catch unreachable;
+    _type.set_expanded_type(expanded);
 }
 
 fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(GenericArg), span: Span, state: *process_state_.Process_State, ctx: *Compiler_Context) !*Symbol {

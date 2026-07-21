@@ -518,11 +518,21 @@ fn create_symbol(
             pattern.set_symbol(symbol);
             try symbols.append(symbol);
         },
-        .tuple_value, .array_value => {
+        .tuple_value => {
             for (pattern.children().items, 0..) |term, i| {
                 const index = ast_.AST.create_int(pattern.token(), i, allocator);
                 const new_type: *Type_AST = Type_AST.create_index_type(_type.token(), _type, index, allocator);
-                try create_symbol(symbols, term, decl, new_type, null, scope, errors, allocator);
+                // A nested pattern (like an enum ctor) reads its scrutinee from init, select the i-th field
+                const new_init: ?*ast_.AST = if (init) |x| ast_.AST.create_positional_select(pattern.token(), x, index, allocator) else null;
+                try create_symbol(symbols, term, decl, new_type, new_init, scope, errors, allocator);
+            }
+        },
+        .array_value => {
+            for (pattern.children().items, 0..) |term, i| {
+                const index = ast_.AST.create_int(pattern.token(), i, allocator);
+                const new_type: *Type_AST = Type_AST.create_index_type(_type.token(), _type, index, allocator);
+                const new_init: ?*ast_.AST = if (init) |x| try ast_.AST.create_index_call(pattern.token(), x, index, false, allocator) else null;
+                try create_symbol(symbols, term, decl, new_type, new_init, scope, errors, allocator);
             }
         },
         .enum_value => {

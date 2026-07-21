@@ -874,6 +874,81 @@ trait Iterator {
     type Item
 
     fn next(&mut self) -> ?Self::Item
+
+    fn filter(self, predicate: &Self::Item -> Bool) -> Filter[Self] {
+        Filter[Self](self, predicate)
+    }
+
+    fn map[B](self, f: Self::Item -> B) -> Map[Self, B] {
+        Map[Self, B](self, f)
+    }
+
+    fn fold[B](&mut self, mut init: B, f: (Self::Item, B) -> B) -> B {
+        while true {
+            match self.>next() {
+                .none => {return init}
+                .some(x) => init = f(x, init)
+            }
+        }
+        init
+    }
+
+    fn zip[U: Into_Iterator](self, other: U) -> Zip[Self, U::Iter] {
+        Zip[Self, U::Iter](self, other.>into_iter())
+    }
+}
+
+struct Filter[Iter: Iterator] {
+    inner: Iter
+    predicate: &Iter::Item -> Bool
+}
+
+impl[Iter: Iterator] Iterator for Filter[Iter] {
+    type Item = Iter::Item
+
+    fn next(&mut self) -> ?Self::Item {
+        while true {
+            match self.inner.>next() {
+                .none => {return .none}
+                .some(x) => if self.predicate(&x) {
+                    return .some(x)
+                }
+            }
+        }
+        .none
+    }
+}
+
+struct Map[Iter: Iterator, Codomain] {
+    inner: Iter
+    f: Iter::Item -> Codomain
+}
+
+impl[Iter: Iterator, Codomain] Iterator for Map[Iter, Codomain] {
+    type Item = Codomain
+
+    fn next(&mut self) -> ?Self::Item {
+        match self.inner.>next() {
+            .none => .none
+            .some(x) => .some(self.f(x))
+        }
+    }
+}
+
+struct Zip[Left: Iterator, Right: Iterator] {
+    left: Left
+    right: Right
+}
+
+impl[Left: Iterator, Right: Iterator] Iterator for Zip[Left, Right] {
+    type Item = ((Left as Iterator)::Item, (Right as Iterator)::Item)
+
+    fn next(&mut self) -> ?Self::Item {
+        match (self.left.>next(), self.right.>next()) {
+            (.some(a), .some(b)) => .some((a, b))
+            _                    => .none
+        }
+    }
 }
 
 trait Into_Iterator {
