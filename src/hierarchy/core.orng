@@ -896,6 +896,10 @@ trait Iterator {
     fn zip[U: Into_Iterator](self, other: U) -> Zip[Self, U::Iter] {
         Zip[Self, U::Iter](self, other.>into_iter())
     }
+
+    fn collect[B: From_Iterator[Self::Item]](self) -> B {
+        (B as From_Iterator[Self::Item])::from_iter[Self](self)
+    }
 }
 
 struct Filter[Iter: Iterator] {
@@ -956,6 +960,10 @@ trait Into_Iterator {
     type Iter: Iterator[Item = Self::Item]
 
     fn into_iter(self) -> Self::Iter
+}
+
+trait From_Iterator[A] {
+    fn from_iter[T: Into_Iterator[Item = A]](iter: T) -> Self
 }
 
 struct Slice_Iter[T] {

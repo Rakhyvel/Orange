@@ -1580,7 +1580,13 @@ pub const AST = union(enum) {
                     }
                 } else if (self.is_const_param_ref()) {
                     if (self.symbol()) |sym| {
-                        if (substs.get_const(sym)) |replacement| return replacement;
+                        if (substs.get_const(sym)) |replacement| {
+                            return replacement;
+                        }
+                        // No substitution, keep the injected const-param symbol so it stays resolved after the clone
+                        const id = create_identifier(self.token(), allocator);
+                        id.set_symbol(sym);
+                        return id;
                     }
                 }
                 return create_identifier(self.token(), allocator);

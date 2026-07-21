@@ -145,10 +145,15 @@ fn monomorphize_generic_apply(sym: *Symbol, args: std.array_list.Managed(Generic
                 const ty = arg.type_arg;
                 try ctx.validate_type.validate_type(ty);
 
+                const Symbol_Tree = @import("../ast/symbol-tree.zig");
+                const walk_ = @import("../ast/walker.zig");
                 var substd_constraints = std.array_list.Managed(*Type_AST).init(ctx.allocator());
                 defer substd_constraints.deinit();
                 for (param.type_param_decl.constraints.items) |constraint| {
-                    substd_constraints.append(constraint.clone(&constraint_subst, ctx.allocator())) catch unreachable;
+                    const cloned = constraint.clone(&constraint_subst, ctx.allocator());
+                    // Clone wipes scopes, replay Symbol_Tree so the constraint's accesses resolve
+                    if (constraint.scope()) |sc| walk_.walk_type(cloned, Symbol_Tree.new(sc, &ctx.errors, ctx.allocator())) catch unreachable;
+                    substd_constraints.append(cloned) catch unreachable;
                 }
 
                 const sat_res = try ty.satisfies_all_constraints(substd_constraints.items, null, ctx);

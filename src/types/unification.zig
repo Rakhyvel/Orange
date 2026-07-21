@@ -332,8 +332,28 @@ fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
     if ((arg.* == .identifier or arg.* == .access) and arg.symbol().?.decl.?.is_typelike_param_decl() and !arg.symbol().?.decl.?.is_rigid_type_param()) {
         return true;
     }
+    // A rigid arg param still fits when its own constraints cover the param's constraints
+    if (arg_constraints_cover_param(param, arg)) return true;
     const expanded_arg = arg.expand_identifier();
     return param.types_match(expanded_arg);
+}
+
+/// Whether both are type params and `arg`'s declared constraints include every non-eq constraint of `param`
+fn arg_constraints_cover_param(param: *Type_AST, arg: *Type_AST) bool {
+    if (!((param.* == .identifier or param.* == .access) and param.symbol() != null and param.symbol().?.decl.?.* == .type_param_decl)) return false;
+    if (!((arg.* == .identifier or arg.* == .access) and arg.symbol() != null and arg.symbol().?.decl.?.* == .type_param_decl)) return false;
+    const param_constraints = param.symbol().?.decl.?.type_param_decl.constraints.items;
+    const arg_constraints = arg.symbol().?.decl.?.type_param_decl.constraints.items;
+    var saw_constraint = false;
+    for (param_constraints) |pc| {
+        if (pc.* == .eq_constraint) continue;
+        const pc_sym = pc.base_symbol() orelse return false;
+        saw_constraint = true;
+        for (arg_constraints) |ac| {
+            if (ac.* != .eq_constraint and ac.base_symbol() == pc_sym) break;
+        } else return false;
+    }
+    return saw_constraint;
 }
 
 /// Whether `ty` is a reference to `sym`, `X::Item` naming `Item` or a param `T` naming `T`. Sees through

@@ -317,16 +317,9 @@ pub fn monomorphize(
 
         // Clone the decl with the substitution
         // unification_.print_substitutions(&subst);
-        const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         const decl = self.decl.?.clone(&subst, ctx.allocator());
-
         decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
-
-        const scope = self.decl.?.scope().?.parent.?;
-
-        const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
-        const decorate_context = Decorate.new(ctx);
-
+        const name = anon_name_.next_anon_name(self.name, ctx.allocator());
         decl.set_decl_name(ast_.AST.create_pattern_symbol(
             Token.init_simple(name),
             self.kind,
@@ -335,6 +328,8 @@ pub fn monomorphize(
             ctx.allocator(),
         ));
 
+        const scope = self.decl.?.scope().?.parent.?;
+        const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
         try walker_.walk_ast(decl, symbol_tree_context);
 
         if (decl.* == .trait) {
@@ -342,11 +337,13 @@ pub fn monomorphize(
             decl.trait.self_symbol = self.decl.?.trait.self_symbol;
         }
 
+        const decorate_context = Decorate.new(ctx);
+        try walker_.walk_ast(decl, decorate_context);
+
         const clone = decl.symbol().?;
         std.debug.assert(clone.cfg == null);
         try self.monomorphs.put(try key.clone(), clone);
         clone.is_monomorphed = true;
-        try walker_.walk_ast(decl, decorate_context);
 
         // std.debug.print("brand new one for ya ({*} aka {s})\n", .{ clone, clone.name });
 

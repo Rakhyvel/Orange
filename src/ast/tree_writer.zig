@@ -60,6 +60,10 @@ fn tree_writer_prefix(self: Self, ast: *ast_.AST) walker_.Error!?Self {
             if (ast.symbol()) |sym| sym.name else null,
             if (ast.symbol()) |sym| sym.scope.uid else null,
         }),
+        .generic_apply => std.debug.print(".symbol={?s}@{?}", .{
+            if (ast.symbol()) |sym| sym.name else null,
+            if (ast.symbol()) |sym| sym.scope.uid else null,
+        }),
         .pattern_symbol => std.debug.print(".data={s}, .symbol={?s}@{?}", .{
             ast.token().data,
             if (ast.symbol()) |sym| sym.name else null,
@@ -90,6 +94,10 @@ fn tree_writer_prefix_type(self: Self, _type: *Type_AST) walker_.Error!?Self {
             if (_type.symbol()) |sym| sym.scope.uid else null,
         }),
         .access => std.debug.print(".symbol={?s}@{?}", .{
+            if (_type.symbol()) |sym| sym.name else null,
+            if (_type.symbol()) |sym| sym.scope.uid else null,
+        }),
+        .generic_apply => std.debug.print(".symbol={?s}@{?}", .{
             if (_type.symbol()) |sym| sym.name else null,
             if (_type.symbol()) |sym| sym.scope.uid else null,
         }),
