@@ -14,6 +14,7 @@ const poison_ = @import("../ast/poison.zig");
 const prelude_ = @import("../hierarchy/prelude.zig");
 const Tree_Writer = @import("../ast/tree_writer.zig");
 const Scope = @import("../symbol/scope.zig");
+const Symbol_Tree = @import("../ast/symbol-tree.zig");
 const typing_ = @import("typing.zig");
 const Type_AST = @import("../types/type.zig").Type_AST;
 const walk_ = @import("../ast/walker.zig");
@@ -1501,6 +1502,8 @@ fn select_method(
             method_type = choice.plan.method_type;
             ast.invoke.method_decl = choice.plan.method_decl;
         }
+        // Both branches carry a clone whose scopes were wiped, replay Symbol_Tree so its accesses resolve
+        try walk_.walk_type(method_type, Symbol_Tree.new(ast.scope().?, &self.ctx.errors, self.ctx.allocator()));
     } else {
         ast.invoke.method_decl = choice.method;
     }

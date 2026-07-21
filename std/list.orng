@@ -417,6 +417,17 @@ test "map" with core::Allocating {
     .ok
 }
 
+// TODO: Move to under core Iterator fold fn
+test "fold" with core::Allocating {
+    let mut list = List[Int]::init_from_slice(&[1, 2, 3, 4]) catch {return .err}
+    defer list.>deinit()
+
+    let sum = list.>into_iter().>fold[Int](0, fn (x: Int, y: Int) -> Int {x + y})
+    try testing::expect(sum == 10)
+
+    .ok
+}
+
 test "index" with core::Allocating {
     let mut list = List[Int]::init_from_slice(&[1, 2, 3]) catch {return .err}
     defer list.>deinit()

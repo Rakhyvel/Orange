@@ -882,6 +882,16 @@ trait Iterator {
     fn map[B](self, f: Self::Item -> B) -> Map[Self, B] {
         Map[Self, B](self, f)
     }
+
+    fn fold[B](&mut self, mut init: B, f: (Self::Item, B) -> B) -> B {
+        while true {
+            match self.>next() {
+                .none => {return init}
+                .some(x) => init = f(x, init)
+            }
+        }
+        init
+    }
 }
 
 struct Filter[Iter: Iterator] {
@@ -905,13 +915,13 @@ impl[Iter: Iterator] Iterator for Filter[Iter] {
     }
 }
 
-struct Map[Iter: Iterator, B] {
+struct Map[Iter: Iterator, Codomain] {
     inner: Iter
-    f: Iter::Item -> B
+    f: Iter::Item -> Codomain
 }
 
-impl[Iter: Iterator, Co] Iterator for Map[Iter, Co] {
-    type Item = Co
+impl[Iter: Iterator, Codomain] Iterator for Map[Iter, Codomain] {
+    type Item = Codomain
 
     fn next(&mut self) -> ?Self::Item {
         match self.inner.>next() {
