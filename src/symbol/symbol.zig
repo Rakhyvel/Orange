@@ -63,7 +63,6 @@ init_validation_state: Symbol_Validation_State,
 param: bool, // True when the symbol is a parameter in a function
 is_temp: bool = false, // Whether this symbol is a temporary when lowered
 is_monomorphed: bool = false, // Whether this symbol came from monomorphing a generic
-generic_template: ?*Self = null, // For a monomorph, the generic symbol it was instantiated from
 in_generic_impl: bool = false, // Whether this symbol is declared inside a generic impl template, whose init cannot be comptime evaluated
 baking_typedef: bool = false, // Guards against re-decorating a self-referential typedef mid-bake
 
@@ -314,25 +313,20 @@ pub fn monomorphize(
             }
         }
 
-        // Wipe a trait method's own generic params so refs remap to the monomorph's fresh param decl, not the template
-        if (self.decl.?.* == .trait) {
-            for (self.decl.?.trait.method_decls.items) |method_decl| {
-                for (method_decl.method_decl._generic_params.items) |gp| {
-                    switch (gp.*) {
-                        .const_param_decl => try subst.put_const(gp.symbol().?, ast_.AST.create_identifier(gp.token(), ctx.allocator())),
-                        else => try subst.put_type(gp.symbol().?, Type_AST.create_type_identifier(gp.token(), ctx.allocator())),
-                    }
-                }
-            }
-        }
-
         try walker_.walk_ast(self.decl.?, Decorate.new(ctx));
 
         // Clone the decl with the substitution
         // unification_.print_substitutions(&subst);
-        const decl = self.decl.?.clone(&subst, ctx.allocator());
-        decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
         const name = anon_name_.next_anon_name(self.name, ctx.allocator());
+        const decl = self.decl.?.clone(&subst, ctx.allocator());
+
+        decl.set_generic_params(std.array_list.Managed(*ast_.AST).init(ctx.allocator()));
+
+        const scope = self.decl.?.scope().?.parent.?;
+
+        const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
+        const decorate_context = Decorate.new(ctx);
+
         decl.set_decl_name(ast_.AST.create_pattern_symbol(
             Token.init_simple(name),
             self.kind,
@@ -341,8 +335,6 @@ pub fn monomorphize(
             ctx.allocator(),
         ));
 
-        const scope = self.decl.?.scope().?.parent.?;
-        const symbol_tree_context = Symbol_Tree.new(scope, &ctx.errors, ctx.allocator());
         try walker_.walk_ast(decl, symbol_tree_context);
 
         if (decl.* == .trait) {
@@ -350,14 +342,11 @@ pub fn monomorphize(
             decl.trait.self_symbol = self.decl.?.trait.self_symbol;
         }
 
-        const decorate_context = Decorate.new(ctx);
-        try walker_.walk_ast(decl, decorate_context);
-
         const clone = decl.symbol().?;
         std.debug.assert(clone.cfg == null);
         try self.monomorphs.put(try key.clone(), clone);
         clone.is_monomorphed = true;
-        clone.generic_template = self.generic_template orelse self;
+        try walker_.walk_ast(decl, decorate_context);
 
         // std.debug.print("brand new one for ya ({*} aka {s})\n", .{ clone, clone.name });
 

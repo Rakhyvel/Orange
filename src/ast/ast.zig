@@ -1580,13 +1580,7 @@ pub const AST = union(enum) {
                     }
                 } else if (self.is_const_param_ref()) {
                     if (self.symbol()) |sym| {
-                        if (substs.get_const(sym)) |replacement| {
-                            return replacement;
-                        }
-                        // No substitution, keep the injected const-param symbol so it stays resolved after the clone
-                        const id = create_identifier(self.token(), allocator);
-                        id.set_symbol(sym);
-                        return id;
+                        if (substs.get_const(sym)) |replacement| return replacement;
                     }
                 }
                 return create_identifier(self.token(), allocator);
@@ -2284,7 +2278,6 @@ pub const AST = union(enum) {
             .const_param_decl => null,
             .module => null,
             .trait => null, // Traits are not types, callers should check decl kind first
-            .decl => null, // A value binding has no type definition
             else => std.debug.panic("compiler error: cannot call `.decl_typedef()` on the AST `{s}`", .{@tagName(self.*)}),
         };
     }

@@ -90,7 +90,7 @@ pub fn generic_args_match(lhs: std.array_list.Managed(GenericArg), rhs: std.arra
     for (lhs.items, rhs.items) |l, r| {
         switch (l) {
             .type_arg => |lt| switch (r) {
-                .type_arg => |rt| unification_.unify(rt, lt, &subst, .{ .strict_assoc = true }) catch return false,
+                .type_arg => |rt| unification_.unify(rt, lt, &subst, .{}) catch return false,
                 .const_arg => return false,
             },
             .const_arg => |lv| switch (r) {

@@ -193,21 +193,6 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
                 // Each constraint the trait requires must be guaranteed by the impl's param
                 for (trait_gp.type_param_decl.constraints.items) |trait_constraint| {
                     if (trait_constraint.* == .eq_constraint) continue;
-                    // Sub `Self` to the impl type on the trait's constraint so it lines up with the impl's structurally
-                    var self_subst = unification_.Substitutions.init(self.ctx.allocator());
-                    defer self_subst.deinit();
-                    self_subst.put_type(trait_ast.trait.self_symbol.?, impl.impl._type) catch unreachable;
-                    const tc_concrete = trait_constraint.clone(&self_subst, self.ctx.allocator());
-                    var structurally_matched = false;
-                    for (impl_gp.type_param_decl.constraints.items) |impl_constraint| {
-                        if (impl_constraint.* == .eq_constraint) continue;
-                        var c_subst = unification_.Substitutions.init(self.ctx.allocator());
-                        defer c_subst.deinit();
-                        unification_.unify(impl_constraint, tc_concrete, &c_subst, .{}) catch continue;
-                        structurally_matched = true;
-                        break;
-                    }
-                    if (structurally_matched) continue;
                     const required = try Decorate.symbol(trait_constraint, self.ctx);
                     if (!(try Scope.param_guarantees_trait(impl_gp, required, self.ctx))) {
                         self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{
@@ -224,21 +209,6 @@ pub fn validate_impl(self: *Self, impl: *ast_.AST) Validate_Error_Enum!void {
                 // The impl's param must not require more than the trait promises
                 for (impl_gp.type_param_decl.constraints.items) |impl_constraint| {
                     if (impl_constraint.* == .eq_constraint) continue;
-                    // A structurally-equal constraint on the trait param satisfies it, mirror of the check above
-                    var structurally_matched = false;
-                    for (trait_gp.type_param_decl.constraints.items) |trait_constraint| {
-                        if (trait_constraint.* == .eq_constraint) continue;
-                        var self_subst = unification_.Substitutions.init(self.ctx.allocator());
-                        defer self_subst.deinit();
-                        self_subst.put_type(trait_ast.trait.self_symbol.?, impl.impl._type) catch unreachable;
-                        const tc_concrete = trait_constraint.clone(&self_subst, self.ctx.allocator());
-                        var c_subst = unification_.Substitutions.init(self.ctx.allocator());
-                        defer c_subst.deinit();
-                        unification_.unify(impl_constraint, tc_concrete, &c_subst, .{}) catch continue;
-                        structurally_matched = true;
-                        break;
-                    }
-                    if (structurally_matched) continue;
                     const declared = try Decorate.symbol(impl_constraint, self.ctx);
                     if (!(try Scope.param_guarantees_trait(trait_gp, declared, self.ctx))) {
                         self.ctx.errors.add_error(errs_.Error{ .mismatch_method_constraint = .{

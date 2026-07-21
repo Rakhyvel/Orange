@@ -1427,23 +1427,11 @@ pub const Type_AST = union(enum) {
                             }
                             break :rhs_resolved eq_rhs;
                         };
-                        // Sub the impl's params into its assoc type def with the binding that matched the impl to self
-                        var got = type_def.?.decl_typedef().?;
-                        if (res.subst) |*impl_subst| {
-                            const Symbol_Tree = @import("../ast/symbol-tree.zig");
-                            walker_.walk_type(got, Decorate.new(ctx)) catch {}; // resolve param refs so the subst keyed by symbol can match them
-                            got = got.clone(impl_subst, ctx.allocator());
-                            // Clone wipes scopes and symbols, replay both so the substituted accesses resolve
-                            if (impl.scope()) |sc| {
-                                walker_.walk_type(got, Symbol_Tree.new(sc, &ctx.errors, ctx.allocator())) catch {};
-                                walker_.walk_type(got, Decorate.new(ctx)) catch {};
-                            }
-                        }
                         var subst = unification_.Substitutions.init(ctx.allocator());
                         defer subst.deinit();
-                        unification_.unify(got, resolved_rhs, &subst, .{}) catch {
+                        unification_.unify(type_def.?.decl_typedef().?, resolved_rhs, &subst, .{}) catch {
                             return .{ .not_eq = .{
-                                .got = got,
+                                .got = type_def.?.decl_typedef().?,
                                 .expected = resolved_rhs,
                                 .associated_type_name = associated_type_name,
                                 .constraint_span = eq_constraint.token().span,
