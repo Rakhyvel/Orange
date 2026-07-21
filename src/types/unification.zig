@@ -336,9 +336,12 @@ fn can_unify_rigid(param: *Type_AST, arg: *Type_AST) bool {
     return param.types_match(expanded_arg);
 }
 
-/// Whether `ty` is itself a bare reference to `sym`, `X::Item` naming `Item` or a param `T` naming `T`
+/// Whether `ty` is a reference to `sym`, `X::Item` naming `Item` or a param `T` naming `T`. Sees through
+/// an `as_trait`, `(X as Iterator)` still names the same param X, it is a constraint wrapper not a subterm
 fn refers_to_same_param(ty: *Type_AST, sym: *Symbol) bool {
-    return (ty.* == .identifier or ty.* == .access) and ty.has_symbol() and ty.symbol() == sym;
+    var t = ty;
+    while (t.* == .as_trait) t = t.lhs();
+    return (t.* == .identifier or t.* == .access) and t.has_symbol() and t.symbol() == sym;
 }
 
 /// Occurs check, whether `sym` appears anywhere in `ty`. Guards unification against infinite types

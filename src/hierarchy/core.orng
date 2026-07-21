@@ -892,6 +892,10 @@ trait Iterator {
         }
         init
     }
+
+    fn zip[U: Into_Iterator](self, other: U) -> Zip[Self, U::Iter] {
+        Zip[Self, U::Iter](self, other.>into_iter())
+    }
 }
 
 struct Filter[Iter: Iterator] {
@@ -927,6 +931,22 @@ impl[Iter: Iterator, Codomain] Iterator for Map[Iter, Codomain] {
         match self.inner.>next() {
             .none => .none
             .some(x) => .some(self.f(x))
+        }
+    }
+}
+
+struct Zip[Left: Iterator, Right: Iterator] {
+    left: Left
+    right: Right
+}
+
+impl[Left: Iterator, Right: Iterator] Iterator for Zip[Left, Right] {
+    type Item = ((Left as Iterator)::Item, (Right as Iterator)::Item)
+
+    fn next(&mut self) -> ?Self::Item {
+        match (self.left.>next(), self.right.>next()) {
+            (.some(a), .some(b)) => .some((a, b))
+            _                    => .none
         }
     }
 }

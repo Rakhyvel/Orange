@@ -313,7 +313,7 @@ pub fn probe_type(
     for (0..expected_length) |i| {
         const param_type = self.expected.items[i];
         const term_type = ctx.typecheck.typecheck_AST(self.args.items[i], param_type, subst) catch {
-            return .{ .param_idx = i, .arg_type = Type_AST.create_type_of(self.args.items[i].token(), self.args.items[i], ctx.allocator()) };
+            return .{ .param_idx = i };
         };
         if (param_type.* != .unit_type) {
             unification_.unify(term_type, param_type, subst, .{ .allow_rigid = false, .mode = .assignable }) catch {
