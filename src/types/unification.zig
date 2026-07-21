@@ -45,7 +45,7 @@ const Pair = struct { lhs: *Type_AST, rhs: *Type_AST };
 const Visited_Map = std.array_hash_map.AutoArrayHashMap(Pair, void);
 
 const Check_Mode = enum { unify, assignable };
-const Options = struct { allow_rigid: bool = true, mode: Check_Mode = .unify };
+const Options = struct { allow_rigid: bool = true, mode: Check_Mode = .unify, strict_assoc: bool = false };
 
 // Attempt to match the rhs with the lhs
 pub fn unify(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, options: Options) !void {
@@ -117,9 +117,14 @@ fn unify_inner(lhs: *Type_AST, rhs: *Type_AST, subst: *Substitutions, visited_ma
         return try unify_inner(lhs, rhs.symbol().?.init_typedef().?, subst, visited_map, options);
     }
 
-    // Accesses match when the field is the same and their base types unify
+    // Accesses match when the field is the same and their base types unify. Under strict_assoc (monomorph
+    // key comparison) two concrete bases that fail to unify make the assoc types distinct, rather than
+    // collapsing through a shared unmonomorphized alias body (`Hash_Iterator[Int]::Item` vs `..[String]::Item`)
     if (lhs.* == .access and rhs.* == .access and std.mem.eql(u8, lhs.rhs().token().data, rhs.rhs().token().data)) base_match: {
-        unify_inner(lhs.lhs(), rhs.lhs(), subst, visited_map, options) catch break :base_match;
+        unify_inner(lhs.lhs(), rhs.lhs(), subst, visited_map, options) catch {
+            if (options.strict_assoc and base_is_concrete(lhs.lhs()) and base_is_concrete(rhs.lhs())) return error.TypesMismatch;
+            break :base_match;
+        };
         return;
     }
 
@@ -363,6 +368,16 @@ fn arg_constraints_cover_param(param: *Type_AST, arg: *Type_AST) bool {
         } else return false;
     }
     return saw_constraint;
+}
+
+/// Whether an access base is a concrete type, a generic application or a nominal, not a type param. Two
+/// concrete bases that do not unify make their associated types distinct
+fn base_is_concrete(ty: *Type_AST) bool {
+    var t = ty;
+    while (t.* == .as_trait) t = t.lhs();
+    if (t.* == .generic_apply) return true;
+    if (t.* == .identifier or t.* == .access) return t.symbol() != null and t.symbol().?.decl.?.* != .type_param_decl;
+    return false;
 }
 
 /// Whether `ty` is a reference to `sym`, `X::Item` naming `Item` or a param `T` naming `T`. Sees through
